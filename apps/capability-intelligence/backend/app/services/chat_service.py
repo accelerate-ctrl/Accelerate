@@ -1,0 +1,256 @@
+"""RAG Chat — embed query → vector search → LLM call with citations.
+
+Per spec §12 / ARCHITECTURE Batch 8.
+
+Pipeline
+========
+
+    user prompt
+        │
+        ▼
+    embeddings.embed_text(prompt) (Batch 4)
+        │
+        ▼
+    VectorStore.search(prompt, k=8)  → news / trends / SOWs / stories
+        │
+        ▼
+    structured retrieval: also pull recent reasoning chains for the
+    detected subcap (regex P1C1.1.1) so the answer can cite the loop's
+    grounded claims.
+        │
+        ▼
+    consultant_loop.run(synth=GEMINI_PRO) with the assembled evidence
+        │
+        ▼
+    Reply with claims + cited source IDs; persisted to
+    chat_conversations as a message turn.
+
+Conversation memory: at most 10 most-recent turns are passed back into
+the next prompt so multi-turn context survives. Beyond 10 we summarise
+to keep token budget bounded.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from typing import Any
+from uuid import uuid4
+
+from .repository import get_repository
+
+logger = logging.getLogger(__name__)
+
+CONVERSATIONS_COLLECTION = "chat_conversations"
+MAX_HISTORY_TURNS = 10
+DEFAULT_TOP_K = 8
+
+_SUBCAP_RX = re.compile(r"\bP[1-4]C\d+\.\d+(?:\.\d+)?\b")
+
+
+@dataclass
+class ChatTurn:
+    role: str  # "user" | "assistant"
+    text: str
+    citations: list[str] = field(default_factory=list)
+    chain_id: str | None = None
+    cost_usd: float = 0.0
+    sources: list[dict] = field(default_factory=list)
+    created_at: str = ""
+
+
+@dataclass
+class ChatReply:
+    conversation_id: str
+    message_id: str
+    reply: str
+    citations: list[str]
+    chain_id: str | None
+    cost_usd: float
+    sources: list[dict]
+
+
+# ─── Helpers ────────────────────────────────────────────────────────────────
+
+
+def _extract_subcap(text: str) -> str | None:
+    m = _SUBCAP_RX.search(text)
+    return m.group(0) if m else None
+
+
+def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
+    """Pull semantic + structured evidence rows the chat LLM can cite."""
+    from .llm.vector_store import VectorStore
+
+    sources: list[dict] = []
+    vs = VectorStore()
+    if vs.size() > 0:
+        for hit in vs.search(query, k=top_k):
+            sources.append({
+                "id": hit.doc_id,
+                "kind": hit.metadata.get("kind", "vector"),
+                "title": hit.metadata.get("title", hit.doc_id),
+                "text": hit.text[:1200],
+                "score": round(hit.score, 4),
+                "url": hit.metadata.get("url"),
+            })
+
+    # If the user mentioned a specific subcap, surface its lifecycle + sow_signals
+    repo = get_repository()
+    sub_cap_id = _extract_subcap(query)
+    if sub_cap_id:
+        for sow_mention in repo.list("sow_mentions"):
+            if sow_mention.get("sub_cap_id") != sub_cap_id:
+                continue
+            sources.append({
+                "id": sow_mention.get("mention_id") or f"sow-{sow_mention.get('sow_id')}-{sub_cap_id}",
+                "kind": "sow_mention",
+                "title": f"SOW {sow_mention.get('sow_id')}",
+                "text": sow_mention.get("excerpt", ""),
+            })
+        lifecycle = repo.get("lifecycle_scores", sub_cap_id)
+        if lifecycle:
+            sources.append({
+                "id": f"lifecycle-{sub_cap_id}",
+                "kind": "lifecycle",
+                "title": f"Lifecycle for {sub_cap_id}",
+                "text": (
+                    f"State {lifecycle.get('state')} score {lifecycle.get('score')} "
+                    f"confidence {lifecycle.get('confidence')}; signals: "
+                    f"{lifecycle.get('signals')}"
+                ),
+            })
+    return sources
+
+
+def _trim_history(turns: list[dict]) -> list[dict]:
+    if len(turns) <= MAX_HISTORY_TURNS:
+        return turns
+    # Keep the first system-style turn (if any) + the last N-1 turns
+    head = turns[:1] if turns and turns[0].get("role") == "system" else []
+    return head + turns[-(MAX_HISTORY_TURNS - len(head)):]
+
+
+def _conversation_doc_id(conversation_id: str) -> str:
+    return conversation_id
+
+
+# ─── Public API ─────────────────────────────────────────────────────────────
+
+
+def list_conversations(limit: int = 50) -> list[dict]:
+    items = list(get_repository().list(CONVERSATIONS_COLLECTION))
+    items.sort(key=lambda c: c.get("updated_at", ""), reverse=True)
+    return items[:limit]
+
+
+def get_conversation(conversation_id: str) -> dict | None:
+    return get_repository().get(CONVERSATIONS_COLLECTION, conversation_id)
+
+
+def post_message(
+    *,
+    message: str,
+    conversation_id: str | None = None,
+    persist: bool = True,
+) -> ChatReply:
+    """Run a single chat round-trip.
+
+    Returns the reply + citations + back-pointer to the consultant chain
+    that produced it (so the UI can deep-link to Reasoning Chain Viewer).
+    """
+    from .consultant_loop import run as run_loop
+    from .llm.router import ModelKind
+
+    repo = get_repository()
+    now = datetime.now(timezone.utc).isoformat()
+
+    convo = (
+        repo.get(CONVERSATIONS_COLLECTION, conversation_id)
+        if conversation_id
+        else None
+    )
+    if not convo:
+        conversation_id = conversation_id or f"chat-{uuid4().hex[:12]}"
+        convo = {
+            "conversation_id": conversation_id,
+            "created_at": now,
+            "updated_at": now,
+            "turns": [],
+        }
+
+    user_turn = ChatTurn(role="user", text=message, created_at=now)
+    convo["turns"].append(asdict(user_turn))
+    convo["turns"] = _trim_history(convo["turns"])
+
+    sources = _retrieve(message)
+    sub_cap_id = _extract_subcap(message)
+
+    history_blob = "\n".join(
+        f"[{t.get('role')}] {(t.get('text') or '')[:300]}"
+        for t in convo["turns"][-MAX_HISTORY_TURNS:]
+    )
+    query = (
+        "Conversation so far:\n" + history_blob + "\n\n"
+        "Answer the user's latest message using the cited evidence. "
+        "Format citations as [<source_id>] inline."
+    )
+
+    try:
+        loop = run_loop(
+            query=query,
+            sub_cap_id=sub_cap_id,
+            synth_model=ModelKind.GEMINI_PRO,
+            persist=True,
+        )
+        # Assemble reply text from claim outputs (or fall back to raw answer)
+        claims = loop.output.get("claims") or []
+        if claims:
+            reply_text = " ".join(c.get("text", "").strip() for c in claims).strip()
+            cited = sorted({sid for c in claims for sid in (c.get("sources") or [])})
+        else:
+            reply_text = (
+                f"I matched {len(sources)} source(s) but couldn't extract grounded claims. "
+                "Try a more specific question or mention a sub_cap_id like P1C1.1.1."
+            )
+            cited = []
+        chain_id = loop.chain_id
+        cost = loop.total_cost_usd
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("chat consultant_loop failed: %s", exc)
+        reply_text = (
+            "Lookup failed — the underlying consultant loop raised an error. "
+            "Please re-try; if the problem persists, see the QA & Audit "
+            "Dashboard for diagnostics."
+        )
+        cited = []
+        chain_id = None
+        cost = 0.0
+
+    assistant_turn = ChatTurn(
+        role="assistant",
+        text=reply_text,
+        citations=cited,
+        chain_id=chain_id,
+        cost_usd=cost,
+        sources=sources,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    convo["turns"].append(asdict(assistant_turn))
+    convo["updated_at"] = assistant_turn.created_at
+
+    if persist:
+        repo.upsert(CONVERSATIONS_COLLECTION, conversation_id, convo)
+
+    message_id = f"msg-{uuid4().hex[:10]}"
+    return ChatReply(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        reply=reply_text,
+        citations=cited,
+        chain_id=chain_id,
+        cost_usd=cost,
+        sources=sources,
+    )

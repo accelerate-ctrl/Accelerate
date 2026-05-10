@@ -46,6 +46,16 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 8
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `chat_conversations` | `chat-{hex12}` | RAG chat session: rolling turns + per-turn citations + chain_id |
+| `notifications` | `notif-{kind}-{ref}` | In-app notifications w/ severity + read flag + back-ref |
+| `notification_runs` | `notif-refresh-{micro-ts}` | Per-refresh summary |
+| `eval_runs` | `eval-{dataset}-{micro-ts}` | Per-eval-run results: cases + pass rate + mean score |
+| `eval_datasets` | dataset_id | Persisted golden datasets (seeds always re-derived from disk) |
+
 ## Firestore collections — Batch 7
 
 | Collection | Doc ID | Description |

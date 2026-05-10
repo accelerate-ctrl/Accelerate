@@ -17,6 +17,73 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 8 — Operator surface (chat + what-if + personas + notifications + exports + eval)
+
+```
+POST /api/chat/messages ──▶ chat_service.post_message
+                              ├── extract sub_cap_id from text (regex)
+                              ├── VectorStore.search (top_k=8)  ← Batch 4
+                              ├── + lifecycle_score / sow_mention rows
+                              │   for the detected subcap
+                              ├── consultant_loop.run(GEMINI_PRO)
+                              │   with rolling history (10 turns max)
+                              └── persist conversation + return citations + chain_id
+
+
+POST /api/what-if/simulate ──▶ what_if_service.simulate (pure function)
+                                ├── deep-copy lifecycle_scores + vendor_adoption
+                                ├── apply each action:
+                                │     add_sow_mention / set_lifecycle_state /
+                                │     promote_vendor / add_news_mention
+                                ├── recompute score + reclassify state per delta
+                                └── return state_changes + adoption_changes +
+                                    new_transitions diff
+
+
+GET /api/personas       ──▶ personas_service.list_personas
+                              └── index subcaps.personas → per-persona stats
+                                  joined with lifecycle state distribution
+
+
+POST /api/notifications/refresh ──▶ notifications_service.refresh
+                                     ├── _from_audit (latest report findings)
+                                     ├── _from_lifecycle_transitions (last 7d)
+                                     └── _from_suggestions (status=pending)
+                                          → notifications collection (read-flag preserved)
+
+
+GET /api/exports/{file}.xlsx ──▶ exports_service.export_*
+                                  ├── catalogue.xlsx (subcaps + categories)
+                                  ├── lifecycle.xlsx (state + signals)
+                                  ├── clients.xlsx (clients + client_subcaps)
+                                  └── benchmarks.xlsx (per-cohort distributions)
+
+
+POST /api/eval/run ──▶ eval_service.run_eval
+                        ├── digest_priorities  (overlap@k vs golden labels)
+                        ├── gate_consistency   (same prompt → same verdict)
+                        └── citation_grounding (claim sources resolve)
+                             → eval_runs collection
+```
+
+Pipeline notes:
+
+- The chat service routes to `consultant_loop` so every reply inherits
+  the 8-gate validation + cost ledger.
+- The what-if simulator imports lifecycle's score / classify functions
+  by reimplementing them on a dict shape — keeps the simulator dependency
+  acyclic with `lifecycle_service`. State buckets stay in lockstep via
+  shared constants and a reused decision table.
+- Persona indexing is O(subcaps) with no LLM cost; the API surface
+  joins lifecycle scores in-memory.
+- Notifications dedupe via stable IDs (`notif-{kind}-{source-ref}`),
+  so re-running refresh preserves the `read` flag.
+- XLSX exports are streamed in-memory via openpyxl; no temp files
+  written to disk. Brand-coloured headers (`#103D33`) match spec §14.
+- Eval bootstraps a synthetic dataset for `retail-banking::2026-Q2`
+  expecting `[P1C1.1.1, P1C1.1.2, P1C1.1.3]`. Drop additional JSON
+  golden labels into `test-data/eval/` to extend.
+
 ## Batch 7 — Strategic digest + Deep audit + PPTX export
 
 ```

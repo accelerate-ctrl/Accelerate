@@ -91,9 +91,10 @@ them at the start of the batch (or earlier so I can wire them in parallel).
       wordmark-only to logo + wordmark.
 - [ ] Optional `.pptx` template if you have a corporate master deck;
       currently the renderer builds slides from scratch.
-- [ ] Optional: 5 historical quarters of curated priorities for the
-      digest evaluation harness (Batch 8). Without them, the eval
-      bootstrap synthesises golden labels from the lifecycle engine.
+- [x] Eval harness ships with a synthesised bootstrap dataset
+      (Batch 8 active). Drop additional `test-data/eval/*.json` to
+      extend; without them, scoring runs against the live lifecycle
+      engine's top priorities.
 
 ## Batch 9 — Production hardening
 

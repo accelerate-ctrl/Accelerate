@@ -131,6 +131,89 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 8 ────────────────────────────────────────────────────────────────
+
+export type ChatTurn = {
+  role: 'user' | 'assistant' | 'system';
+  text: string;
+  citations?: string[];
+  chain_id?: string | null;
+  cost_usd?: number;
+  sources?: Array<{ id: string; kind?: string; title?: string; text?: string; url?: string | null }>;
+  created_at?: string;
+};
+
+export type ChatReply = {
+  conversation_id: string;
+  message_id: string;
+  reply: string;
+  citations: string[];
+  chain_id?: string | null;
+  cost_usd: number;
+  sources: Array<{ id: string; kind?: string; title?: string; text?: string; url?: string | null }>;
+};
+
+export type ChatConversation = {
+  conversation_id: string;
+  created_at: string;
+  updated_at: string;
+  turns: ChatTurn[];
+};
+
+export type WhatIfStateChange = {
+  sub_cap_id: string;
+  sub_cap_name: string;
+  before: { state: string | null; score: number | null };
+  after: { state: string; score: number };
+};
+
+export type WhatIfAdoptionChange = {
+  vendor_id: string;
+  cohort_id: string;
+  before_pct: number;
+  after_pct: number;
+};
+
+export type WhatIfSimulation = {
+  actions_applied: number;
+  state_changes: WhatIfStateChange[];
+  adoption_changes: WhatIfAdoptionChange[];
+  new_transitions: Array<{
+    sub_cap_id: string;
+    from_state: string;
+    to_state: string;
+    score: number;
+    transitioned_at: string;
+  }>;
+  summary: string;
+  computed_at: string;
+};
+
+export type Notification = {
+  id: string;
+  kind: string;
+  severity: 'critical' | 'warn' | 'info';
+  title: string;
+  detail: string;
+  ref_collection?: string | null;
+  ref_id?: string | null;
+  created_at: string;
+  read: boolean;
+};
+
+export type EvalRun = {
+  run_id: string;
+  dataset_id: string;
+  kind: string;
+  started_at: string;
+  completed_at: string;
+  n_cases: number;
+  n_passed: number;
+  pass_rate: number;
+  mean_score: number;
+  cases: Array<{ case_id: string; passed: boolean; score: number; notes?: string | null }>;
+};
+
 // ─── Batch 7 ────────────────────────────────────────────────────────────────
 
 export type DigestPriority = {

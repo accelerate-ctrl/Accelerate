@@ -9,6 +9,62 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 8 (RAG chat + What-If + Personas + Notifications + Exports + Eval)
+
+Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 are live. The platform now
+exposes the full operator-facing surface: a chat interface that answers
+questions over the catalogue, a what-if sandbox for hypothetical
+edits, persona-overlaid views, an in-app notifications feed, XLSX
+exports, and an evaluation harness that scores the system against
+golden datasets.
+
+**Batch 8 adds:**
+
+- **RAG Chat** (`services/chat_service.py`): embed query → vector
+  search (Batch-4 vector_store) + structured retrieval (SOW mentions
+  for any subcap mentioned in the query) → consultant_loop.run on
+  Gemini-Pro with the assembled evidence. Replies carry source
+  citations and back-link to the reasoning chain. Conversation memory
+  trimmed to 10 most-recent turns.
+- **What-If Simulator** (`services/what_if_service.py`): pure-function
+  ripple analysis. Apply a list of hypothetical actions
+  (`add_sow_mention` / `set_lifecycle_state` / `promote_vendor` /
+  `add_news_mention`) to a deep-copied working set and return the
+  diff. Strictly read-only — never mutates the live repository.
+  Mirror of Batch-6 lifecycle scoring + classification logic.
+- **Persona views** (`services/personas_service.py`): index 100+
+  distinct personas (CIO / CDO / Compliance Officer / …) drawn from
+  `subcaps.personas`, joined with Batch-6 lifecycle scores and Batch-3
+  SOW touch counts. Per-persona drill-down with state distribution +
+  subcap list ordered by score.
+- **Notifications** (`services/notifications_service.py`): in-app
+  feed sourced from audit findings (critical + warn), recent lifecycle
+  transitions (last 7 days), and pending suggestions. Severity-rolled
+  list with read / unread state, mark-read + mark-all-read actions.
+- **XLSX exports** (`services/exports_service.py`): four catalogue +
+  synthesis exports built with openpyxl — `catalogue.xlsx` (subcaps +
+  categories), `lifecycle.xlsx` (per-subcap state + signals),
+  `clients.xlsx` (client journeys + flat client-subcap detail sheet),
+  `benchmarks.xlsx` (per-cohort distributions). Brand-coloured headers.
+- **Eval harness** (`services/eval_service.py`): three bootstrap
+  golden datasets — `digest_priorities` (overlap of digest top-N with
+  golden labels), `gate_consistency` (same prompt → same verdict on
+  consecutive runs), `citation_grounding` (every claim cites ≥1 real
+  source_id). Custom datasets via `test-data/eval/*.json`.
+- **Real pages**: AiChat (conversation list + per-conversation thread
+  with citations + chain backlink + cost meter); WhatIfSimulator
+  (action editor with kind picker + per-target form + simulate button
+  + lifecycle / adoption / transition delta panels).
+- **Backend tests**: 46 new across 7 files. 293/293 backend pass.
+- **Frontend tests**: 1 new (AiChat list + detail + citations + chain
+  link). 45/45 vitest pass.
+- **End-to-end stress**: live uvicorn confirmed RAG chat returns 8
+  retrieved sources + 2 citations; what-if simulator saturated
+  P1C1.1.1 score 51 → 65 across 3 actions; 102 personas indexed
+  (CIO has 29 subcaps); notifications produced 6 (2 critical + 4 info);
+  three XLSX exports each valid Microsoft Excel 2007+ format; eval
+  harness scored 5/6 cases. No Batch 1-7 regressions.
+
 ## Status — Batch 7 (Quarterly Strategic Digest + Deep Audit + PPTX export)
 
 Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 are live. The full Zennify
@@ -326,6 +382,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 5 | **shipped** | Public filings + analyst extracts + technographic ingest, peer cohort engine, AI-extrapolation benchmarks (consultant-loop linked), Benchmarks Studio page with verdict + percentile + sources |
 | 6 | **shipped** | 6-state lifecycle scoring (sow + story + news + benchmark signals), Vendor Intelligence (adoption heatmap + events), Client Journey Atlas with DMA Packet handoff, deferred-persist Repository for hot-loop ingest |
 | 7 | **shipped** | Quarterly Strategic Digest (Claude Opus narratives via Batch 4 loop) + per-priority evidence trail + Q-over-Q delta + Zennify-branded PPTX export; weekly Deep Audit sweep with severity-rolled findings + drill-back |
+| 8 | **shipped** | RAG Chat over catalogue + Batch-3 SOWs + Batch-4 news + Batch-6 lifecycle; What-If Simulator (read-only ripple analysis); Persona views; in-app Notifications fed by audit + transitions + suggestions; XLSX exports for catalogue / lifecycle / clients / benchmarks; Eval harness (digest_priorities + gate_consistency + citation_grounding) |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

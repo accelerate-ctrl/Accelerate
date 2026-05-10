@@ -282,4 +282,59 @@ the full stack:
 Each finding carries a back-link to its source row (chain / suggestion /
 subcap) so reviewers can drill into the underlying detail.
 
-(Steps 25+ ship in later batches per the TOC above.)
+## 25. Chat with the catalogue (Batch 8)
+
+**AI Chat → type a question** — mention a subcap ID
+(`P1C1.1.1`) for stronger anchoring. The chat service runs a vector
+search over Batch-4 indexed news + trends, joins with structured SOW
+mentions / lifecycle state for the detected subcap, then routes to the
+Batch-4 consultant loop on Gemini-Pro. Every reply ships with cited
+source IDs and a back-link to the full reasoning chain.
+
+Multi-turn memory: the last 10 turns ride forward into the next
+prompt; older turns are dropped to bound token cost.
+
+## 26. Run a what-if simulation (Batch 8)
+
+**What-If Simulator → add actions → Run simulation**. Available
+actions:
+- `add_sow_mention` (sub_cap_id) — bumps lifecycle score
+- `set_lifecycle_state` (sub_cap_id, state) — forces an override
+- `promote_vendor` (vendor_id, cohort_id, adoption_pct)
+- `add_news_mention` (sub_cap_id) — bumps news_last_90d
+
+The simulator is **read-only** by design — nothing mutates the live
+repository. Output panels show lifecycle deltas + adoption deltas +
+hypothetical transitions.
+
+## 27. Filter the catalogue by persona (Batch 8)
+
+`GET /api/personas` returns 100+ personas drawn from
+`subcaps.personas`. Each row carries a state distribution + sample
+subcaps (top by score). `GET /api/personas/{name}` drills in to the
+full subcap list with lifecycle state + SOW touch count.
+
+## 28. Browse + clear notifications (Batch 8)
+
+**QA & Audit Dashboard → Run audit** populates the audit_reports
+collection. **POST /api/notifications/refresh** rolls audit findings
++ recent lifecycle transitions + pending suggestions into a unified
+feed. Severity filter, mark-read, and mark-all-read endpoints are all
+exposed.
+
+## 29. Export to XLSX (Batch 8)
+
+`GET /api/exports/{catalogue|lifecycle|clients|benchmarks}.xlsx`
+returns a brand-coloured Excel 2007+ workbook. Use these for sharing
+the catalogue or lifecycle snapshot with offline consumers.
+
+## 30. Run the eval harness (Batch 8)
+
+`POST /api/eval/run[?dataset_id=…]` scores the system against bootstrap
+golden datasets. Drop additional JSON files into `test-data/eval/` to
+extend with custom labels. Three kinds:
+- **digest_priorities** — overlap of digest top-N with golden list
+- **gate_consistency** — same prompt yields same gate verdict twice
+- **citation_grounding** — every claim cites a real source_id
+
+(Steps 31+ ship in later batches per the TOC above.)
