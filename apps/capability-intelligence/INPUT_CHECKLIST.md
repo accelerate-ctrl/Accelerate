@@ -3,18 +3,20 @@
 Batch 0 needs nothing. Each later batch is gated on the inputs below. Provide
 them at the start of the batch (or earlier so I can wire them in parallel).
 
-## Batch 1 — Catalogue spine
+## Batch 1 — Catalogue spine — ✅ supplied
 
-- [ ] Drive folder URL or ID containing all 4 Pillar capability-map files. The
-      ingestion service recurses subfolders and selects the most recent
-      version per pillar by filename pattern (`Pillar_<n>_Capability_Map_v<x.y>.xlsx`).
-- [ ] GCP project ID
-- [ ] GCP region (recommend `us-central1`; defaults applied if absent)
-- [ ] Firebase project ID
+- [x] Drive folder: `1rF9zdx1qF7BJ9t21eFdvZQW11Y5dUjy3` (each pillar in a
+      subfolder; agent picks the highest-version, non-`inactive` file per pillar)
+- [x] GCP project: `digital-maturity-assessor`
+- [x] Region: `us-central1`
+- [x] Firestore database: `dma-assessor` (MongoDB-compatibility mode)
+- [x] Setup approach: `scripts/setup.sh` (run once with your gcloud auth)
+- [ ] **Manual step after setup.sh runs**: share the Drive folder with the
+      service-account email printed by the script (Viewer permission)
+- [ ] **Manual step after Firestore DB creation**: copy the MongoDB endpoint
+      host from Cloud Console into `FIRESTORE_MONGO_URI` in `.env`
+- [ ] Firebase project ID for production auth (current: dev-mode bypass works)
 - [ ] Allowed Firebase Auth domain (default `zennify.com`)
-- [ ] Service account JSON with: Drive read, Sheets read, Firestore RW, BQ RW,
-      GCS RW, Cloud Logging — OR confirm I should generate `scripts/setup.sh`
-      that creates the SA + grants the roles for you to run.
 
 ## Batch 3 — Internal evidence
 

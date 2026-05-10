@@ -1,4 +1,5 @@
 import { Bell, Search, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Header() {
   return (
@@ -33,14 +34,14 @@ export default function Header() {
         <Bell size={18} />
       </button>
 
-      <button
-        type="button"
-        aria-label="user menu"
+      <Link
+        to="/settings"
+        aria-label="user menu / settings"
         className="flex items-center gap-2 text-sm text-zen-dark-teal hover:text-zen-dark-green"
       >
         <User size={18} />
         <span>dev@zennify.com</span>
-      </button>
+      </Link>
     </header>
   );
 }

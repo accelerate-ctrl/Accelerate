@@ -27,6 +27,7 @@ import QaAuditDashboard from './pages/QaAuditDashboard';
 import ReasoningChainViewer from './pages/ReasoningChainViewer';
 import AiChat from './pages/AiChat';
 import WhatIfSimulator from './pages/WhatIfSimulator';
+import Settings from './pages/Settings';
 
 export default function AppRoutes() {
   return (
@@ -59,6 +60,7 @@ export default function AppRoutes() {
       <Route path="/reasoning" element={<ReasoningChainViewer />} />
       <Route path="/chat" element={<AiChat />} />
       <Route path="/what-if" element={<WhatIfSimulator />} />
+      <Route path="/settings" element={<Settings />} />
     </Routes>
   );
 }

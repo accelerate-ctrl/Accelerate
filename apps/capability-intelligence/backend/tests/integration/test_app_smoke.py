@@ -21,7 +21,8 @@ def test_stub_with_auth(client, auth_headers, prefix):
     r = client.get(f"/api/{prefix}/_stub", headers=auth_headers)
     assert r.status_code == 200, f"{prefix} stub failed: {r.text}"
     body = r.json()
-    assert body["status"] == "stub"
+    # Routers report "stub" while pending and "active" once their batch lands.
+    assert body["status"] in ("stub", "active")
     assert "batch" in body and isinstance(body["batch"], int)
 
 

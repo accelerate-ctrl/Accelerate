@@ -9,42 +9,51 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
-## Status — Batch 0 (Foundation)
+## Status — Batch 1 (Catalogue spine)
 
-Batch 0 ships the **shell and contract**, not the intelligence. Everything that
-later batches add hangs off of structures defined here.
+Batches 0 + 1 are live. The catalogue spine is fully usable: ingest a Pillar
+workbook from Drive (or a local folder), browse it with multi-lens drilldown,
+save snapshots, diff versions, and triage change flags.
 
-**What's working in Batch 0:**
+**Batch 1 adds:**
 
-- FastAPI app with health + readiness endpoints (real)
-- 29 router modules registered, each exposing a `GET /_stub` (auth-required)
-  that reports its activating batch
-- Firebase ID token verifier with a dev-mode bypass (`Bearer dev-<email>`,
-  domain-restricted to `zennify.com`)
-- React 18 + Vite + TypeScript SPA shell
-- Tailwind theme with the 8 Zennify brand tokens, source-tier chip palette,
-  claim-label badge palette, cluster colors
-- Sidebar with **all 28 pages** grouped per spec §13 (most are
-  `<PageStub batch={n} />` placeholders)
-- Local stack via `docker-compose` (Firestore + Pub/Sub + GCS emulators)
-- Pytest suite (`tests/unit`, `tests/integration`); Vitest suite; Playwright
-  smoke
-- Canonical source registry (50+ sources tier-stratified) in
-  `config/canonical_sources.yml`
-- 9 personas, 9 lenses defined as YAML
-- 14 Cloud Run Job placeholders in `backend/jobs/`
-- `.env.example` documenting every environment variable across all batches
+- Drive folder watcher with auto-discovery (recursive subfolder scan, picks
+  highest `v<x>.<y>` per pillar, excludes any name containing `inactive`)
+- Per-pillar `Refresh` button + `Refresh all`; ingest runs are tracked
+- Workbook parser (openpyxl) for the Pillar 1 v14 schema: subcaps, categories,
+  L1, use cases, L3 platforms, L4 features, maturity descriptors (M1..M5),
+  theme mappings, stories
+- Repository abstraction: in-memory (dev) ↔ pymongo against
+  Firestore-MongoDB-compatibility (prod)
+- Catalogue version snapshots + version listing + field-level diff between
+  any two versions
+- Change-flag inbox with severity, kind, target; resolve workflow
+- Real pages: Mission Control, Capability Explorer (sunburst + tree + search),
+  Subcap Deep Dive, Version Timeline, Diff Viewer, Change Flags Inbox,
+  Settings
+- `scripts/setup.sh` — one-shot GCP bootstrap (APIs, SA, IAM, Firestore in
+  MongoDB-compat mode, GCS buckets, BigQuery datasets, Artifact Registry)
+- Pillars 2-4 auto-detect: when you upload a workbook to the corresponding
+  Drive subfolder with the same `2_Capability_Map` schema as Pillar 1, the
+  agent ingests it on the next refresh; mis-aligned schemas are flagged but
+  the pillar is still tracked
 
-**What's deliberately NOT in Batch 0:** any real ingestion (Sheets, Drive, SOW,
-Jira, news), any LLM calls, any Firestore writes, any KG, any benchmarks,
-any digest. See `INPUT_CHECKLIST.md` for what each later batch requires.
+**Batch 0 (still in place):**
+- FastAPI app + health/ready + dev auth bypass
+- 29 router modules (Batch 1 has activated 6: catalogue / sheets / versions /
+  diffs / flags / settings)
+- React shell with all 28 pages, brand tokens, sidebar groups
+- docker-compose with Firestore + Pub/Sub + GCS emulators
+
+**What's deliberately NOT in Batch 1:** SOW / Jira ingest (Batch 3), Knowledge
+Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 
 ## Roadmap
 
 | Batch | Status | What it adds |
 |---|---|---|
-| 0 | **shipping** | Foundation — shell, brand, all 28 routes/pages, emulators, tests, docs |
-| 1 | next | Catalogue spine: Drive → Sheets → Firestore + BQ → Capability Explorer + Subcap Deep Dive + Diff Viewer + Mission Control + Settings |
+| 0 | **shipped** | Foundation — shell, brand, all 28 routes/pages, emulators, tests, docs |
+| 1 | **shipped** | Catalogue spine: Drive → Sheets → Firestore (MongoDB-compat) → Capability Explorer + Subcap Deep Dive + Diff Viewer + Mission Control + Change Flags + Settings |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |
@@ -56,7 +65,7 @@ any digest. See `INPUT_CHECKLIST.md` for what each later batch requires.
 
 ---
 
-## Quickstart (local)
+## Quickstart (local — no GCP needed)
 
 Prerequisites: Docker, Python 3.12, Node 20.
 
@@ -64,7 +73,7 @@ Prerequisites: Docker, Python 3.12, Node 20.
 # from repo root
 cd apps/capability-intelligence
 
-# Backend tests (no docker needed)
+# Backend tests (uses the attached Pillar 1 file in test-data/)
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -75,11 +84,38 @@ cd ../frontend
 npm install
 npm test -- --run
 
-# Full local stack (API + emulators)
-cd ..
+# Run end-to-end locally — points at test-data/ for catalogue ingest
+cd ../backend
+LOCAL_CATALOGUE_DIR=$(realpath ../test-data) \
+LOCAL_REPOSITORY_PATH=$(realpath ../.local-repo.json) \
+uvicorn app.main:app --reload --port 8080
+
+# In another shell, refresh and browse
+curl -X POST -H 'Authorization: Bearer dev-test@zennify.com' \
+     localhost:8080/api/sheets/refresh
+curl -H 'Authorization: Bearer dev-test@zennify.com' \
+     localhost:8080/api/catalogue/overview | jq
+```
+
+## Cloud setup (run once)
+
+```bash
+# Optional: override the defaults
+GCP_PROJECT_ID=digital-maturity-assessor REGION=us-central1 \
+DRIVE_FOLDER_ID=1rF9zdx1qF7BJ9t21eFdvZQW11Y5dUjy3 \
+  bash apps/capability-intelligence/scripts/setup.sh
+```
+
+The script enables APIs, creates a service account, grants IAM, creates the
+Firestore database in MongoDB-compatibility mode (`dma-assessor` by default),
+provisions GCS buckets and BigQuery datasets, sets up Artifact Registry,
+generates a SA key file, and prints the env block to copy into `.env`.
+
+After running, **share the Drive folder with the printed service-account
+email** (Viewer permission). Then:
+
+```bash
 docker compose up --build -d
-curl -fsS localhost:8080/api/health
-docker compose down
 ```
 
 ### API quick check

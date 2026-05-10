@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     use_gcp: bool = False
     gcp_project_id: str | None = None
     gcp_region: str = "us-central1"
+    google_application_credentials: str | None = None  # path to SA JSON
+
+    # Firestore (MongoDB compatibility mode)
+    firestore_database_id: str = "dma-assessor"
+    firestore_mongo_uri: str | None = None
+    firestore_mongo_db_name: str | None = None  # defaults to firestore_database_id
+
+    # Local dev persistence (used when use_gcp=False) — JSON file
+    local_repository_path: str = ".local-repo.json"
+
+    # Where to look for the Pillar 1 (and later) catalogue files for local
+    # ingestion when Drive isn't configured. Used in dev + tests.
+    local_catalogue_dir: str | None = None
 
     # Emulator endpoints (for local docker-compose)
     firestore_emulator_host: str | None = None  # e.g. "firestore:8200"
