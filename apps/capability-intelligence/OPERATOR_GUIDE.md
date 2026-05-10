@@ -126,4 +126,51 @@ every SOW mention + every story (canonical + Jira), newest first. Each
 event shows the client, status, method (exact_id / name_substring /
 name_fuzzy), confidence, and excerpt.
 
-(Steps 14+ ship in later batches per the TOC above.)
+## 14. Refresh news + trends (Batch 4)
+
+**News Watch → Refresh** runs `news_service.refresh()`:
+- Loads JSON seed files from `test-data/news/` and `test-data/trends/`
+  (one record per file or list per file).
+- In live mode, also pulls every URL in `Settings.news_feeds` via
+  `feedparser` (any failure is reported in `schema_issues`).
+- Auto-tags each item with subcap mentions using the same extractor as
+  Batch 3 (exact ID + name substring + token-set fuzzy).
+- Indexes every item into the `vector_index` collection so the consultant
+  loop's external-retrieval step finds it by semantic match.
+
+The Trends Monitor page shares the same ingest run.
+
+## 15. Trigger a 7-step consultant loop (Batch 4)
+
+**Reasoning Chain Viewer → Run loop** with a query, optional subcap, and
+model choice (`gemini-flash` for cheap claim extraction, `gemini-pro` for
+mid-cost synthesis, `sonnet` for high-quality reasoning, `opus` for the
+quarterly digest only).  The loop:
+
+1. **clarify**: pin scope (subcap, sub_vertical).
+2. **retrieve_internal**: SOWs + canonical/Jira stories + KG vector hits.
+3. **retrieve_external**: news + trends, sorted by recency.
+4. **synthesize**: LLM produces JSON `{"claims": [...]}` grounded in cited evidence.
+5. **adversarial**: a Sonnet-class red-teamer scores the claims (warns if weak).
+6. **propose_suggestions**: catalogue-edit candidates (`add_use_case`, `refine_subcap`, …).
+7. **gate**: 8 gates run; overall pass/warn/fail recorded.
+8. **finalize**: chain + suggestions persisted; UI surfaces both.
+
+Every step records model, tokens, $ cost, and cache state.  The
+Validation Gates Log aggregates per-gate verdicts + cost across runs.
+
+In dev (default), `LLM_LIVE_MODE=false` returns deterministic canned
+responses keyed off the prompt; cost is $0.  Set `LLM_LIVE_MODE=true`
+plus `ANTHROPIC_API_KEY` (and either Vertex creds or a GCP project) to
+flip to real models.  Cost ceilings (`DAILY_SPEND_CEILING_USD`,
+`ANTHROPIC_WEEKLY_BUDGET_USD`) auto-throttle calls at
+`COST_THROTTLE_PCT` (default 90%).
+
+## 16. Apply or reject a staged AI suggestion (Batch 4)
+
+**AI Suggestions** lists every suggestion produced by the loop.  Filter by
+status (pending / applied / rejected); each row links back to its
+reasoning chain, gate verdict, and target subcap.  Apply queues a diff
+for the catalogue version-service; reject records the actor + reason.
+
+(Steps 17+ ship in later batches per the TOC above.)

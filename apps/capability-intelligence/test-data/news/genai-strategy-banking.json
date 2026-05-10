@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://www.americanbanker.com/news/wells-fargo-genai-strategy-2026",
+    "title": "Wells Fargo accelerates GenAI strategy authoring across retail banking",
+    "text": "Wells Fargo is rolling out an internal GenAI assistant to help its strategy teams author Digital Strategy Documents (P1C1.1.1) and refresh Business Alignment (P1C1.1.2) artifacts on a quarterly cadence. The bank says the tool cuts authoring time by 40% and integrates with the existing Microsoft 365 stack. Northwestern Mutual is reportedly piloting a similar capability for compliance governance. The trend mirrors a wider shift in financial services toward composable AI strategy tooling.",
+    "source": "americanbanker.com",
+    "subverticals": ["retail-banking", "wealth-management"],
+    "published_at": "2026-04-12T08:30:00+00:00"
+  },
+  {
+    "url": "https://www.regulationasia.com/regulatory-change-management-2026",
+    "title": "OCC publishes 2026 guidance on Regulatory Change Management automation",
+    "text": "The OCC has issued new guidance covering automated Regulatory Change Management (P1C2.7.1) systems. Banks are expected to maintain auditable change logs, real-time alert pipelines, and AI-assisted impact assessment workflows. The guidance signals broader supervisory interest in the operating model behind compliance automation across credit unions and asset managers.",
+    "source": "regulationasia.com",
+    "subverticals": ["retail-banking", "credit-union"],
+    "published_at": "2026-03-22T14:00:00+00:00"
+  }
+]

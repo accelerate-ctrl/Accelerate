@@ -131,6 +131,109 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 4 ────────────────────────────────────────────────────────────────
+
+export type ModelKind = 'gemini-flash' | 'gemini-pro' | 'sonnet' | 'opus';
+
+export type GateResult = {
+  name: string;
+  verdict: 'pass' | 'warn' | 'fail';
+  score: number;
+  reasoning: string;
+  details?: Record<string, unknown>;
+};
+
+export type ChainStep = {
+  name: string;
+  started_at: string;
+  completed_at: string;
+  model?: string | null;
+  input_summary?: string;
+  output_summary?: string;
+  tokens_in?: number;
+  tokens_out?: number;
+  cost_usd?: number;
+  cached?: boolean;
+  detail?: Record<string, unknown>;
+};
+
+export type ReasoningChain = {
+  chain_id: string;
+  sub_cap_id: string | null;
+  started_at: string;
+  completed_at: string;
+  overall: 'pass' | 'warn' | 'fail';
+  total_cost_usd: number;
+  output: { claims?: Array<{ text: string; subcap_id?: string; sources?: string[]; confidence?: number }> };
+  sources: Array<{ id: string; kind?: string; title?: string; text?: string; url?: string | null; score?: number; published_at?: string }>;
+  suggestions: Array<{ kind: string; target?: string; title?: string; rationale?: string }>;
+  gates: { overall: string; score: number; results: GateResult[] };
+  steps: ChainStep[];
+};
+
+export type Suggestion = {
+  id: string;
+  chain_id: string;
+  sub_cap_id?: string | null;
+  kind: string;
+  target?: string | null;
+  title?: string | null;
+  rationale?: string | null;
+  status: 'pending' | 'applied' | 'rejected';
+  gate_overall?: string;
+  created_at: string;
+  decided_at?: string;
+  decided_by?: string;
+  reject_reason?: string | null;
+};
+
+export type SuggestionStats = { pending: number; applied: number; rejected: number; total: number };
+
+export type NewsItem = {
+  id: string;
+  url: string | null;
+  title: string;
+  text: string;
+  source: string;
+  published_at: string;
+  ingested_at: string;
+  kind: 'news' | 'trend';
+  subverticals?: string[];
+  sub_cap_hits?: string[];
+};
+
+export type NewsIngestRun = {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  news_loaded: number;
+  trends_loaded: number;
+  sources: string[];
+  schema_issues: string[];
+};
+
+export type GateRunRow = {
+  chain_id: string;
+  sub_cap_id?: string | null;
+  completed_at: string;
+  overall: 'pass' | 'warn' | 'fail';
+  score: number;
+  results: GateResult[];
+};
+
+export type GateSummary = {
+  total_runs: number;
+  overall: Record<string, number>;
+  by_gate: Record<string, Record<string, number>>;
+  cost_summary: {
+    today_usd: number;
+    week_usd: number;
+    today_calls: number;
+    week_calls: number;
+    by_model: Record<string, number>;
+  };
+};
+
 // ─── Batch 3 ────────────────────────────────────────────────────────────────
 
 export type SowStatus = 'active' | 'prospect' | 'inactive' | 'archived';

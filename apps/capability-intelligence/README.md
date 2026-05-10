@@ -9,6 +9,57 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 4 (LLM core + reasoning + gates)
+
+Batches 0 + 1 + 2 + 3 + 4 are live. The catalogue now reasons: every page
+that needs AI output goes through a 7-step consultant loop with adversarial
+review and 8-gate validation, all fully audit-logged.
+
+**Batch 4 adds:**
+
+- **LLM router** (`services/llm/router.py`) with deterministic dev-mode + lazy
+  Anthropic + Vertex Gemini adapters.  Routing matrix:
+  `gemini-flash` → cheap claim extraction; `gemini-pro` → mid-cost
+  synthesis; `sonnet` → adversarial / suggestions; `opus` → digest only.
+  Dev-mode resolves every model to canned JSON keyed off prompt+temperature
+  so the entire stack runs hermetically without API keys.
+- **Content-hash LLM cache** (`llm_cache` collection) with soft-LRU eviction.
+- **Cost tracker** (`llm_costs`) with daily + weekly budget enforcement.
+  At 90% of `daily_spend_ceiling_usd` the router refuses new calls; at 90%
+  of `anthropic_weekly_budget_usd` it auto-degrades Anthropic → Gemini.
+- **Embeddings + vector store**: 256-dim hash embedding in dev (deterministic
+  + reproducible), Vertex `text-embedding-005` swap-in for live.  Cosine
+  search over the `vector_index` collection.
+- **News + trends ingest** (`services/news_service.py`): local seed
+  (`test-data/news/*.json` + `test-data/trends/*.json`) for dev; RSS via
+  feedparser for live.  Each item is auto-tagged with subcap mentions
+  (reuses Batch 3's extractor) and indexed into the vector store.
+- **7-step consultant loop** (`services/consultant_loop.py`):
+  1. clarify  →  2. retrieve internal (SOWs + stories + KG)  →
+  3. retrieve external (news + trends + vector)  →  4. synthesize claims
+  (LLM)  →  5. adversarial red-team (Sonnet)  →  6. propose suggestions
+  →  7. 8-gate validation  →  finalize.  Every step is logged to
+  `reasoning_chains` with model, tokens, cost, and cached state.
+- **8 validation gates** (`services/validation_gates_service.py`): schema,
+  citation, hallucination, freshness, novelty, bias, breaking-change,
+  peer-coverage.  Each emits `pass | warn | fail` with score + reasoning.
+- **Hallucination detector** + **citation verifier**: salient-token overlap
+  between each claim and its cited sources; URL HEAD probe with 24h cache.
+- **Suggestions lifecycle**: every loop run produces staged suggestions
+  with `pending → applied | rejected` transitions; applying queues a diff
+  for the catalogue version-service.
+- **Real pages**: Reasoning Chain Viewer (live trigger + step timeline +
+  per-gate verdicts + claims/sources panels), AI Suggestions (filter +
+  apply/reject), News Watch, Trends Monitor, Validation Gates Log
+  (per-gate distribution + recent runs + cost KPIs).
+- **Backend tests**: 44 new (router determinism, cache, cost tracker, all 8
+  gates per-rule, hallucination detector, embeddings + vector store, full
+  consultant loop, suggestions lifecycle, end-to-end API).  Frontend tests:
+  2 new (NewsWatch + AiSuggestions).
+- **End-to-end stress test** confirms all 8 gates pass when claims cite
+  real source IDs from the prompt; the gate engine correctly fails
+  citations to non-existent IDs and unsupported claims.
+
 ## Status — Batch 3 (Internal evidence)
 
 Batches 0 + 1 + 2 + 3 are live. The catalogue now has SOW + story evidence
@@ -131,6 +182,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 1 | **shipped** | Catalogue spine: Drive → Sheets → Firestore (MongoDB-compat) → Capability Explorer + Subcap Deep Dive + Diff Viewer + Mission Control + Change Flags + Settings |
 | 2 | **shipped** | KG v1 (14/28 node kinds, 13 edge kinds, NetworkX) + Knowledge Graph page (Cytoscape) + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | **shipped** | SOW ingest (local + Drive/DocAI swap) + DLP redaction + chunking + mention extraction + canonical stories + Jira; SOW Library / Story Library / Project–Subcap Trace pages; entity resolver |
+| 4 | **shipped** | LLM router (Vertex Gemini + Anthropic Claude with hermetic dev-mode), 7-step consultant loop, 8 validation gates, adversarial agent, hallucination + citation verifier, content-hash cache, cost tracker, embeddings + vector store, news + trends ingest, AI Suggestions lifecycle, Reasoning Chain Viewer / Validation Gates / News Watch / Trends Monitor pages |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

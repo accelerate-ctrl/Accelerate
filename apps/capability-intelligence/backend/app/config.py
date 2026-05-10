@@ -78,9 +78,22 @@ class Settings(BaseSettings):
     gemini_model_flash: str = "gemini-2.5-flash"
     gemini_model_pro: str = "gemini-2.5-pro"
 
+    # When False (default in dev), all model adapters resolve to deterministic
+    # canned responses keyed off the prompt+model+temperature. This keeps
+    # tests hermetic and lets the entire 7-step consultant loop, gates,
+    # adversarial review, and reasoning-chain logging run without hitting
+    # any external API. Flip to True once Anthropic + Vertex creds are set.
+    llm_live_mode: bool = False
+
     # Cost guardrails (Batch 4)
     daily_spend_ceiling_usd: float = 0.0  # 0 = disabled
     anthropic_weekly_budget_usd: float = 0.0
+    cost_throttle_pct: float = 0.9  # at 90% of ceiling, refuse new calls
+
+    # News + trends (Batch 4)
+    local_news_dir: str | None = None    # falls back to test-data/news/
+    local_trends_dir: str | None = None  # falls back to test-data/trends/
+    news_feeds: list[str] = Field(default_factory=list)  # RSS URLs (live mode)
 
     # Drive (Batch 1) and Jira (Batch 3)
     drive_pillars_folder_id: str | None = None

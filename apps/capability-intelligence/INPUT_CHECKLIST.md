@@ -31,18 +31,25 @@ them at the start of the batch (or earlier so I can wire them in parallel).
       `JIRA_API_TOKEN`
 - [ ] List of Jira project keys to ingest — set `JIRA_PROJECT_KEYS=["KEY1","KEY2"]`
 
-## Batch 4 — LLM core
+## Batch 4 — LLM core — partially supplied
 
-- [ ] Anthropic API key (stored in Secret Manager)
-- [ ] Vertex AI region (recommend `us-central1`)
-- [ ] Anthropic weekly $ budget cap (auto-degrades to Gemini at 90%)
-- [ ] Daily total $ spend ceiling (Cloud Monitoring alert at 80%, throttle at 90%)
-- [ ] Confirm pinned model IDs:
+- [x] Architecture in place; runs end-to-end in deterministic dev mode
+      (`LLM_LIVE_MODE=false`) with no external creds.
+- [ ] Anthropic API key (`ANTHROPIC_API_KEY`, stored in Secret Manager)
+- [ ] Vertex AI region (`VERTEX_REGION`, default `us-central1`)
+- [ ] GCP project ID (`GCP_PROJECT_ID`) for Vertex Gemini + embeddings
+- [ ] Anthropic weekly $ budget cap (`ANTHROPIC_WEEKLY_BUDGET_USD`,
+      auto-degrades to Gemini at `COST_THROTTLE_PCT` × budget)
+- [ ] Daily total $ spend ceiling (`DAILY_SPEND_CEILING_USD`,
+      Cloud Monitoring alert at 80%, hard throttle at 90%)
+- [ ] Optional: `NEWS_FEEDS` array of RSS URLs for live news ingest
+- [ ] Confirm pinned model IDs (defaults already set):
       - Sonnet → `claude-sonnet-4-6`
       - Opus → `claude-opus-4-7`
       - Embeddings → `text-embedding-005`
       - Gemini Flash → `gemini-2.5-flash`
       - Gemini Pro → `gemini-2.5-pro`
+- [ ] Flip `LLM_LIVE_MODE=true` once keys are loaded — no other code change.
 
 ## Batch 5 — Benchmarks
 

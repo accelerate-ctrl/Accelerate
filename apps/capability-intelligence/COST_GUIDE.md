@@ -1,6 +1,9 @@
 # Cost Guide
 
-> Filled in Batch 4. Locked routing matrix per spec §3.
+> Active as of Batch 4. The router (`services/llm/router.py`), cache
+> (`services/llm/cache.py`), and tracker (`services/llm/cost_tracker.py`)
+> implement the policies below. The Validation Gates Log surfaces today +
+> 7-day spend per model.
 
 ## Per-task model routing (locked, Batch 4)
 
@@ -25,13 +28,21 @@
 
 ## Caching
 
-Every LLM call cached by `(model, prompt_hash, input_hash)` with content-typed
-TTL. Target hit rate >40%; alert <20%. (Wired in Batch 4.)
+Every LLM call is cached by SHA256(`model + system + prompt + temperature
++ max_tokens`).  Cache hits return `cost_usd=0` and `cached=true` so the
+budget is unaffected.  Soft-LRU eviction kicks in once the cache exceeds
+`LlmCache.max_entries` (default 5,000).  Target hit rate >40%.
 
 ## Auto-throttling
 
-At 80% of daily ceiling: alert. At 90%: throttle non-essential operations
-(lifecycle scoring, news polling); banner in UI. Configured in Batch 4.
+`assert_within_budget()` runs before every router call:
+
+- At `cost_throttle_pct` of `daily_spend_ceiling_usd` (default 90%): the
+  router raises `BudgetExceeded` and the API returns 429.
+- At `cost_throttle_pct` of `anthropic_weekly_budget_usd`: ditto, with a
+  message indicating Anthropic should be auto-routed to Gemini until reset.
+
+Both ceilings default to `0` (disabled) — set them in `.env` to activate.
 
 ## Anthropic weekly budget
 

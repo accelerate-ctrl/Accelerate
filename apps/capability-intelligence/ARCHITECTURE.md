@@ -17,6 +17,78 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 4 — LLM core + reasoning + gates
+
+```
+                    ┌─────────────────────────────────────────────┐
+api/reasoning-      │            7-step consultant loop            │
+chains/run    ─────▶│  clarify → retrieve_internal → retrieve_ext │
+                    │  → synthesize → adversarial → propose       │
+                    │  → gate → finalize                          │
+                    └────────────┬────────────────────────────────┘
+                                 │
+        ┌────────────────────────┼─────────────────────────┐
+        │                        │                         │
+        ▼                        ▼                         ▼
+  llm/router.call()     services/news_service          services/validation_gates
+  ├── _call_dev (free)  ├── local seed → test-data/   ├── schema   ├── novelty
+  ├── _call_anthropic   ├── RSS via feedparser (live) ├── citation ├── bias
+  └── _call_vertex      └── auto-tag subcap mentions  ├── halluc.  ├── breaking
+                              + index in VectorStore   ├── fresh.  └── peer-cov
+                                                       │
+                                       ┌───────────────┘
+                                       ▼
+                              services/hallucination
+                              services/citation_verifier
+                                       │
+                                       ▼
+                            reasoning_chains + suggestions collections
+                                       │
+                                       ▼
+                  Reasoning Chain Viewer / AI Suggestions pages
+```
+
+Routing matrix (per spec §3 / ADR-0004) — re-confirmed in Batch 4:
+
+| Model         | Use case                                  | Pricing/M (blended) |
+|---------------|-------------------------------------------|---------------------|
+| `gemini-flash`| Claim extraction, first-pass adversarial  | $0.30               |
+| `gemini-pro`  | Mid-cost synthesis, multi-step reasoning  | $3.50               |
+| `sonnet`      | High-quality reasoning, suggestions, critic | $6.00             |
+| `opus`        | Quarterly digest + breaking-change adjudication | $30.00        |
+
+Dev-mode behavior: when `Settings.llm_live_mode=False`, every adapter
+resolves to `_call_dev` which returns deterministic canned JSON keyed off
+the prompt's source IDs and the requested subcap.  Tests + the entire UI
+flow run end-to-end without any API keys, and the gate engine evaluates
+the canned response just like a real one.  Switching to live mode is a
+single-flag flip; no consumer code changes.
+
+Cost guardrails (`services/llm/cost_tracker.py`) read every adapter call
+into the `llm_costs` collection.  `assert_within_budget()` runs before
+every router call; raises `BudgetExceeded` once daily / weekly thresholds
+hit `cost_throttle_pct` (default 90%).  The `validation-gates/summary`
+endpoint surfaces today + 7-day spend per model.
+
+Cache (`services/llm/cache.py`) is keyed on
+SHA256(model + system + prompt + temperature + max_tokens).  Cached hits
+return ``cached=True, cost_usd=0`` so the budget is unaffected.  Soft-LRU
+eviction kicks in once `LlmCache.max_entries` (default 5,000) is reached.
+
+The 8-gate engine is a pure function over `(output, sources)`; the loop
+calls it once and persists the results inside the `reasoning_chains`
+document.  Suggestions are queued with the gate verdict so reviewers can
+filter on the AI Suggestions page (e.g. "show only `pass`" before bulk-
+applying).
+
+Production swaps (when keys land):
+- `LLM_LIVE_MODE=true` activates Anthropic + Vertex adapters.
+- `ANTHROPIC_API_KEY`, `GCP_PROJECT_ID`, `VERTEX_REGION` resolve as
+  Pydantic-Settings env reads.
+- Model IDs are pinned via Settings (`anthropic_model_sonnet`, …) so
+  upgrade is a one-line change in `.env`.
+- Live news/trends activates when `news_feeds` is non-empty.
+
 ## Batch 3 — Internal evidence
 
 ```

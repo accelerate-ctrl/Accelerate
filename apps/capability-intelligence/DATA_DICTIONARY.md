@@ -46,6 +46,21 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 4
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `llm_cache` | sha256 of (model+system+prompt+temp+max_tokens) | Cached LLM completions; soft-LRU eviction by `hit_at` |
+| `llm_costs` | `cost-{us-ts}-{model}` | Per-call cost ledger; daily + weekly budget rolls up here |
+| `vector_index` | doc_id | 256-dim embedding + text + metadata for similarity search |
+| `news_items` | sha-prefixed news id | News rows w/ `sub_cap_hits` |
+| `trends_items` | sha-prefixed trend id | Trends rows |
+| `news_ingest_runs` | `news-ingest-{unix}` | Ingest run log |
+| `reasoning_chains` | `chain-<hex12>` | 7-step loop trace: steps, sources, claims, gates, suggestions |
+| `suggestions` | `sug-<chain_id>-<n>` | Staged catalogue edits w/ status pending/applied/rejected |
+| `suggestion_applies` | `apply-<sug_id>` | Apply transitions (queued for diff in Batch 6) |
+| `citation_probes` | sha256 of url | URL HEAD probe results, 24h TTL |
+
 ## Firestore collections — Batch 3
 
 | Collection | Doc ID | Description |

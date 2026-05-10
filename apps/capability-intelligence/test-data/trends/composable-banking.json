@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://www.gartner.com/research/composable-banking-2026",
+    "title": "Composable banking becomes default architecture for new core launches",
+    "text": "By 2026 nearly 60% of new core banking implementations will use a composable, API-first architecture, per Gartner. The trend strengthens demand for capability-mapped vendor selection (cap_id-aware procurement) and reusable Digital Strategy Document (P1C1.1.1) templates. Wealth management and asset manager segments are following suit.",
+    "source": "gartner.com",
+    "subverticals": ["retail-banking", "wealth-management", "asset-management"],
+    "published_at": "2026-02-08T09:00:00+00:00"
+  },
+  {
+    "url": "https://www.celent.com/insights/regulatory-change-mgmt-2026",
+    "title": "Regulatory Change Management tooling consolidates around 5 vendors",
+    "text": "Celent's 2026 vendor map shows Regulatory Change Management (P1C2.7.1) consolidating around five major platforms, with mid-tier banks favoring AI-assisted impact analyzers. Cost-to-comply has dropped 18% YoY among adopters.",
+    "source": "celent.com",
+    "subverticals": ["retail-banking", "credit-union"],
+    "published_at": "2026-01-30T11:00:00+00:00"
+  }
+]
