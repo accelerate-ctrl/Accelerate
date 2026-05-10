@@ -28,9 +28,10 @@ from .repository import get_repository
 
 logger = logging.getLogger(__name__)
 
-# Brand-aligned header tone for exports.
-HEADER_FILL = PatternFill(start_color="103D33", end_color="103D33", fill_type="solid")
-HEADER_FONT = Font(color="F1F6EE", bold=True)
+# Brand-aligned header tone for exports — matches frontend tailwind tokens
+# (zen-dark-green = #1C4A4D, zen-white-green = #E8F7F6).
+HEADER_FILL = PatternFill(start_color="1C4A4D", end_color="1C4A4D", fill_type="solid")
+HEADER_FONT = Font(color="E8F7F6", bold=True)
 
 
 def _write_headers(ws, headers: list[str]) -> None:

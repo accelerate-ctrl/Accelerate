@@ -28,14 +28,17 @@ from pptx.util import Emu, Inches, Pt
 
 logger = logging.getLogger(__name__)
 
-# Zennify brand palette (spec §14). Mirrors the tokens in frontend tailwind.
-ZEN_DARK_GREEN = RGBColor(0x10, 0x3D, 0x33)
-ZEN_DARK_TEAL = RGBColor(0x1F, 0x4F, 0x4D)
-ZEN_TEAL = RGBColor(0x14, 0x74, 0x6E)
-ZEN_LIGHT_GREEN = RGBColor(0xC9, 0xE0, 0xCB)
-ZEN_LIGHT_ORANGE = RGBColor(0xF5, 0xCB, 0x97)
-ZEN_ORANGE = RGBColor(0xE2, 0x6F, 0x46)
-ZEN_WHITE_GREEN = RGBColor(0xF1, 0xF6, 0xEE)
+# Zennify brand palette — exact mirror of frontend/tailwind.config.ts.
+# These 8 tokens are locked per spec §14; the icon teal (#27BBAF) is the
+# brand-defining accent used for state badges + buttons.
+ZEN_DARK_GREEN = RGBColor(0x1C, 0x4A, 0x4D)
+ZEN_DARK_TEAL = RGBColor(0x18, 0x5F, 0x60)
+ZEN_TEAL = RGBColor(0x27, 0xBB, 0xAF)        # icon teal — brand accent
+ZEN_LIGHT_TEAL = RGBColor(0x62, 0xD7, 0xB8)
+ZEN_LIGHT_GREEN = RGBColor(0xB0, 0xEE, 0xD3)
+ZEN_LIGHT_ORANGE = RGBColor(0xFF, 0xCB, 0x99)
+ZEN_ORANGE = RGBColor(0xFE, 0x97, 0x32)
+ZEN_WHITE_GREEN = RGBColor(0xE8, 0xF7, 0xF6)
 
 STATE_COLOR = {
     "RISING": ZEN_TEAL,
@@ -76,11 +79,16 @@ def _add_title_slide(prs: Presentation, digest: dict) -> None:
     slide = _blank_slide(prs)
     _set_background(slide, ZEN_DARK_GREEN)
 
-    # Brand wordmark
+    # Optional logo asset — drop a PNG / SVG into static/brand/ and the
+    # title slide picks it up automatically. Falls back to wordmark only.
+    _add_logo_if_present(slide)
+
+    # Brand wordmark — uses the light-teal token for the wordmark + the
+    # icon teal (#27BBAF) is reserved for the actual logo glyph.
     _add_text(
         slide, "ZENNIFY",
         left=0.6, top=0.5, width=4, height=0.6,
-        size=20, bold=True, color=ZEN_LIGHT_GREEN,
+        size=20, bold=True, color=ZEN_LIGHT_TEAL,
     )
     _add_text(
         slide, "Capability Intelligence",
@@ -339,3 +347,30 @@ def _set_background(slide, color: RGBColor) -> None:
     fill = bg.fill
     fill.solid()
     fill.fore_color.rgb = color
+
+
+def _add_logo_if_present(slide) -> None:
+    """Place the Zennify icon teal logo top-right when a static asset exists."""
+    from pathlib import Path
+
+    # Search both the runtime static path (Docker image) and the in-repo
+    # brand/ folder (dev / mounted via volume).
+    backend_dir = Path(__file__).resolve().parents[2]
+    repo_brand = backend_dir.parent / "brand"
+    candidates = [
+        backend_dir / "static" / "brand" / "logo.png",
+        backend_dir / "static" / "brand" / "logo.svg",
+        repo_brand / "logo.png",
+        repo_brand / "logo.svg",
+    ]
+    for path in candidates:
+        if path.exists():
+            try:
+                slide.shapes.add_picture(
+                    str(path),
+                    Inches(11.6), Inches(0.4),
+                    height=Inches(0.7),
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("could not embed brand logo from %s", path)
+            return

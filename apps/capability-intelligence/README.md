@@ -443,14 +443,6 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 7 | **shipped** | Quarterly Strategic Digest (Claude Opus narratives via Batch 4 loop) + per-priority evidence trail + Q-over-Q delta + Zennify-branded PPTX export; weekly Deep Audit sweep with severity-rolled findings + drill-back |
 | 8 | **shipped** | RAG Chat over catalogue + Batch-3 SOWs + Batch-4 news + Batch-6 lifecycle; What-If Simulator (read-only ripple analysis); Persona views; in-app Notifications fed by audit + transitions + suggestions; XLSX exports for catalogue / lifecycle / clients / benchmarks; Eval harness (digest_priorities + gate_consistency + citation_grounding) |
 | 9 | **shipped** | All 14 Cloud Run Jobs + Cloud Scheduler crons + Pub/Sub event bus + Cloud Tasks DLQ + Cloud Build CI/CD + OpenTelemetry instrumentation + Terraform module + Cloud Monitoring alerts + Cloud DLP template + BigQuery schemas + finalized RUNBOOK with 10 incident playbooks |
-| 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
-| 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
-| 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |
-| 5 | planned | Public filings + analyst + technographic ingest, AI extrapolation benchmarks, Benchmarks Studio |
-| 6 | planned | Lifecycle engine + Manager, Vendor Intelligence, Client Journey + DMA handoff |
-| 7 | planned | Quarterly Strategic Digest (Claude Opus), Deep Audit weekly, PPTX export |
-| 8 | planned | RAG Chat, What-If Simulator, Persona views, Notifications, Exports, QA & Audit Dashboard, eval harness |
-| 9 | planned | All 14 Cloud Run Jobs + Scheduler, Pub/Sub bus, Cloud Tasks DLQ, Cloud Build CI/CD, OpenTelemetry, IaC, finalized 6 docs |
 
 ---
 
