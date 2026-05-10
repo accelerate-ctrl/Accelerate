@@ -1,0 +1,4 @@
+# Theme-alignment validator config (per spec §11.1, mirrors v14.1 logic).
+# Wired in Batch 1.
+
+themes: []  # populated in Batch 1 from sheet 15_Theme_SubCap_Mapping

@@ -1,0 +1,38 @@
+# 9 lenses per spec §7.1. Activated in Batches 1-2.
+lenses:
+  - id: pillar
+    label: "Pillar"
+    cluster_logic: pillar
+    visualization: sunburst
+  - id: vc_cluster
+    label: "Value Chain Cluster"
+    cluster_logic: vcc
+    visualization: pipeline
+  - id: subvertical
+    label: "Subvertical"
+    cluster_logic: subvertical
+    visualization: choropleth
+  - id: category
+    label: "Category"
+    cluster_logic: category
+    visualization: treemap
+  - id: l1
+    label: "L1 Capability"
+    cluster_logic: l1
+    visualization: tree
+  - id: maturity
+    label: "Maturity"
+    cluster_logic: maturity
+    visualization: heatmap
+  - id: lifecycle
+    label: "Lifecycle"
+    cluster_logic: lifecycle
+    visualization: kanban
+  - id: vendor
+    label: "Vendor / L3 Platform"
+    cluster_logic: vendor
+    visualization: bubble
+  - id: uc_tag
+    label: "UC Tag"
+    cluster_logic: uc_tag
+    visualization: tag_cloud

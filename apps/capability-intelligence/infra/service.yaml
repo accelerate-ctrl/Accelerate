@@ -1,0 +1,26 @@
+# Cloud Run service manifest (Batch 9). Pinned per spec §20.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: capability-intelligence
+  annotations:
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+        - image: PLACEHOLDER
+          resources:
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          ports:
+            - containerPort: 8080

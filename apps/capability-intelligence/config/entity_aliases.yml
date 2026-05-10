@@ -1,0 +1,5 @@
+# Canonical-name resolution. Activated in Batch 3. Manual aliases override fuzzy.
+aliases:
+  client: {}      # e.g. "Wells Fargo": ["WFC", "Wells Fargo Bank, N.A."]
+  vendor: {}      # e.g. "Salesforce": ["SFDC", "salesforce.com"]
+  regulator: {}

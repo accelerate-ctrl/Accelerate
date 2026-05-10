@@ -1,0 +1,5 @@
+# Peer cohort definitions used by the Benchmark Engine. Activated in Batch 5.
+# Cohort = subvertical × asset-size bucket × business model. Bootstrap from
+# FDIC asset-size buckets.
+
+cohorts: []  # populated in Batch 5

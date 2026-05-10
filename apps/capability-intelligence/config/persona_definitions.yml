@@ -1,0 +1,49 @@
+# 9 personas per spec §11.14. Each defines: priority subcap categories,
+# hidden categories, vocabulary preferences. Wired into UI in Batch 8.
+
+personas:
+  - id: cio
+    label: "CIO"
+    priority_categories: [P1C5, P1C6, P4C2, P4C3]
+    hidden_categories: []
+    vocabulary: technical
+  - id: cmo
+    label: "CMO"
+    priority_categories: [P2C1, P2C2, P2C3]
+    hidden_categories: [P3C4]
+    vocabulary: customer
+  - id: cro
+    label: "CRO"
+    priority_categories: [P3C2, P3C3, P3C5, P1C2]
+    hidden_categories: []
+    vocabulary: risk
+  - id: cfo
+    label: "CFO"
+    priority_categories: [P3C1, P3C6, P1C2]
+    hidden_categories: []
+    vocabulary: finance
+  - id: coo
+    label: "COO"
+    priority_categories: [P3C1, P3C2, P3C4]
+    hidden_categories: []
+    vocabulary: operations
+  - id: cto
+    label: "CTO"
+    priority_categories: [P1C5, P4C2, P4C3, P4C4]
+    hidden_categories: []
+    vocabulary: technical
+  - id: cdo
+    label: "CDO"
+    priority_categories: [P4C1, P4C2, P4C3]
+    hidden_categories: []
+    vocabulary: data
+  - id: cco
+    label: "CCO"
+    priority_categories: [P1C2, P3C5]
+    hidden_categories: []
+    vocabulary: compliance
+  - id: senior_partner
+    label: "Senior Partner (default)"
+    priority_categories: []  # show everything
+    hidden_categories: []
+    vocabulary: consulting

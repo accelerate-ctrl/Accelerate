@@ -1,0 +1,19 @@
+[project]
+name = "capability-intelligence-backend"
+version = "0.1.0"
+description = "Zennify Capability Intelligence Agent — backend"
+requires-python = ">=3.12"
+readme = "../README.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

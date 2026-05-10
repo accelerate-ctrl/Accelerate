@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --zen-dark-green: #1c4a4d;
+  --zen-dark-teal: #185f60;
+  --zen-teal: #27bbaf;
+  --zen-light-teal: #62d7b8;
+  --zen-light-green: #b0eed3;
+  --zen-white-green: #e8f7f6;
+  --zen-light-orange: #ffcb99;
+  --zen-orange: #fe9732;
+}
+
+html, body, #root { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; }
+
+*:focus-visible {
+  outline: 2px solid var(--zen-teal);
+  outline-offset: 2px;
+}

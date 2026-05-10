@@ -1,0 +1,22 @@
+# Benchmark metric registry. Activated in Batch 5. One illustrative metric below.
+
+metrics:
+  - metric_id: tech_spend_pct_revenue
+    name: "Technology spend as % of revenue"
+    unit: "%"
+    cohort_dimensions: [asset_size, business_model, subvertical]
+    primary_sources:
+      - SEC EDGAR 10-K (Item 7 MD&A)
+      - FDIC Call Report (RC-O)
+      - Form ADV (Part 2A)
+      - Strategy firm reports (McKinsey/BCG)
+    secondary_sources:
+      - Vendor case studies (corroborating only, T5)
+      - Job postings (proxy: tech-role count, T4)
+    extraction_prompt: extraction/benchmarks/tech_spend.md
+    validation_rules:
+      - "0.5% <= value <= 25%"
+      - "require >= 3 observations per cohort"
+      - "flag values >3sigma from cohort mean"
+    refresh_cadence: quarterly
+    subcap_mappings: ["P1C2.3.*", "P4C1.*"]

@@ -1,0 +1,48 @@
+# Local stack: API + Firestore + Pub/Sub + GCS emulators.
+# Used by Batch 0 smoke tests and by Batch 1+ ingestion development.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: capability-intelligence:dev
+    ports:
+      - "8080:8080"
+    environment:
+      ENV: dev
+      AUTH_MODE: dev
+      AUTH_ALLOWED_DOMAIN: zennify.com
+      USE_GCP: "false"
+      FIRESTORE_EMULATOR_HOST: firestore:8200
+      PUBSUB_EMULATOR_HOST: pubsub:8085
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+    depends_on:
+      - firestore
+      - pubsub
+      - gcs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8080/api/health').read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  firestore:
+    image: google/cloud-sdk:emulators
+    command: >
+      gcloud beta emulators firestore start
+        --host-port=0.0.0.0:8200
+    ports: ["8200:8200"]
+
+  pubsub:
+    image: google/cloud-sdk:emulators
+    command: >
+      gcloud beta emulators pubsub start
+        --host-port=0.0.0.0:8085
+        --project=local-dev
+    ports: ["8085:8085"]
+
+  gcs:
+    image: fsouza/fake-gcs-server:latest
+    command: ["-scheme", "http", "-port", "4443", "-public-host", "gcs:4443"]
+    ports: ["4443:4443"]

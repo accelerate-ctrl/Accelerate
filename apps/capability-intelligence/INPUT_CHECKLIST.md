@@ -1,0 +1,76 @@
+# Inputs required by batch
+
+Batch 0 needs nothing. Each later batch is gated on the inputs below. Provide
+them at the start of the batch (or earlier so I can wire them in parallel).
+
+## Batch 1 — Catalogue spine
+
+- [ ] Drive folder URL or ID containing all 4 Pillar capability-map files. The
+      ingestion service recurses subfolders and selects the most recent
+      version per pillar by filename pattern (`Pillar_<n>_Capability_Map_v<x.y>.xlsx`).
+- [ ] GCP project ID
+- [ ] GCP region (recommend `us-central1`; defaults applied if absent)
+- [ ] Firebase project ID
+- [ ] Allowed Firebase Auth domain (default `zennify.com`)
+- [ ] Service account JSON with: Drive read, Sheets read, Firestore RW, BQ RW,
+      GCS RW, Cloud Logging — OR confirm I should generate `scripts/setup.sh`
+      that creates the SA + grants the roles for you to run.
+
+## Batch 3 — Internal evidence
+
+- [ ] Drive shared-drive ID for SOWs, with subfolder convention
+      `active/`, `prospect/`, `inactive/`, `archived/`
+- [ ] Atlassian Cloud URL (e.g., `zennify.atlassian.net`)
+- [ ] Jira service-account email + API token
+- [ ] List of Jira project keys to ingest
+- [ ] Confirm `gen_stories_export.xlsx` (already attached) is the canonical
+      story-schema reference
+
+## Batch 4 — LLM core
+
+- [ ] Anthropic API key (stored in Secret Manager)
+- [ ] Vertex AI region (recommend `us-central1`)
+- [ ] Anthropic weekly $ budget cap (auto-degrades to Gemini at 90%)
+- [ ] Daily total $ spend ceiling (Cloud Monitoring alert at 80%, throttle at 90%)
+- [ ] Confirm pinned model IDs:
+      - Sonnet → `claude-sonnet-4-6`
+      - Opus → `claude-opus-4-7`
+      - Embeddings → `text-embedding-005`
+      - Gemini Flash → `gemini-2.5-flash`
+      - Gemini Pro → `gemini-2.5-pro`
+
+## Batch 5 — Benchmarks
+
+- [ ] **Legal sign-off note** for Gartner / Forrester / Celent / IDC ingestion
+      and LinkedIn / Indeed / BuiltWith / Wappalyzer technographic ingest. You
+      indicated "build everything" — flagged here so it's on the record.
+- [ ] BuiltWith / Wappalyzer API keys (if the official APIs are licensed; else
+      we use the documented heuristic fallback)
+- [ ] LinkedIn approach: official People/Jobs API, third-party (Bright Data /
+      Phantombuster), or accept ToS risk (already noted)
+- [ ] Initial peer cohort definitions, OR confirm bootstrap from FDIC
+      asset-size buckets
+
+## Batch 7 — Strategic digest
+
+- [ ] Zennify logo (PNG + SVG)
+- [ ] Confirm 8-token brand palette (already locked from spec §14)
+- [ ] Optional `.pptx` template if one exists; else the digest export ships in
+      a clean Zennify-branded layout
+- [ ] Confirm "5 historical quarters of curated priorities" do not exist; if so
+      I'll bootstrap synthetic golden labels for the digest eval
+
+## Batch 9 — Production hardening
+
+- [ ] Slack webhook URL for alerts (optional)
+- [ ] Approver UIDs / emails for the breaking-change gate
+- [ ] DMA App handoff schema if it exists; else I publish v1 and you integrate
+
+---
+
+## Outstanding clarifications (any time)
+
+- Daily spend ceiling `$X` value
+- Anthropic weekly cap `$X/week` value
+- DMA App existing handoff schema (v0 if any)
+- Whether ARM / x86 deploy target matters (default x86 amd64)
