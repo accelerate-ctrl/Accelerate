@@ -46,6 +46,16 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 5
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `benchmark_observations` | `obs-{kind}-…` | One row per (company, metric, period); filing / analyst / technographic / ai_extrapolation |
+| `benchmark_distributions` | `dist-{metric}-{cohort}-{period}` | n + percentiles + verdict per cohort × metric × period |
+| `benchmark_cohorts` | cohort_id | Cohort metadata loaded from `peer_cohorts.yml` |
+| `benchmark_sources` | `src-{label}` | Aggregated source catalogue (label, tier, kind, observation_count) |
+| `benchmarks_ingest_runs` | `benchmarks-ingest-{unix}` | Per-refresh run log |
+
 ## Firestore collections — Batch 4
 
 | Collection | Doc ID | Description |

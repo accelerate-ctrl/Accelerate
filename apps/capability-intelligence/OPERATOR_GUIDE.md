@@ -173,4 +173,37 @@ status (pending / applied / rejected); each row links back to its
 reasoning chain, gate verdict, and target subcap.  Apply queues a diff
 for the catalogue version-service; reject records the actor + reason.
 
-(Steps 17+ ship in later batches per the TOC above.)
+## 17. Refresh benchmarks (Batch 5)
+
+**Benchmarks Studio → Refresh** (or `POST /api/benchmarks/refresh?
+extrapolate=true`) runs `benchmarks_service.refresh()`:
+
+1. Loads filings from `test-data/filings/` (live: SEC EDGAR REST +
+   FDIC Call Report).
+2. Loads analyst extracts from `test-data/analyst-reports/` (live:
+   doc-AI parsed Drive PDFs gated on legal sign-off).
+3. Loads technographics from `test-data/technographics/` (live:
+   BuiltWith / Wappalyzer / Similartech APIs gated on per-vendor keys).
+4. Auto-classifies each company into the cohorts defined in
+   `config/peer_cohorts.yml` based on subvertical + asset-size bucket.
+5. For every (metric, cohort, period) computes a distribution
+   (n / p25 / p50 / p75 / mean / stdev / coef-var) + verdict.
+6. For sparse cohorts (N < 3): triggers the Batch-4 consultant loop on
+   Gemini-Pro to produce one AI-extrapolated point with `EXPLORATORY`
+   verdict and a chain-id back to the Reasoning Chain Viewer.
+
+The Studio page lets you filter distributions by metric and cohort,
+expand any row to see per-observation rows (with AI badge for
+extrapolations), and click through the chain link to audit the
+extrapolation reasoning.
+
+## 18. Customize cohorts + metrics (Batch 5)
+
+Edit `config/peer_cohorts.yml` to add new cohort definitions
+(membership rules: `subverticals`, `asset_size_min_usd_bn`,
+`asset_size_max_usd_bn`).  Edit `config/benchmark_metrics.yml` to add
+new metrics (each metric carries `subcap_mappings`, `primary_sources`,
+`validation_rules`, `refresh_cadence`).  Re-run *Refresh* and the
+Studio picks up the new cohorts + metrics.
+
+(Steps 19+ ship in later batches per the TOC above.)

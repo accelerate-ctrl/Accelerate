@@ -9,6 +9,52 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 5 (Public benchmarks + technographics + AI extrapolation)
+
+Batches 0 + 1 + 2 + 3 + 4 + 5 are live. The system now reasons over both
+internal evidence (Batch 3) and external benchmarks (Batch 5).
+
+**Batch 5 adds:**
+
+- **Filings ingest**: 8 synthetic SEC EDGAR / FDIC / Form-ADV filings for
+  Wells Fargo, JPMorgan, BofA, PNC, US Bank, Truist, Charles Schwab,
+  Northwestern Mutual.  Each filing carries one or more KPI observations
+  (tech spend, cloud adoption, digital active users).  Live-mode swap-in
+  is the SEC EDGAR REST API + FDIC Call Report query.
+- **Analyst report ingest**: Gartner / Forrester / Celent observation
+  extracts (`license_status: "cite-only"`).  Live-mode swap is doc-AI
+  parsed PDFs from a Drive folder gated on legal sign-off.
+- **Technographic ingest**: BuiltWith + Wappalyzer dev fixtures with
+  per-company vendor stack + AI-assist signal score.  Live-mode swap is
+  the BuiltWith / Wappalyzer / Similartech APIs (heuristic fallback when
+  keys aren't licensed).
+- **Peer cohort engine** driven by `config/peer_cohorts.yml` (5 cohorts
+  pre-defined, FDIC asset-size-bucket bootstrap): GSIB, super-regional,
+  regional, large wealth, large life/annuity.
+- **Distribution math**: per (`metric × cohort × period`) compute n /
+  min / max / mean / stdev / p25 / p50 / p75 / coef-var.  Linear-
+  interpolation percentiles for small samples.
+- **Adversary verdict**:
+  - `BENCHMARK` — N ≥ 5, primary sources only, coef-var ≤ 0.3
+  - `INDICATIVE` — N = 3-4 OR mixed sources OR moderate variance
+  - `EXPLORATORY` — N < 3 OR includes AI-extrapolated points
+- **AI extrapolation**: when a (metric, cohort) has < 3 observations,
+  the engine triggers the Batch-4 consultant loop on Gemini-Pro to
+  produce one extrapolated point with a chain-id link back to the
+  Reasoning Chain Viewer.  Always tagged `is_extrapolated=true` and
+  `tier=T5`.  In dev mode the value falls back to the median of
+  neighbour-cohort observations (deterministic).
+- **Real Benchmarks Studio page**: filterable distribution list with
+  verdict badges, p25/p50/p75 horizontal sparkbars, per-distribution
+  observation expansion (showing AI badge + chain deep-link + source
+  URL), sources panel grouped by tier.
+- **Backend tests**: 23 new (percentile math, coef-var, cohort
+  matching, verdict thresholds, ingest, extrapolation, full API).
+  Frontend tests: 1 new (Benchmarks Studio).
+- **End-to-end stress test** confirms 8 filings + 8 analyst + 5
+  technographic = 21 raw observations + 10 AI extrapolations across 5
+  cohorts × 4 metrics = 20 distributions.
+
 ## Status — Batch 4 (LLM core + reasoning + gates)
 
 Batches 0 + 1 + 2 + 3 + 4 are live. The catalogue now reasons: every page
@@ -183,6 +229,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 2 | **shipped** | KG v1 (14/28 node kinds, 13 edge kinds, NetworkX) + Knowledge Graph page (Cytoscape) + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | **shipped** | SOW ingest (local + Drive/DocAI swap) + DLP redaction + chunking + mention extraction + canonical stories + Jira; SOW Library / Story Library / Project–Subcap Trace pages; entity resolver |
 | 4 | **shipped** | LLM router (Vertex Gemini + Anthropic Claude with hermetic dev-mode), 7-step consultant loop, 8 validation gates, adversarial agent, hallucination + citation verifier, content-hash cache, cost tracker, embeddings + vector store, news + trends ingest, AI Suggestions lifecycle, Reasoning Chain Viewer / Validation Gates / News Watch / Trends Monitor pages |
+| 5 | **shipped** | Public filings + analyst extracts + technographic ingest, peer cohort engine, AI-extrapolation benchmarks (consultant-loop linked), Benchmarks Studio page with verdict + percentile + sources |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

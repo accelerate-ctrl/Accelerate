@@ -1,0 +1,68 @@
+[
+  {
+    "company": "Wells Fargo",
+    "subvertical": "retail-banking",
+    "asset_size_usd_bn": 1900,
+    "as_of": "2026-04-15",
+    "source": "BuiltWith",
+    "vendors": [
+      { "vendor": "Salesforce Financial Services Cloud", "category": "core_crm", "confidence": 0.92 },
+      { "vendor": "Tableau Embedded", "category": "analytics", "confidence": 0.88 },
+      { "vendor": "Microsoft Azure", "category": "cloud", "confidence": 0.95 },
+      { "vendor": "Anthropic Claude", "category": "ai_assist", "confidence": 0.65 }
+    ],
+    "ai_assist_signal": 60
+  },
+  {
+    "company": "JPMorgan Chase",
+    "subvertical": "retail-banking",
+    "asset_size_usd_bn": 4100,
+    "as_of": "2026-04-15",
+    "source": "BuiltWith",
+    "vendors": [
+      { "vendor": "Salesforce", "category": "core_crm", "confidence": 0.85 },
+      { "vendor": "AWS", "category": "cloud", "confidence": 0.95 },
+      { "vendor": "Snowflake", "category": "analytics", "confidence": 0.9 },
+      { "vendor": "OpenAI", "category": "ai_assist", "confidence": 0.7 }
+    ],
+    "ai_assist_signal": 72
+  },
+  {
+    "company": "Bank of America",
+    "subvertical": "retail-banking",
+    "asset_size_usd_bn": 3300,
+    "as_of": "2026-04-15",
+    "source": "BuiltWith",
+    "vendors": [
+      { "vendor": "Salesforce Financial Services Cloud", "category": "core_crm", "confidence": 0.9 },
+      { "vendor": "Microsoft Azure", "category": "cloud", "confidence": 0.95 }
+    ],
+    "ai_assist_signal": 68
+  },
+  {
+    "company": "PNC Bank",
+    "subvertical": "retail-banking",
+    "asset_size_usd_bn": 560,
+    "as_of": "2026-04-15",
+    "source": "Wappalyzer",
+    "vendors": [
+      { "vendor": "nCino", "category": "lending", "confidence": 0.9 },
+      { "vendor": "Salesforce", "category": "core_crm", "confidence": 0.8 },
+      { "vendor": "AWS", "category": "cloud", "confidence": 0.85 }
+    ],
+    "ai_assist_signal": 42
+  },
+  {
+    "company": "Charles Schwab",
+    "subvertical": "wealth-management",
+    "asset_size_usd_bn": 510,
+    "as_of": "2026-04-15",
+    "source": "BuiltWith",
+    "vendors": [
+      { "vendor": "Salesforce Financial Services Cloud", "category": "core_crm", "confidence": 0.95 },
+      { "vendor": "AWS", "category": "cloud", "confidence": 0.9 },
+      { "vendor": "Anthropic Claude", "category": "ai_assist", "confidence": 0.7 }
+    ],
+    "ai_assist_signal": 56
+  }
+]

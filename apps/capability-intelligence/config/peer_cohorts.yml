@@ -1,5 +1,60 @@
 # Peer cohort definitions used by the Benchmark Engine. Activated in Batch 5.
 # Cohort = subvertical × asset-size bucket × business model. Bootstrap from
 # FDIC asset-size buckets.
+#
+# Each cohort yields one (metric, cohort, period) → distribution row in the
+# benchmark_distributions collection. Companies from test-data/filings/ are
+# auto-classified into cohorts by the membership rules below.
+#
+# Asset-size buckets follow FDIC Call Report convention:
+#   community  — < $1B
+#   mid-tier   — $1B-$10B
+#   regional   — $10B-$100B
+#   super-reg  — $100B-$700B
+#   gsib       — > $700B (or designated GSIB)
 
-cohorts: []  # populated in Batch 5
+cohorts:
+  - cohort_id: us_banks_gsib
+    name: "US banks — GSIB"
+    subvertical: retail-banking
+    asset_size_bucket: gsib
+    business_model: full_service
+    membership:
+      asset_size_min_usd_bn: 700
+    notes: "Globally systemically important banks per FSB list"
+
+  - cohort_id: us_banks_super_regional
+    name: "US banks — super-regional"
+    subvertical: retail-banking
+    asset_size_bucket: super-regional
+    business_model: full_service
+    membership:
+      asset_size_min_usd_bn: 100
+      asset_size_max_usd_bn: 700
+
+  - cohort_id: us_banks_regional
+    name: "US banks — regional"
+    subvertical: retail-banking
+    asset_size_bucket: regional
+    business_model: full_service
+    membership:
+      asset_size_min_usd_bn: 10
+      asset_size_max_usd_bn: 100
+
+  - cohort_id: us_wealth_large
+    name: "US wealth management — large"
+    subvertical: wealth-management
+    asset_size_bucket: regional
+    business_model: full_service
+    membership:
+      subverticals: [wealth-management]
+      asset_size_min_usd_bn: 50
+
+  - cohort_id: us_insurance_large
+    name: "US life + annuity carriers — large"
+    subvertical: insurance-life-annuity
+    asset_size_bucket: super-regional
+    business_model: mutual_or_stock
+    membership:
+      subverticals: [insurance-life-annuity, insurance]
+      asset_size_min_usd_bn: 100

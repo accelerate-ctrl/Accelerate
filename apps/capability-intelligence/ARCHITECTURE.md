@@ -17,6 +17,59 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 5 — Public benchmarks + technographics + AI extrapolation
+
+```
+test-data/filings/*.json          (live: SEC EDGAR REST + FDIC Call Report)
+test-data/analyst-reports/*.json  (live: doc-AI parsed Drive PDFs, license-gated)
+test-data/technographics/*.json   (live: BuiltWith / Wappalyzer / Similartech)
+        │
+        ▼
+benchmarks_service.refresh()
+        │
+        ├── normalize each row → benchmark_observations
+        ├── classify company against config/peer_cohorts.yml
+        │       (subvertical × asset-size bucket × business model)
+        ├── group (metric, cohort, period) → distribution
+        ├── compute n / min / max / mean / stdev / p25 / p50 / p75 / cv
+        ├── if N < 3 in any cohort: consultant_loop.run()
+        │   → AI-extrapolated obs (tier T5, is_extrapolated=true, chain_id)
+        ├── assign verdict: BENCHMARK | INDICATIVE | EXPLORATORY
+        └── persist to benchmark_distributions + benchmark_sources
+                                    │
+                                    ▼
+                       Benchmarks Studio page
+                  (filter by metric × cohort × subcap)
+```
+
+Verdict thresholds (per spec §7):
+
+| Verdict       | Rule                                                          |
+|---------------|---------------------------------------------------------------|
+| `BENCHMARK`   | N ≥ 5, source_kinds ⊆ {filing, analyst}, coef_var ≤ 0.3      |
+| `INDICATIVE`  | N = 3-4 OR mixed sources OR moderate variance                |
+| `EXPLORATORY` | N < 3 OR includes any `is_extrapolated=true` observation     |
+
+Subcap-aware filter: each metric in `config/benchmark_metrics.yml` has a
+`subcap_mappings` list of glob patterns (e.g. `P1C2.3.*`).  The
+`/api/benchmarks?sub_cap_id=P1C2.3.5` query expands those patterns to
+return all metrics whose mapping covers the subcap.
+
+AI extrapolation routes through the Batch-4 consultant loop with
+`ModelKind.GEMINI_PRO`, persists a `chain_id` on the observation, and
+links back to the Reasoning Chain Viewer for full audit trail.  The 8
+gates run on each extrapolation; the resulting observation is tagged
+EXPLORATORY whether or not the gate verdict is `pass`.
+
+Production swaps (when keys + legal sign-off land):
+- SEC EDGAR REST: `https://data.sec.gov/submissions/CIK{cik}.json` +
+  `https://data.sec.gov/api/xbrl/companyconcept/...` — requires a
+  `User-Agent` with the value of `SEC_EDGAR_EMAIL`.
+- FDIC Call Report: `https://banks.data.fdic.gov/api/financials` (REST).
+- Analyst PDFs: doc-AI on a Drive folder, gated on `LEGAL_SIGNOFF=true`.
+- BuiltWith / Wappalyzer: REST APIs gated on `BUILTWITH_API_KEY` /
+  `WAPPALYZER_API_KEY`; without keys, the engine reads the seed JSONs.
+
 ## Batch 4 — LLM core + reasoning + gates
 
 ```

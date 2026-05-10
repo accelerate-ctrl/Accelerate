@@ -131,6 +131,94 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 5 ────────────────────────────────────────────────────────────────
+
+export type BenchmarkVerdict = 'BENCHMARK' | 'INDICATIVE' | 'EXPLORATORY';
+
+export type BenchmarkMetric = {
+  metric_id: string;
+  name: string;
+  unit?: string;
+  cohort_dimensions?: string[];
+  primary_sources?: string[];
+  secondary_sources?: string[];
+  refresh_cadence?: string;
+  subcap_mappings?: string[];
+};
+
+export type BenchmarkCohort = {
+  cohort_id: string;
+  name: string;
+  subvertical?: string;
+  asset_size_bucket?: string;
+  business_model?: string;
+  membership?: { asset_size_min_usd_bn?: number; asset_size_max_usd_bn?: number; subverticals?: string[] };
+  notes?: string;
+};
+
+export type BenchmarkObservation = {
+  id: string;
+  company: string;
+  subvertical?: string;
+  asset_size_usd_bn?: number | null;
+  metric_id: string;
+  value: number;
+  period: string;
+  source_kind: 'filing' | 'analyst' | 'technographic' | 'ai_extrapolation';
+  source_label: string;
+  source_url?: string | null;
+  evidence?: string;
+  cohort_ids: string[];
+  tier?: string;
+  is_extrapolated: boolean;
+  chain_id?: string;
+  ingested_at: string;
+};
+
+export type BenchmarkDistribution = {
+  id: string;
+  metric_id: string;
+  cohort_id: string;
+  period: string;
+  n: number;
+  min: number | null;
+  max: number | null;
+  mean: number | null;
+  stdev: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  coef_var: number;
+  verdict: BenchmarkVerdict;
+  source_kinds: string[];
+  observation_ids: string[];
+  computed_at: string;
+};
+
+export type BenchmarkSource = {
+  id: string;
+  label: string;
+  kind: string;
+  tier?: string;
+  observation_count: number;
+  url?: string | null;
+};
+
+export type BenchmarksRefreshSummary = {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  filings_loaded: number;
+  analyst_observations: number;
+  technographic_companies: number;
+  observations_total: number;
+  distributions_total: number;
+  extrapolations_total: number;
+  cohorts_loaded: number;
+  sources: string[];
+  schema_issues: string[];
+};
+
 // ─── Batch 4 ────────────────────────────────────────────────────────────────
 
 export type ModelKind = 'gemini-flash' | 'gemini-pro' | 'sonnet' | 'opus';

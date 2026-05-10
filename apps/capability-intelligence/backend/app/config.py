@@ -95,6 +95,14 @@ class Settings(BaseSettings):
     local_trends_dir: str | None = None  # falls back to test-data/trends/
     news_feeds: list[str] = Field(default_factory=list)  # RSS URLs (live mode)
 
+    # Benchmarks (Batch 5)
+    local_filings_dir: str | None = None        # falls back to test-data/filings/
+    local_analyst_dir: str | None = None        # falls back to test-data/analyst-reports/
+    local_technographics_dir: str | None = None  # falls back to test-data/technographics/
+    builtwith_api_key: str | None = None
+    wappalyzer_api_key: str | None = None
+    sec_edgar_email: str | None = None  # required for SEC user-agent header in live mode
+
     # Drive (Batch 1) and Jira (Batch 3)
     drive_pillars_folder_id: str | None = None
     drive_sows_folder_id: str | None = None

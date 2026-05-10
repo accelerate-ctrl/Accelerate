@@ -51,17 +51,23 @@ them at the start of the batch (or earlier so I can wire them in parallel).
       - Gemini Pro → `gemini-2.5-pro`
 - [ ] Flip `LLM_LIVE_MODE=true` once keys are loaded — no other code change.
 
-## Batch 5 — Benchmarks
+## Batch 5 — Benchmarks — partially supplied
 
-- [ ] **Legal sign-off note** for Gartner / Forrester / Celent / IDC ingestion
-      and LinkedIn / Indeed / BuiltWith / Wappalyzer technographic ingest. You
-      indicated "build everything" — flagged here so it's on the record.
-- [ ] BuiltWith / Wappalyzer API keys (if the official APIs are licensed; else
-      we use the documented heuristic fallback)
-- [ ] LinkedIn approach: official People/Jobs API, third-party (Bright Data /
-      Phantombuster), or accept ToS risk (already noted)
-- [ ] Initial peer cohort definitions, OR confirm bootstrap from FDIC
-      asset-size buckets
+- [x] Architecture in place; runs end-to-end in dev mode against
+      synthetic seed filings + analyst extracts + technographics in
+      `test-data/`.
+- [x] FDIC asset-size-bucket bootstrap cohorts pre-seeded in
+      `config/peer_cohorts.yml` (5 cohorts).
+- [ ] **Legal sign-off note** for Gartner / Forrester / Celent / IDC
+      ingestion and LinkedIn / Indeed / BuiltWith / Wappalyzer
+      technographic ingest.  Flagged here so it's on record.
+- [ ] BuiltWith / Wappalyzer API keys (`BUILTWITH_API_KEY`,
+      `WAPPALYZER_API_KEY`); without them the engine reads seed JSONs.
+- [ ] LinkedIn approach: official People/Jobs API, third-party
+      (Bright Data / Phantombuster), or accept ToS risk.
+- [ ] SEC EDGAR User-Agent email (`SEC_EDGAR_EMAIL`) for live filings.
+- [ ] Optional cohort overrides in `config/peer_cohorts.yml` if the
+      FDIC bucket bootstrap doesn't fit a target sub-vertical.
 
 ## Batch 7 — Strategic digest
 

@@ -1,0 +1,40 @@
+[
+  {
+    "report_id": "gartner-magic-quadrant-2026-banking-platforms",
+    "publisher": "Gartner",
+    "title": "Magic Quadrant for Global Retail Banking Platforms, 2026",
+    "published_at": "2026-03-05",
+    "url": "https://www.gartner.com/doc/reprints?id=2026-mq-banking",
+    "license_status": "cite-only",
+    "observations": [
+      { "company": "JPMorgan Chase", "subvertical": "retail-banking", "metric_id": "tech_spend_pct_revenue", "value": 12.0, "period": "2025-Q4", "evidence": "Gartner notes JPMC tech spend ~12% of revenue, leader quadrant" },
+      { "company": "Wells Fargo", "subvertical": "retail-banking", "metric_id": "ai_assist_adoption_score", "value": 64, "period": "2026-Q1", "evidence": "Internal GenAI co-pilot rollout cited as broad-based" },
+      { "company": "Bank of America", "subvertical": "retail-banking", "metric_id": "ai_assist_adoption_score", "value": 71, "period": "2026-Q1", "evidence": "Erica AI assistant cited as differentiator" },
+      { "company": "Charles Schwab", "subvertical": "wealth-management", "metric_id": "ai_assist_adoption_score", "value": 58, "period": "2026-Q1", "evidence": "Schwab GenAI advisor pilot in deployment" }
+    ]
+  },
+  {
+    "report_id": "forrester-2026-q1-digital-banking",
+    "publisher": "Forrester",
+    "title": "The Forrester Wave: Digital Banking Engagement Platforms, Q1 2026",
+    "published_at": "2026-02-18",
+    "url": "https://www.forrester.com/report/the-forrester-wave-digital-banking-engagement-platforms-q1-2026",
+    "license_status": "cite-only",
+    "observations": [
+      { "company": "PNC Bank", "subvertical": "retail-banking", "metric_id": "digital_active_users_pct", "value": 71.5, "period": "2025-Q4", "evidence": "Forrester rates PNC engagement score 4.1/5" },
+      { "company": "Truist Financial", "subvertical": "retail-banking", "metric_id": "digital_active_users_pct", "value": 68.0, "period": "2025-Q4", "evidence": "Forrester score 3.7/5; trailing peers" },
+      { "company": "US Bank", "subvertical": "retail-banking", "metric_id": "digital_active_users_pct", "value": 73.0, "period": "2025-Q4", "evidence": "Forrester rates US Bank 4.0/5" }
+    ]
+  },
+  {
+    "report_id": "celent-2026-q1-cloud-adoption",
+    "publisher": "Celent",
+    "title": "Cloud Adoption in US Banks, 2026",
+    "published_at": "2026-01-30",
+    "url": "https://www.celent.com/insights/2026-cloud-adoption-banks",
+    "license_status": "cite-only",
+    "observations": [
+      { "company": "Truist Financial", "subvertical": "retail-banking", "metric_id": "cloud_adoption_pct_workloads", "value": 26.0, "period": "2025-Q4", "evidence": "Celent estimates Truist at 26% public-cloud workloads" }
+    ]
+  }
+]

@@ -1,4 +1,13 @@
-# Benchmark metric registry. Activated in Batch 5. One illustrative metric below.
+# Benchmark metric registry. Activated in Batch 5.
+#
+# Each metric is observed via filings + analyst-reports + technographics
+# (in dev: local seed). The benchmarks_service computes per-cohort
+# distributions (count + p25/p50/p75 + min/max + mean + std) and assigns
+# an adversary verdict:
+#
+#   BENCHMARK    — N >= 5 observations, all from primary sources, low variance
+#   INDICATIVE   — N = 3-4 observations OR mixed sources OR moderate variance
+#   EXPLORATORY  — N < 3 observations OR all AI-extrapolated
 
 metrics:
   - metric_id: tech_spend_pct_revenue
@@ -20,3 +29,37 @@ metrics:
       - "flag values >3sigma from cohort mean"
     refresh_cadence: quarterly
     subcap_mappings: ["P1C2.3.*", "P4C1.*"]
+
+  - metric_id: cloud_adoption_pct_workloads
+    name: "% of workloads in public cloud"
+    unit: "%"
+    cohort_dimensions: [asset_size, subvertical]
+    primary_sources:
+      - 10-K Item 7 cloud commitments
+      - Analyst report (Gartner, Forrester)
+    secondary_sources:
+      - Technographic adoption signals
+    refresh_cadence: quarterly
+    subcap_mappings: ["P1C2.3.*", "P3C1.*"]
+
+  - metric_id: digital_active_users_pct
+    name: "% of customers with active digital channel use"
+    unit: "%"
+    cohort_dimensions: [subvertical, asset_size]
+    primary_sources:
+      - 10-K Item 1 customer metrics
+      - Analyst Magic Quadrant exhibits
+    refresh_cadence: quarterly
+    subcap_mappings: ["P1C1.*"]
+
+  - metric_id: ai_assist_adoption_score
+    name: "GenAI assist adoption score (0-100)"
+    unit: "score"
+    cohort_dimensions: [subvertical, asset_size]
+    primary_sources:
+      - Technographic signals (BuiltWith / job postings)
+      - Analyst commentary
+    secondary_sources:
+      - SOW mentions (internal)
+    refresh_cadence: quarterly
+    subcap_mappings: ["P1C1.*", "P1C2.7.*"]
