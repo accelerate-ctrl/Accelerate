@@ -1,0 +1,51 @@
+# 8 universal MECE value-chain clusters per spec §1 (VCC-01 → VCC-08).
+# Stage names in 21_VC_Mapping_PerSubcap are subvertical-specific; we map
+# them to one of the 8 universal clusters via keyword heuristics.
+# `keywords` (case-insensitive) are matched as substrings against the raw
+# stage label. First match wins. Unmatched stages get VCC-00 + a flag.
+
+clusters:
+  - code: VCC-01
+    name: MARKET
+    color: "#1c4a4d"
+    keywords: [market, brand, sector, niche, ag market, field-of-membership, marketing, content marketing, thought leadership, intelligence]
+
+  - code: VCC-02
+    name: ACQUIRE & ONBOARD
+    color: "#185f60"
+    keywords: [acquire, acquisition, onboard, kyc, account opening, lead, prospecting, distribution, sales]
+
+  - code: VCC-03
+    name: SERVE & ENGAGE
+    color: "#27bbaf"
+    keywords: [serve, service, engage, advisor platform, customer experience, customer service, support, contact center]
+
+  - code: VCC-04
+    name: ADVISE & SELL
+    color: "#62d7b8"
+    keywords: [advise, advisory, sell, planning, performance analytics, attribution, product strategy, design]
+
+  - code: VCC-05
+    name: ORIGINATE & DECISION
+    color: "#b0eed3"
+    keywords: [originate, origination, decision, underwriting, credit, pricing, actuarial]
+
+  - code: VCC-06
+    name: PORTFOLIO & RISK
+    color: "#ffcb99"
+    keywords: [portfolio, provisioning, risk, regulatory ops, fca, exam, claims]
+
+  - code: VCC-07
+    name: SETTLE & SERVICE
+    color: "#fe9732"
+    keywords: [settle, settlement, servicing, transaction, payment, billing, agency mgmt, agency management]
+
+  - code: VCC-08
+    name: OPERATE & PLATFORM
+    color: "#1c4a4d"
+    keywords: [back office, ops, compliance, platform, technology, data, cuso, shared services, pas, cms]
+
+  - code: VCC-00
+    name: Unclassified
+    color: "#999999"
+    keywords: []

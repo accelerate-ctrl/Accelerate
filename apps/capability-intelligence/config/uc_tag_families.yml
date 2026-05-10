@@ -1,0 +1,51 @@
+# 22 use-case archetype tags grouped into 5 families per spec §14.
+# Tag list mirrors the actual archetypes present in Pillar 1 v14.0.
+# Tags are extracted from the [TAG_NAME] pattern in the use-case label.
+
+families:
+  - id: strategic
+    name: Strategic
+    color: "#1c4a4d"
+    tags:
+      - AI_AUTHOR
+      - BOARD_PACK
+      - EXEC_DASHBOARD
+      - IDEA_CROWDSOURCE
+      - EXTERNAL_BENCHMARK
+      - ALIGNMENT_LINK
+      - DECISION_SUPPORT
+
+  - id: workflow
+    name: Workflow
+    color: "#27bbaf"
+    tags:
+      - WORKFLOW_CADENCE
+      - CHANGE_DELIVERY
+      - LIFECYCLE_MGMT
+      - PIPELINE_TRACKING
+      - SELF_SERVICE_PORTAL
+
+  - id: communication
+    name: Communication
+    color: "#62d7b8"
+    tags:
+      - STAKEHOLDER_COMM
+      - ENGAGEMENT_MEASUREMENT
+
+  - id: governance_risk
+    name: Governance & Risk
+    color: "#fe9732"
+    tags:
+      - AUDIT_TRAIL
+      - POLICY_ENFORCEMENT
+      - RISK_INDICATOR
+      - INCIDENT_ESCALATION
+      - COVERAGE_MONITORING
+
+  - id: reporting_validation
+    name: Reporting & Validation
+    color: "#ffcb99"
+    tags:
+      - REG_REPORTING
+      - VALIDATION_CHECK
+      - DATA_LINEAGE

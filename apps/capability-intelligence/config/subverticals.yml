@@ -1,0 +1,35 @@
+# 10 financial-services subverticals per spec §1.
+# `code` is the canonical short code; `column_aliases` are the labels seen
+# in the Pillar 1 v14 sheet `21_VC_Mapping_PerSubcap` (header row).
+
+subverticals:
+  - code: RB
+    name: Retail Banking
+    column_aliases: ["Retail Banking", "RB"]
+  - code: CU
+    name: Credit Unions
+    column_aliases: ["Credit Unions", "CU"]
+  - code: CL
+    name: Commercial Lending
+    column_aliases: ["Commercial Lending", "CL"]
+  - code: CIB
+    name: Corporate & Investment Banking
+    column_aliases: ["Corp & Investment Banking", "Corporate & Investment Banking", "CIB"]
+  - code: FC
+    name: Farm Credit / Agricultural Lending
+    column_aliases: ["Farm Credit / Ag Lending", "Farm Credit", "FC"]
+  - code: WM
+    name: Wealth Management
+    column_aliases: ["Wealth Management", "WM"]
+  - code: AM
+    name: Asset Management
+    column_aliases: ["Asset Management", "AM"]
+  - code: RIA
+    name: RIA / Broker-Dealer
+    column_aliases: ["RIA / Broker-Dealer", "RIA", "Broker-Dealer"]
+  - code: IC
+    name: Insurance Carriers
+    column_aliases: ["Insurance Carriers", "IC"]
+  - code: IB
+    name: Insurance Brokerages
+    column_aliases: ["Insurance Brokerages", "IB"]

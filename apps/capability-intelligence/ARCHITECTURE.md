@@ -17,6 +17,31 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 2 — Knowledge Graph + lenses
+
+```
+catalogue_service (Batch 1 collections)
+  └── graph_service.build_graph()  [NetworkX MultiDiGraph, LRU(8) by ingest_run_id]
+        ├── reads pillars / categories / l1 / subcaps / use_cases / l3 / l4 /
+        │   maturity / themes / vc_mappings
+        ├── reads config: subverticals.yml, vcc_clusters.yml, uc_tag_families.yml
+        └── emits 14 node kinds + 13 edge kinds
+              ├── /api/graph/{summary, elements, neighborhood/{id}, path,
+              │              centrality, communities, impact/{id}}
+              └── /api/lens/{subverticals, clusters, uc-tag-families,
+                            value-chain-atlas, subvertical-compare/{id},
+                            maturity-heatmap, use-case-explorer, platform-catalog}
+```
+
+VC stage classification: cells in 21_VC_Mapping_PerSubcap are encoded as
+`▌ STAGE A\n▌ STAGE B`. The parser splits on `▌`; the graph_service heuristic
+classifier matches each stage label against keyword lists in vcc_clusters.yml
+(first match wins) to assign one of VCC-01..08, falling to VCC-00 for unmatched.
+
+Cache invalidation: catalogue_service._run_ingest() calls
+graph_service.invalidate_cache() at end-of-run so the next /api/graph/* call
+rebuilds from the new snapshot.
+
 ## Batch 1 — Catalogue spine
 
 ```

@@ -23,6 +23,7 @@ COLLECTIONS = {
     "maturity": "maturity_descriptors",
     "themes": "theme_mappings",
     "stories": "stories",
+    "vc_mappings": "vc_mappings",
     "ingest_runs": "ingest_runs",
     "flags": "flags",
     "settings": "settings",
@@ -124,7 +125,15 @@ def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
             "maturity": len(result.maturity_descriptors),
             "themes": len(result.theme_mappings),
             "stories": len(result.stories),
+            "vc_mappings": len(result.vc_mappings),
         }
+
+    # Invalidate downstream caches that derive from catalogue contents.
+    try:
+        from . import graph_service
+        graph_service.invalidate_cache()
+    except Exception:  # graph_service depends on networkx; absent in some test paths
+        pass
 
     completed = datetime.utcnow()
     run_id = f"ingest-{int(started.timestamp())}"
@@ -164,6 +173,7 @@ def _persist_pillar_slice(repo: Repository, pid: str, result: ParseResult) -> No
         ("maturity", result.maturity_descriptors),
         ("themes", result.theme_mappings),
         ("stories", result.stories),
+        ("vc_mappings", result.vc_mappings),
     ):
         coll = COLLECTIONS[coll_key]
         # Drop existing pillar slice
@@ -216,6 +226,8 @@ def _doc_id_for(coll_key: str, doc: dict) -> str | None:
         return f"{doc.get('theme')}::{doc.get('sub_cap_id')}"
     if coll_key == "stories":
         return doc.get("story_key")
+    if coll_key == "vc_mappings":
+        return f"{doc.get('sub_cap_id')}::{doc.get('subvertical_code')}"
     return None
 
 
@@ -265,6 +277,30 @@ def get_maturity(sub_cap_id: str) -> dict | None:
 
 def list_l3() -> list[dict]:
     return get_repository().list(COLLECTIONS["l3"])
+
+
+def list_l4(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["l4"], filter)
+
+
+def list_use_cases(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["use_cases"], filter)
+
+
+def list_themes(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["themes"], filter)
+
+
+def list_maturity(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["maturity"], filter)
+
+
+def list_vc_mappings(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["vc_mappings"], filter)
+
+
+def list_l1(filter: dict | None = None) -> list[dict]:
+    return get_repository().list(COLLECTIONS["l1"], filter)
 
 
 def list_l4_for(sub_cap_id: str) -> list[dict]:

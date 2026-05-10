@@ -59,4 +59,35 @@ Batch 4 (Gemini 2.5 Pro).
 alignment, schema-incomplete pillars, ingest failures). Each shows
 severity, kind, target, detail, and a Resolve button.
 
-(Steps 7-13 ship in later batches per the TOC above.)
+## 7. Explore the Knowledge Graph (Batch 2)
+
+**Knowledge Graph** page renders the catalogue as a Cytoscape graph. Use the
+node-kind filter row to add/remove kinds; the max-nodes slider keeps the
+layout responsive. Click a node to select; click a Subcap-kind node to jump
+to its Subcap Deep Dive. The right panel ranks nodes by degree / pagerank /
+betweenness centrality. Communities, paths, and impact-analysis are also
+exposed at `/api/graph/*` and surface in richer UI alongside the Reasoning
+Chain Viewer in Batch 4.
+
+## 8. Read the Value Chain Atlas (Batch 2)
+
+**Value Chain Atlas** groups the universal 8 VCC clusters and lists the
+subvertical-specific stages classified into each. Use the subvertical
+selector to filter to one of the 10 subverticals. Stages that don't match
+any cluster keyword fall to VCC-00 — these are flagged for human review.
+
+## 9. Compare across subverticals (Batch 2)
+
+**Subvertical Compare** picks one subcap and shows how it manifests across
+all 10 subverticals: which subverticals it applies to and which stages cover
+it. The page is keyed off the subcap dropdown; deep-link via `?id=<sub_cap_id>`.
+
+## 10. Inspect maturity, use cases, and platforms (Batch 2)
+
+- **Maturity Heatmap**: 199 × M1..M5 with cell shading by descriptor depth.
+- **Use Case Explorer**: 22 archetype tags grouped into 5 families with
+  per-tag counts and sample drilldown.
+- **Platform Catalog**: 45 L3 platforms grouped by vendor with subcap-usage
+  counts and reference-doc links.
+
+(Steps 11+ ship in later batches per the TOC above.)

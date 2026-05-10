@@ -9,6 +9,41 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 2 (Knowledge Graph + lenses)
+
+Batches 0 + 1 + 2 are live. The knowledge graph and the multi-lens projections
+of the catalogue are fully usable.
+
+**Batch 2 adds:**
+
+- VC mapping ingest from sheet `21_VC_Mapping_PerSubcap` — 1,990 subcap × subvertical
+  rows for Pillar 1
+- 14 of the 28 spec node types populated: Pillar, Category, L1_Capability,
+  Subcap, UseCase, UC_Tag, L3_Platform, L4_Feature, Theme, MaturityDescriptor,
+  Subvertical, Cluster, VC_Stage, Persona
+- 13 edge types: BELONGS_TO, USES_PLATFORM, USES_FEATURE, DELIVERED_BY,
+  SUPPORTS_UC, TAGGED_AS, REFERENCES_THEME, HAS_MATURITY, MAPS_TO_STAGE,
+  IN_CLUSTER, IN_SUBVERTICAL, APPLIES_TO, CONSUMED_BY
+- 8 universal MECE value-chain clusters (VCC-01..08) with a heuristic
+  classifier mapping subvertical-specific stage names to the correct cluster
+  (unmatched stages fall to VCC-00 for review)
+- 22 UC archetype tags grouped into 5 families (Strategic / Workflow /
+  Communication / Governance & Risk / Reporting & Validation)
+- 10 financial-services subverticals (RB / CU / CL / CIB / FC / WM / AM /
+  RIA / IC / IB) with code aliases for column-header matching
+- KG service (NetworkX) with: lazy-build + LRU cache invalidated on each
+  ingest; centrality (degree / pagerank / betweenness / eigenvector);
+  Louvain communities; shortest-path (directed first, undirected fallback);
+  impact-analysis (>=50% loss in either direction); k-hop neighborhood
+- Real pages: Knowledge Graph (Cytoscape + cose-bilkent layout, node-kind
+  filter, max-render slider, centrality panel with metric switch),
+  Value Chain Atlas (8 clusters, subvertical filter), Subvertical Compare
+  (subcap × 10 subverticals), Maturity Heatmap (199 × M1..M5), Use Case
+  Explorer (827 UCs grouped by tag-family), Platform Catalog (45 platforms
+  by vendor, with subcap-usage counts)
+- Backend tests: 17 new (KG build, KG algorithms, lenses, end-to-end);
+  Frontend tests: 2 new (heatmap + atlas)
+
 ## Status — Batch 1 (Catalogue spine)
 
 Batches 0 + 1 are live. The catalogue spine is fully usable: ingest a Pillar
@@ -54,6 +89,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 |---|---|---|
 | 0 | **shipped** | Foundation — shell, brand, all 28 routes/pages, emulators, tests, docs |
 | 1 | **shipped** | Catalogue spine: Drive → Sheets → Firestore (MongoDB-compat) → Capability Explorer + Subcap Deep Dive + Diff Viewer + Mission Control + Change Flags + Settings |
+| 2 | **shipped** | KG v1 (14/28 node kinds, 13 edge kinds, NetworkX) + Knowledge Graph page (Cytoscape) + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

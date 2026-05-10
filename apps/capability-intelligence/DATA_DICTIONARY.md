@@ -46,9 +46,47 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
-## Knowledge graph — Batch 2+
+## Knowledge graph — Batch 2
 
-28 node types and 50+ edge types per spec §8. Documented as nodes/edges land.
+| Node kind | Source | Notes |
+|---|---|---|
+| `Pillar` | `pillars` collection | P1..P4 |
+| `Category` | `categories` | e.g. P1C1..P1C4 |
+| `L1_Capability` | `l1_capabilities` | synthesized per subcap row |
+| `Subcap` | `subcaps` | 199 in Pillar 1 |
+| `UseCase` | `use_cases` | 827 in Pillar 1 |
+| `UC_Tag` | extracted from UC labels | 22 archetype tags |
+| `L3_Platform` | `l3_platforms` (+ subcap references) | 45 in Pillar 1 |
+| `L4_Feature` | `l4_features` | 1,852 in Pillar 1 |
+| `Theme` | `theme_mappings` | 8 cross-pillar themes |
+| `MaturityDescriptor` | `maturity_descriptors` × M1..M5 | 796 nodes (199 × ~4 filled levels) |
+| `Subvertical` | `subverticals.yml` | 10 nodes |
+| `Cluster` | `vcc_clusters.yml` | 8 universal + VCC-00 unclassified |
+| `VC_Stage` | `vc_mappings` | distinct (subvertical, stage) pairs |
+| `Persona` | `subcaps.personas` | distinct persona strings |
+
+| Edge kind | From → To | Notes |
+|---|---|---|
+| `BELONGS_TO` | Subcap→Category, L1→Category, Category→Pillar | hierarchy |
+| `USES_PLATFORM` | Subcap → L3_Platform | bracketed L3 ID match |
+| `USES_FEATURE` | Subcap → L4_Feature | composition |
+| `DELIVERED_BY` | L4_Feature → L3_Platform | composition |
+| `SUPPORTS_UC` | Subcap → UseCase | use case mapping |
+| `TAGGED_AS` | UseCase → UC_Tag | archetype tag |
+| `REFERENCES_THEME` | Subcap → Theme | cross-pillar theme |
+| `HAS_MATURITY` | Subcap → MaturityDescriptor | per-level descriptor |
+| `MAPS_TO_STAGE` | Subcap → VC_Stage | subvertical-specific |
+| `IN_CLUSTER` | VC_Stage → Cluster | universal classification |
+| `IN_SUBVERTICAL` | VC_Stage → Subvertical | per-subvertical scoping |
+| `APPLIES_TO` | Subcap → Subvertical | aggregate applicability |
+| `CONSUMED_BY` | Subcap → Persona | persona ownership |
+
+Graph total at Pillar 1 v14.0: **4,014 nodes / 12,249 edges**.
+
+Remaining 14 node kinds (Story / SOW / Project / Client / Vendor / Regulator /
+Filing / NewsItem / ResearchReport / Benchmark / PeerCohort /
+RegulatoryRequirement / EvidenceItem / CapabilityGap) and the 30+ remaining
+edge kinds light up in Batches 3-6.
 
 ## Prompts — Batch 4+
 

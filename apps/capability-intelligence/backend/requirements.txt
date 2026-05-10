@@ -20,6 +20,10 @@ google-cloud-storage==2.18.2
 firebase-admin==6.5.0
 python-dateutil==2.9.0.post0
 
+# Batch 2 — knowledge graph
+networkx==3.4.2
+python-louvain==0.16
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0

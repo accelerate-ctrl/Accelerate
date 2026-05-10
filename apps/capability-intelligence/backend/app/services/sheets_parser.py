@@ -47,6 +47,7 @@ class ParseResult:
     maturity_descriptors: list[dict] = field(default_factory=list)
     theme_mappings: list[dict] = field(default_factory=list)
     stories: list[dict] = field(default_factory=list)
+    vc_mappings: list[dict] = field(default_factory=list)
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────
@@ -105,6 +106,8 @@ def parse_workbook(source: bytes | str | Path, default_pillar_id: str | None = N
         _emit_themes(*_read_sheet(wb["15_Theme_SubCap_Mapping"]), result=result)
     if "3_User_Stories_Catalogue" in sheets:
         _emit_stories(*_read_sheet(wb["3_User_Stories_Catalogue"]), result=result)
+    if "21_VC_Mapping_PerSubcap" in sheets:
+        _emit_vc_mappings(*_read_vc_sheet(wb["21_VC_Mapping_PerSubcap"]), result=result)
 
     log.info(
         "parsed pillar=%s subcaps=%d l3=%d l4=%d maturity=%d themes=%d stories=%d",
@@ -332,6 +335,82 @@ def _emit_themes(rows: list[list[Any]], headers: list[str], result: ParseResult)
             "cross_pillar_story_count": d.get("Cross_Pillar_Story_Count_for_Theme"),
             "zennify_effective_status": d.get("Zennify_Effective_Status"),
         })
+
+
+def _read_vc_sheet(ws) -> tuple[list[list[Any]], list[str]]:
+    """The VC sheet has 3 banner rows above the real header.
+
+    Find the row that begins with 'Category' and take it as headers; everything
+    below is data.
+    """
+    headers: list[str] = []
+    rows: list[list[Any]] = []
+    for r in ws.iter_rows(values_only=True):
+        if not headers:
+            if r and r[0] and str(r[0]).strip().lower() == "category":
+                headers = [str(v).strip() if v is not None else "" for v in r]
+            continue
+        if r is None:
+            continue
+        rows.append(list(r))
+    return rows, headers
+
+
+# Subvertical column-name → canonical code (loaded from config at module import).
+def _load_subvertical_aliases() -> dict[str, str]:
+    import yaml
+    from pathlib import Path
+    p = Path(__file__).resolve().parents[3] / "config" / "subverticals.yml"
+    if not p.exists():
+        return {}
+    raw = yaml.safe_load(p.read_text())
+    out: dict[str, str] = {}
+    for sv in raw.get("subverticals", []):
+        for alias in sv.get("column_aliases", []) + [sv["name"], sv["code"]]:
+            out[alias.strip().lower()] = sv["code"]
+    return out
+
+
+_SUBVERTICAL_ALIASES = _load_subvertical_aliases()
+
+
+def _split_stages(cell: Any) -> list[str]:
+    """VC cells are encoded as `▌ STAGE A\n▌ STAGE B`. Split on the marker."""
+    if cell is None:
+        return []
+    s = str(cell).strip()
+    parts = [p.strip(" \t▌") for p in s.split("▌")]
+    return [p for p in parts if p]
+
+
+def _emit_vc_mappings(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    if "Sub_Cap_ID" not in headers:
+        return
+    sub_idx = headers.index("Sub_Cap_ID")
+    # Map subvertical-column-index → canonical code (e.g., RB)
+    col_to_code: dict[int, str] = {}
+    for i, h in enumerate(headers):
+        code = _SUBVERTICAL_ALIASES.get((h or "").strip().lower())
+        if code:
+            col_to_code[i] = code
+
+    for r in rows:
+        if not r or len(r) <= sub_idx:
+            continue
+        sub_cap_id = r[sub_idx]
+        if not sub_cap_id:
+            continue
+        for col, code in col_to_code.items():
+            if col >= len(r):
+                continue
+            stages = _split_stages(r[col])
+            if not stages:
+                continue
+            result.vc_mappings.append({
+                "sub_cap_id": str(sub_cap_id),
+                "subvertical_code": code,
+                "stages": stages,
+            })
 
 
 def _emit_stories(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:

@@ -131,6 +131,82 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 2 ────────────────────────────────────────────────────────────────
+
+export type GraphSummary = {
+  snapshot_id: string;
+  nodes_total: number;
+  edges_total: number;
+  nodes_by_type: Record<string, number>;
+  edges_by_type: Record<string, number>;
+};
+
+export type GraphElements = {
+  nodes: Array<{ data: Record<string, unknown> & { id: string; kind: string; label: string } }>;
+  edges: Array<{ data: { id: string; source: string; target: string; kind: string } }>;
+  truncated?: boolean;
+};
+
+export type CentralityRow = { id: string; label: string; kind: string; score: number };
+
+export type Subvertical = { code: string; name: string };
+
+export type VccCluster = { code: string; name: string; color?: string };
+
+export type ValueChainAtlas = {
+  subvertical_code?: string | null;
+  clusters: Array<{
+    code: string;
+    name: string;
+    color?: string;
+    total_subcaps: number;
+    stages: Array<{ name: string; subvertical_code: string; subcap_count: number; subcap_ids: string[] }>;
+  }>;
+};
+
+export type SubverticalCompare = {
+  sub_cap_id: string;
+  rows: Array<{
+    subvertical_code: string;
+    subvertical_name: string;
+    applicable: boolean;
+    stages: Array<{ name: string; cluster: string }>;
+  }>;
+};
+
+export type MaturityHeatmap = {
+  pillar_id?: string | null;
+  levels: string[];
+  rows: Array<{
+    sub_cap_id: string;
+    sub_cap_name: string;
+    category_id: string;
+    l1_capability: string;
+    cells: Array<{ level: string; filled: boolean; preview: string }>;
+  }>;
+};
+
+export type UseCaseExplorer = {
+  total_use_cases: number;
+  families: Array<{
+    family_id: string;
+    family_name: string;
+    color?: string;
+    total: number;
+    tags: Array<{ tag: string; count: number; examples: Array<{ use_case_id: string; sub_cap_id: string; description: string }> }>;
+  }>;
+};
+
+export type PlatformCatalog = {
+  total_platforms: number;
+  vendors: Array<{
+    vendor: string;
+    platform_count: number;
+    total_subcaps_using: number;
+    platforms: Array<{ l3_id: string; name: string; category?: string; description?: string; reference_url?: string; subcap_count: number }>;
+  }>;
+};
+
 export type ChangeFlag = {
   flag_id: string;
   kind: string;
