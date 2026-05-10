@@ -17,6 +17,48 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 3 — Internal evidence
+
+```
+Drive folder (status subfolders)              local mode: test-data/SOWs/
+   └── sow_service.discover_sows()
+        └── _read_bytes()
+             └── text_extraction.extract()    [pypdf | python-docx | txt]
+                  └── dlp_service.redact()    [regex; Cloud DLP swap-in]
+                       └── chunk_text()        [paragraph-aware ~1200ch w/ 100 overlap]
+                            ├── extract_mentions()  [exact_id + name_substring + name_fuzzy]
+                            └── guess_client()      [entity_resolver: alias + WRatio]
+                                 └── persist sows / sow_chunks / sow_mentions / clients
+                                      └── /api/sows/{...} + /api/projects/subcap-trace
+
+gen_stories_export.xlsx                       local: test-data/gen_stories_export.xlsx
+   └── stories_service.ingest_canonical()
+        └── stories_canonical collection (4844 in Pillar 1)
+
+Atlassian Cloud (when JIRA_BASE_URL + creds)
+   └── stories_service.ingest_jira()
+        └── jira_stories collection
+```
+
+The Repository abstraction from Batch 1 absorbs all collection writes. The
+Subcap Deep Dive `/api/catalogue/subcaps/{id}` response now joins
+sow_mentions + stories_canonical + jira_stories in addition to the
+spine/maturity/themes Batch-1 fields.
+
+Mention extraction is conservative on purpose for Batch 3: exact ID match
+(99 confidence), case-insensitive substring on subcap name (85), and
+WRatio token-set ≥92 fallback. Batch 4's LLM router wraps the same chunker
+output and pushes higher-fidelity claim extraction through Gemini Flash
+into the same `sow_mentions` collection.
+
+Production swaps (when GCP creds land):
+- Drive list/download: `drive_service._discover_drive` already exists in
+  `sow_service._discover_drive`, gated on `s.use_gcp + s.drive_sows_folder_id`.
+- Document AI: `text_extraction.extract` switches on `Settings.use_gcp`
+  and a configured DocAI processor — same return shape (`ExtractedDocument`).
+- Cloud DLP: `dlp_service.redact` switches on the same flag — same return
+  shape (`RedactionResult`).
+
 ## Batch 2 — Knowledge Graph + lenses
 
 ```

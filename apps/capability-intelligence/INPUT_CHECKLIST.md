@@ -18,15 +18,18 @@ them at the start of the batch (or earlier so I can wire them in parallel).
 - [ ] Firebase project ID for production auth (current: dev-mode bypass works)
 - [ ] Allowed Firebase Auth domain (default `zennify.com`)
 
-## Batch 3 — Internal evidence
+## Batch 3 — Internal evidence — partially supplied
 
-- [ ] Drive shared-drive ID for SOWs, with subfolder convention
-      `active/`, `prospect/`, `inactive/`, `archived/`
-- [ ] Atlassian Cloud URL (e.g., `zennify.atlassian.net`)
-- [ ] Jira service-account email + API token
-- [ ] List of Jira project keys to ingest
-- [ ] Confirm `gen_stories_export.xlsx` (already attached) is the canonical
-      story-schema reference
+- [x] gen_stories_export.xlsx (already attached + ingested in dev)
+- [ ] Drive shared-drive ID for SOWs, with `active|prospect|inactive|archived`
+      subfolders. Without this, the system runs on `test-data/SOWs/`.
+      Set `DRIVE_SOWS_FOLDER_ID` in `.env` and share the folder with the
+      service-account email.
+- [ ] Atlassian Cloud URL (e.g., `zennify.atlassian.net`) — set
+      `JIRA_BASE_URL`
+- [ ] Jira service-account email + API token — set `JIRA_EMAIL` +
+      `JIRA_API_TOKEN`
+- [ ] List of Jira project keys to ingest — set `JIRA_PROJECT_KEYS=["KEY1","KEY2"]`
 
 ## Batch 4 — LLM core
 

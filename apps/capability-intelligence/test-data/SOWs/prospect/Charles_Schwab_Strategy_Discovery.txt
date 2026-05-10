@@ -1,0 +1,26 @@
+PROSPECT MEMO — Charles Schwab — Strategy Discovery (Pre-SOW)
+
+Client: Charles Schwab Corp
+Type: Prospect / Pre-engagement scoping
+Owner: account-team@zennify.com
+Status: pending CFO sign-off
+
+DISCUSSION SUMMARY
+
+Schwab leadership has expressed interest in revisiting their Digital
+Strategy Document (P1C1.1.1) with a sharper focus on the RIA /
+Broker-Dealer subvertical. They want to understand how Zennify
+typically handles Strategy Refresh Cadence (P1C1.1.3) and Vision
+Communication (P1C1.1.4) for wealth-tier clients.
+
+Key topics flagged:
+  - Board Engagement (P1C1.1.5) — the Schwab board has new compliance
+    members from the TD Ameritrade integration.
+  - Cross-pillar Compliance Governance (P1C2.7.2) — they want the
+    Pillar 1 framing to thread to their existing FINRA workflows.
+  - Salesforce Agentforce (L3-SF-AGENTFORCE) — Schwab is evaluating
+    against the Spring 2026 release timeline.
+
+Next step: Q1 2025 discovery workshop. Estimated SOW value $700K-$900K.
+
+Contact: ria-strategy@schwab.com

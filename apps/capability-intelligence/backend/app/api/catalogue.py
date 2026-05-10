@@ -58,9 +58,13 @@ def get_subcaps(pillar_id: str | None = None, _=Depends(auth_dep)) -> list[dict]
 
 @router.get("/subcaps/{sub_cap_id}")
 def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
+    from ..services import sow_service, stories_service
     sub = svc.get_subcap(sub_cap_id)
     if not sub:
         raise HTTPException(404, f"sub_cap_id not found: {sub_cap_id}")
+    sow_mentions = sow_service.list_mentions_for_subcap(sub_cap_id)
+    canonical = stories_service.list_canonical({"sub_cap_id": sub_cap_id}, limit=50)
+    jira = stories_service.list_jira({"sub_cap_id": sub_cap_id}, limit=50)
     return {
         "subcap": sub,
         "maturity": svc.get_maturity(sub_cap_id),
@@ -68,6 +72,17 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
         "use_cases": svc.list_use_cases_for(sub_cap_id),
         "themes": svc.list_themes_for(sub_cap_id),
         "stories": svc.list_stories_for(sub_cap_id),
+        "sow_signals": {
+            "mention_count": len(sow_mentions),
+            "mentions": sow_mentions,
+            "client_count": len({m.get("client_name") for m in sow_mentions if m.get("client_name")}),
+        },
+        "story_signals": {
+            "canonical_count": len(canonical),
+            "jira_count": len(jira),
+            "canonical": canonical[:10],
+            "jira": jira[:10],
+        },
     }
 
 

@@ -46,6 +46,19 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 3
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `sows` | `sow-{status}-{slug}` | One per ingested SOW with provenance, client, redaction summary |
+| `sow_chunks` | `{sow_id}-c{NNNN}` | Paragraph-aware chunks of redacted text |
+| `sow_mentions` | `{sow_id}-m{NNNN}` | Subcap mentions with method + confidence + excerpt |
+| `sow_ingest_runs` | `sow-ingest-{unix}` | Per-refresh run log |
+| `clients` | canonical client name | Aggregated client record (sow_count, statuses[], first_seen, last_seen) |
+| `stories_canonical` | `story_key` | gen_stories_export rows with quality scores |
+| `jira_stories` | Jira issue key | Live Atlassian issues |
+| `stories_ingest_runs` | `stories-ingest-{unix}` | Canonical + Jira ingest run log |
+
 ## Knowledge graph — Batch 2
 
 | Node kind | Source | Notes |

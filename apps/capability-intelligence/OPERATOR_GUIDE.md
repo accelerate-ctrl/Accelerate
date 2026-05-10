@@ -90,4 +90,40 @@ it. The page is keyed off the subcap dropdown; deep-link via `?id=<sub_cap_id>`.
 - **Platform Catalog**: 45 L3 platforms grouped by vendor with subcap-usage
   counts and reference-doc links.
 
-(Steps 11+ ship in later batches per the TOC above.)
+## 11. Ingest SOWs (Batch 3)
+
+In production, drop SOWs into the configured Drive shared-drive under one
+of the four status subfolders: `active/`, `prospect/`, `inactive/`,
+`archived/`. Local dev: drop them into
+`apps/capability-intelligence/test-data/SOWs/<status>/`. Click **Refresh
+ingest** on the SOW Library page to scan; ingestion does:
+
+1. Text extraction (pypdf for `.pdf`, python-docx for `.docx`, raw read
+   for `.txt`/`.md`)
+2. PII redaction (regex SSN/email/phone/credit-card; Cloud DLP in prod)
+3. Paragraph-aware chunking (~1200 chars, 100 overlap)
+4. Subcap mention extraction (exact ID + name match + WRatio fuzzy)
+5. Client canonicalization via entity_aliases.yml + WRatio
+
+Each SOW row shows redaction summary, mention count, and a *Show preview*
+toggle that renders the redacted text + per-subcap mentions with excerpts.
+
+## 12. Ingest stories (Batch 3)
+
+Story Library → **Refresh** runs:
+- Canonical: parses `gen_stories_export.xlsx` (4,844 rows in Pillar 1) into
+  `stories_canonical` with all quality scores
+- Live Jira: pulls projects listed in `JIRA_PROJECT_KEYS` via
+  `atlassian-python-api`. Skipped cleanly if Atlassian creds aren't set.
+
+The page shows canonical on the left (with composite/AC/SD/delivery/
+confidence scores) and live Jira on the right.
+
+## 13. Trace a subcap to projects (Batch 3)
+
+**Project–Subcap Trace** picks one subcap → renders a vertical timeline of
+every SOW mention + every story (canonical + Jira), newest first. Each
+event shows the client, status, method (exact_id / name_substring /
+name_fuzzy), confidence, and excerpt.
+
+(Steps 14+ ship in later batches per the TOC above.)

@@ -1,6 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { apiGet, type SubcapDetail } from '@/lib/api';
+
+type SubcapDetailV3 = SubcapDetail & {
+  sow_signals?: {
+    mention_count: number;
+    client_count: number;
+    mentions: Array<{ sow_id: string; sub_cap_id: string; method: string; excerpt: string; client_name?: string; status?: string; confidence: number }>;
+  };
+  story_signals?: {
+    canonical_count: number;
+    jira_count: number;
+    canonical: Array<{ story_key: string; summary?: string; confidence_level?: string; composite_score?: number }>;
+    jira: Array<{ story_key: string; summary?: string }>;
+  };
+};
 
 const MATURITY_LEVELS = [
   { key: 'm1', label: 'M1 — Foundational', features: 'm1_features' },
@@ -14,9 +28,9 @@ export default function SubcapDeepDive() {
   const [params] = useSearchParams();
   const id = params.get('id');
 
-  const { data, isLoading, error } = useQuery<SubcapDetail>({
+  const { data, isLoading, error } = useQuery<SubcapDetailV3>({
     queryKey: ['subcap', id],
-    queryFn: () => apiGet<SubcapDetail>(`/catalogue/subcaps/${encodeURIComponent(id || '')}`),
+    queryFn: () => apiGet<SubcapDetailV3>(`/catalogue/subcaps/${encodeURIComponent(id || '')}`),
     enabled: !!id,
   });
 
@@ -159,9 +173,58 @@ export default function SubcapDeepDive() {
         </Section>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Section title={`SOW signals (${data.sow_signals?.mention_count ?? 0} mentions across ${data.sow_signals?.client_count ?? 0} clients)`}>
+          {(data.sow_signals?.mention_count ?? 0) === 0 ? (
+            <Empty />
+          ) : (
+            <ul className="space-y-2 max-h-72 overflow-auto">
+              {data.sow_signals!.mentions.slice(0, 20).map((m) => (
+                <li key={m.sow_id + m.method} className="text-xs">
+                  <div className="flex items-center gap-2 text-zen-dark-green">
+                    <span className="font-semibold">{m.client_name}</span>
+                    {m.status && (
+                      <span className="text-[10px] uppercase rounded px-1 bg-zen-light-green/60 text-zen-dark-teal">
+                        {m.status}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-zen-dark-teal/60">[{m.method} · {m.confidence.toFixed(0)}]</span>
+                  </div>
+                  <div className="text-zen-dark-teal italic mt-0.5">“{m.excerpt}”</div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 text-[10px] text-zen-dark-teal/60">
+            <Link to={`/trace?id=${encodeURIComponent(id!)}`} className="underline hover:text-zen-dark-green">
+              View full Project–Subcap Trace →
+            </Link>
+          </div>
+        </Section>
+
+        <Section title={`Story signals (canonical ${data.story_signals?.canonical_count ?? 0} · Jira ${data.story_signals?.jira_count ?? 0})`}>
+          {(data.story_signals?.canonical_count ?? 0) === 0 && (data.story_signals?.jira_count ?? 0) === 0 ? (
+            <Empty />
+          ) : (
+            <ul className="space-y-1 max-h-72 overflow-auto">
+              {data.story_signals!.canonical.map((s) => (
+                <li key={s.story_key} className="text-xs">
+                  <span className="font-mono text-[10px] text-zen-dark-teal/60 mr-1">{s.story_key}</span>
+                  {s.confidence_level && (
+                    <span className="text-[9px] uppercase rounded px-1 bg-zen-teal/30 text-zen-dark-green mr-1">
+                      {s.confidence_level}
+                    </span>
+                  )}
+                  <span className="text-zen-dark-teal">{s.summary?.slice(0, 160)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+
       <Section title="Pending in later batches">
         <div className="text-xs text-zen-dark-teal/70 grid grid-cols-1 md:grid-cols-2 gap-1">
-          <div>• SOW signals (Batch 3)</div>
           <div>• Public evidence + ERS (Batch 4)</div>
           <div>• Benchmarks + adversary verdict (Batch 5)</div>
           <div>• Lifecycle scoring (Batch 6)</div>

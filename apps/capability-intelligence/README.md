@@ -9,6 +9,46 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 3 (Internal evidence)
+
+Batches 0 + 1 + 2 + 3 are live. The catalogue now has SOW + story evidence
+flowing in alongside the spine and the KG.
+
+**Batch 3 adds:**
+
+- SOW ingest: discover (Drive folder OR `test-data/SOWs/{active,prospect,
+  inactive,archived}/`) → text extraction (`pypdf` for `.pdf`, `python-docx`
+  for `.docx`, raw read for `.txt`) → DLP redaction (regex SSN / email /
+  phone / Luhn-validated credit-card; Cloud DLP swap-in keeps the same
+  return shape) → paragraph-aware chunking (~1200 chars w/ 100 overlap) →
+  subcap mention extraction (exact-ID + name substring + token-set fuzzy
+  via rapidfuzz) → persistence (sows / sow_chunks / sow_mentions / clients
+  collections)
+- Canonical stories ingest: parses `gen_stories_export.xlsx` (4,846 rows in
+  Pillar 1) into a `stories_canonical` collection with all quality scores
+  (composite_score, ac_quality, sd_quality, delivery_score, confidence_score)
+- Live Jira ingest: `atlassian-python-api` against Atlassian Cloud when
+  `JIRA_BASE_URL` + email/token + project keys are set; cleanly no-ops
+  otherwise (the Pillar 1 sheet's JIRA-* refs already populate the raw
+  `stories` collection from Batch 1)
+- Entity resolver: `rapidfuzz` WRatio with 92-threshold + manual aliases
+  in `config/entity_aliases.yml` (20 client aliases, 10 vendor, 8 regulator
+  pre-populated). Used by SOW ingest to canonicalize client names from the
+  `Client: …` header line or filename prefix
+- Real pages: SOW Library (status filter, redaction summary, mention list,
+  redacted-text preview), Story Library (canonical vs Jira side-by-side,
+  filter, quality scores), Project–Subcap Trace (timeline of SOWs + stories
+  per subcap, with method + confidence + excerpt)
+- Subcap Deep Dive page now shows real `sow_signals` (mention count,
+  client count, per-mention excerpts) + `story_signals` (canonical + Jira
+  counts) — replacing the earlier "Pending in later batches" placeholder
+- 4 synthetic SOWs in `test-data/SOWs/` (Wells Fargo active, Northwestern
+  Mutual active, Charles Schwab prospect, PNC Bank inactive) so the
+  pipeline runs end-to-end with no Drive creds
+- Backend tests: 26 new (DLP redaction, entity resolver, text extraction,
+  chunker, mention extraction, full SOW + story flow + trace endpoint).
+  Frontend tests: 1 new (SOW Library)
+
 ## Status — Batch 2 (Knowledge Graph + lenses)
 
 Batches 0 + 1 + 2 are live. The knowledge graph and the multi-lens projections
@@ -90,6 +130,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 0 | **shipped** | Foundation — shell, brand, all 28 routes/pages, emulators, tests, docs |
 | 1 | **shipped** | Catalogue spine: Drive → Sheets → Firestore (MongoDB-compat) → Capability Explorer + Subcap Deep Dive + Diff Viewer + Mission Control + Change Flags + Settings |
 | 2 | **shipped** | KG v1 (14/28 node kinds, 13 edge kinds, NetworkX) + Knowledge Graph page (Cytoscape) + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
+| 3 | **shipped** | SOW ingest (local + Drive/DocAI swap) + DLP redaction + chunking + mention extraction + canonical stories + Jira; SOW Library / Story Library / Project–Subcap Trace pages; entity resolver |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

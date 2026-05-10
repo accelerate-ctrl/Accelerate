@@ -131,6 +131,127 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 3 ────────────────────────────────────────────────────────────────
+
+export type SowStatus = 'active' | 'prospect' | 'inactive' | 'archived';
+
+export type Sow = {
+  sow_id: string;
+  file_name: string;
+  file_uri: string;
+  status: SowStatus;
+  source: 'local' | 'drive';
+  ingested_at: string;
+  client_name: string;
+  client_raw?: string;
+  client_confidence: number;
+  page_count: number;
+  char_count: number;
+  chunk_count: number;
+  mention_count: number;
+  redaction_method: string;
+  redaction_summary: Record<string, number>;
+  extractor: string;
+};
+
+export type SowMention = {
+  mention_id: string;
+  sow_id: string;
+  sub_cap_id: string;
+  confidence: number;
+  method: string;
+  excerpt: string;
+  client_name?: string;
+  status?: SowStatus;
+  ingested_at?: string;
+};
+
+export type SowDetail = { sow: Sow; mentions: SowMention[] };
+
+export type SowPreview = {
+  sow_id: string;
+  file_name: string;
+  redaction_method: string;
+  redaction_summary: Record<string, number>;
+  preview: string;
+  truncated: boolean;
+};
+
+export type SowIngestRun = {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  files_attempted: number;
+  sows_loaded: number;
+  chunks_total: number;
+  mentions_total: number;
+  redactions_total: number;
+  sow_ids: string[];
+};
+
+export type StoriesIngestRun = {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  canonical_loaded: number;
+  jira_loaded: number;
+  canonical_source?: string;
+  jira_source?: string;
+  schema_issues: string[];
+};
+
+export type CanonicalStory = {
+  story_key: string;
+  source_type?: string;
+  pillar_id?: string;
+  category_id?: string;
+  cap_id?: string;
+  sub_cap_id?: string;
+  sub_cap_name?: string;
+  tier?: string;
+  reusability_layer?: string;
+  population?: string;
+  confidence_level?: string;
+  confidence_score?: number;
+  composite_score?: number;
+  delivery_score?: number;
+  ac_quality?: number;
+  sd_quality?: number;
+  summary?: string;
+  description?: string;
+  ac_text?: string;
+  solution_design_text?: string;
+};
+
+export type JiraStory = {
+  story_key: string;
+  source_type?: string;
+  summary?: string;
+  status?: string;
+  issue_type?: string;
+  project_key?: string;
+};
+
+export type SubcapTrace = {
+  sub_cap_id: string;
+  sow_count: number;
+  story_count: number;
+  timeline: Array<
+    | { kind: 'sow_mention'; sow_id: string; file_name: string; client_name: string; status: string; ingested_at: string; confidence: number; method: string; excerpt: string }
+    | { kind: 'story'; story_key: string; source_type: string; summary: string; confidence?: string; composite_score?: number; ingested_at?: string }
+  >;
+};
+
+export type Client = {
+  client_id: string;
+  name: string;
+  first_seen: string;
+  last_seen: string;
+  sow_count: number;
+  sow_ids: string[];
+  statuses: SowStatus[];
+};
+
 // ─── Batch 2 ────────────────────────────────────────────────────────────────
 
 export type GraphSummary = {

@@ -1,0 +1,37 @@
+STATEMENT OF WORK — Northwestern Mutual — Compliance & Governance Modernization
+
+Client: Northwestern Mutual (NM)
+Engagement Code: ZEN-NM-2025-001
+Sponsor: cco-office@northwesternmutual.com
+Direct: 414-555-0123
+
+OBJECTIVES
+
+1. Stand up Regulatory Change Management (P1C2.7.1) tooling on
+   Salesforce Platform Foundation.
+2. Operationalize Compliance Governance (P1C2.7.2) with Slack-routed
+   approval flows and audit trail evidence.
+3. Improve Exam Readiness (P1C2.7.3) cycle time by 40% YoY.
+4. Implement Risk Appetite Statement Codification (P1C2.6.1) as a
+   live data product on Data Cloud / Data 360.
+5. Embed Compliance Controls into Operational Workflow (P1C2.7.x)
+   using Agentforce Topics & Actions.
+
+DELIVERABLES
+
+  - Reg-change intake form and SLA dashboard
+  - Audit trail data model on Salesforce
+  - Stakeholder analysis matrix for state-DOI examiners
+  - Exam pre-fly checklist
+  - Live Tableau Embedded Analytics scorecard
+
+The work will involve close coordination with the Office of the
+Comptroller of the Currency (OCC) and the National Association of
+Insurance Commissioners (NAIC) consent decree teams.
+
+DURATION:  20 weeks
+FEE:       $1,800,000
+
+PII NOTE: this document references multiple state DOI inspectors by
+name; redacted versions will be provided to all parties. Sample
+record: 555-12-3456.

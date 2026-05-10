@@ -1,5 +1,48 @@
-# Canonical-name resolution. Activated in Batch 3. Manual aliases override fuzzy.
+# Canonical-name resolution. Activated in Batch 3.
+# Manual aliases override fuzzy matching. Keys are the canonical names; values
+# are alternate spellings. Add new entries as we ingest more SOWs and stories.
+
 aliases:
-  client: {}      # e.g. "Wells Fargo": ["WFC", "Wells Fargo Bank, N.A."]
-  vendor: {}      # e.g. "Salesforce": ["SFDC", "salesforce.com"]
-  regulator: {}
+  client:
+    "Wells Fargo":            ["WFC", "Wells Fargo Bank, N.A.", "Wells Fargo & Co"]
+    "JPMorgan Chase":         ["JPM", "Chase Bank", "J.P. Morgan", "JP Morgan"]
+    "Bank of America":        ["BofA", "BAC", "B of A"]
+    "Citigroup":              ["Citi", "Citibank"]
+    "U.S. Bank":              ["USB", "US Bank", "US Bancorp", "U.S. Bancorp"]
+    "Truist":                 ["TFC", "Truist Financial"]
+    "PNC Bank":               ["PNC", "PNC Financial Services"]
+    "Capital One":            ["COF"]
+    "Charles Schwab":         ["SCHW", "Schwab", "Charles Schwab Corp"]
+    "Goldman Sachs":          ["GS", "Goldman", "GS Group"]
+    "Morgan Stanley":         ["MS"]
+    "BlackRock":              ["BLK"]
+    "State Street":           ["STT"]
+    "Northern Trust":         ["NTRS"]
+    "Northwestern Mutual":    ["NM", "NWM"]
+    "MassMutual":             ["Massachusetts Mutual Life Insurance"]
+    "Prudential":             ["PRU", "Prudential Financial"]
+    "Lincoln Financial":      ["LNC"]
+    "Marsh McLennan":         ["MMC", "Marsh & McLennan"]
+    "Aon":                    ["AON"]
+
+  vendor:
+    "Salesforce":             ["SFDC", "salesforce.com"]
+    "nCino":                  ["NCNO"]
+    "Tableau":                ["TBL"]
+    "Slack":                  ["Slack Technologies"]
+    "MuleSoft":               ["mulesoft.com"]
+    "Databricks":             ["DBX"]
+    "Twilio":                 ["TWLO"]
+    "Microsoft":              ["MSFT"]
+    "Amazon Web Services":    ["AWS", "Amazon AWS"]
+    "Google Cloud":           ["GCP", "Google Cloud Platform"]
+
+  regulator:
+    "OCC":                    ["Office of the Comptroller of the Currency"]
+    "FDIC":                   ["Federal Deposit Insurance Corporation"]
+    "NCUA":                   ["National Credit Union Administration"]
+    "CFPB":                   ["Consumer Financial Protection Bureau"]
+    "Federal Reserve":        ["Fed", "FRB", "Federal Reserve Board"]
+    "SEC":                    ["Securities and Exchange Commission"]
+    "FINRA":                  ["Financial Industry Regulatory Authority"]
+    "NAIC":                   ["National Association of Insurance Commissioners"]

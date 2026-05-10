@@ -1,0 +1,21 @@
+STATEMENT OF WORK — PNC Bank — Underwriting Decisioning (CLOSED)
+
+Client: PNC Bank
+Status: INACTIVE — engagement completed 2023-Q3, retainer not renewed.
+
+Final retrospective notes:
+
+Zennify built out PNC's Risk Indicator dashboards on Tableau Embedded
+Analytics keyed off the Compliance Governance (P1C2.7.2) framework.
+The team also delivered Audit Trail (P1C2.7.x) instrumentation across
+the loan-decisioning workflow.
+
+Lessons learned:
+  - Salesforce Data Cloud rollout was delayed two quarters.
+  - Slack-routed approval flows were not adopted; PNC standardized
+    on Microsoft Teams instead. Consider Teams adapter in future
+    POVs.
+  - Strategy Refresh Cadence (P1C1.1.3) discussions were tabled
+    pending the Federal Reserve regulatory cycle.
+
+No active obligations. Retain for case-study reference.

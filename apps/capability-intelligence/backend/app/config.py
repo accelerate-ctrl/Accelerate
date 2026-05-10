@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # ingestion when Drive isn't configured. Used in dev + tests.
     local_catalogue_dir: str | None = None
 
+    # Where to look for SOW files locally (status subfolders: active|prospect|
+    # inactive|archived). Falls back to test-data/SOWs/ if unset.
+    local_sows_dir: str | None = None
+
     # Emulator endpoints (for local docker-compose)
     firestore_emulator_host: str | None = None  # e.g. "firestore:8200"
     pubsub_emulator_host: str | None = None     # e.g. "pubsub:8085"
