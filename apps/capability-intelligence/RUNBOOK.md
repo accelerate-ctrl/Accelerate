@@ -17,6 +17,30 @@ Final form. Batch 9 finalises every section below.
 
 ---
 
+## 0. Service Level Objectives (added by QA audit fix #13)
+
+Per QA_AUDIT.md fix #13. SLOs are tied to error budgets; deploys are
+gated by remaining budget (Cloud Build step queries
+`gcloud monitoring slos describe ...`).
+
+| Endpoint                                | p50    | p95    | p99    | Error budget |
+|-----------------------------------------|--------|--------|--------|--------------|
+| `GET /api/health`                       | 5 ms   | 30 ms  | 50 ms  | 0.1%         |
+| `GET /api/catalogue/*`                  | 80 ms  | 300 ms | 500 ms | 0.5%         |
+| `GET /api/digest/{id}` (cached)         | 100 ms | 800 ms | 1.5 s  | 1.0%         |
+| `POST /api/digest/generate`             | async — SLA 6 h end-to-end                      | 5.0%   |
+| `POST /api/chat/messages`               | 1.5 s  | 5 s    | 12 s   | 1.0%         |
+| `GET /api/graph/summary`                | 50 ms  | 200 ms | 400 ms | 1.0%         |
+| `GET /api/graph/neighborhood/{id}`      | 200 ms | 1 s    | 2 s    | 1.0%         |
+| `GET /api/graph/path/...`               | 400 ms | 1 s    | 2 s    | 1.0%         |
+| `GET /api/benchmarks/*`                 | 100 ms | 400 ms | 800 ms | 1.0%         |
+| `POST /api/lifecycle/recompute`         | 500 ms | 2 s    | 5 s    | 5.0%         |
+| `GET /api/exports/*.xlsx`               | 200 ms | 1 s    | 3 s    | 2.0%         |
+
+**Error budget enforcement** — `cloudbuild.yaml` includes a "block-on-budget-exhausted"
+step that queries the SLO objects defined in `infra/terraform/main.tf`
+and fails the deploy if any SLO has < 5% remaining error budget.
+
 ## 1. Incident response
 
 **Trigger**: Cloud Monitoring alert `high-error-rate` fires (5xx > 5% over 5

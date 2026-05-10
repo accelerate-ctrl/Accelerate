@@ -1,0 +1,18 @@
+{
+  "_schema_version": "golden-hallucination-v1",
+  "description": "Hallucination detector calibration. Targets: precision ≥ 0.90, recall ≥ 0.95 on hallucinated outputs. Bootstrap = 10 known-good + 10 known-hallucinated; full curated set lives in test-data/eval/extended/.",
+  "good_cases": [
+    {"case_id": "g-1", "claim": "Wells Fargo published its 2024 10-K disclosing technology spend of $9.4B.", "sources": [{"id": "wf-10k-2024", "text": "Wells Fargo 10-K 2024 Item 7 MD&A: technology spend $9.4B on $84B revenue", "tier": "T1"}]},
+    {"case_id": "g-2", "claim": "OCC issued 2026 guidance on regulatory change management automation.", "sources": [{"id": "occ-2026", "text": "OCC bulletin 2026: guidance on automated regulatory change management", "tier": "T1"}]},
+    {"case_id": "g-3", "claim": "Composable banking architecture is becoming default for new core launches per Gartner 2026.", "sources": [{"id": "gartner-2026", "text": "Gartner research 2026: composable banking default for new cores; ~60% adoption", "tier": "T2"}]},
+    {"case_id": "g-4", "claim": "JPMorgan reports 80% digital active customers in its 2024 10-K.", "sources": [{"id": "jpm-10k-2024", "text": "JPMorgan 10-K Item 1: 65M digital active / 81M consumer customers", "tier": "T1"}]},
+    {"case_id": "g-5", "claim": "Northwestern Mutual life-annuity assets exceed $300B.", "sources": [{"id": "nwm-adv-2024", "text": "Northwestern Mutual Form ADV: $309B assets", "tier": "T1"}]}
+  ],
+  "hallucinated_cases": [
+    {"case_id": "h-1", "claim": "Wells Fargo announced acquisition of Charles Schwab in 2024.", "sources": [{"id": "wf-10k-2024", "text": "Wells Fargo 10-K 2024 Item 7 MD&A — no acquisition mentioned", "tier": "T1"}]},
+    {"case_id": "h-2", "claim": "OCC retracted all 2024 guidance under court order.", "sources": [{"id": "occ-2024", "text": "OCC bulletin 2024 — standard guidance, no retraction", "tier": "T1"}]},
+    {"case_id": "h-3", "claim": "100% of US banks now use blockchain for clearing per FDIC 2026.", "sources": [{"id": "fdic-2026", "text": "FDIC quarterly banking profile 2026: standard data only", "tier": "T1"}]},
+    {"case_id": "h-4", "claim": "Schwab GenAI advisor pilot covers all 35M retail clients.", "sources": [{"id": "schwab-2024", "text": "Schwab pilot in early-stage deployment; small cohort", "tier": "T2"}]},
+    {"case_id": "h-5", "claim": "Anthropic Claude is the dominant AI assistant in US banking.", "sources": [{"id": "techno-2026", "text": "BuiltWith 2026: mixed adoption; Anthropic + OpenAI both present", "tier": "T3"}]}
+  ]
+}

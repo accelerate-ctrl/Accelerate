@@ -269,13 +269,22 @@ def _digest_id(subvertical: str, period: str) -> str:
 # ─── Narrative production ───────────────────────────────────────────────────
 
 
-def _produce_narrative(priority: dict, sources_blob: str) -> tuple[str, str, str | None, float]:
-    """Run the Batch-4 consultant loop on Opus to produce narrative + recommendation.
+def _produce_narrative(
+    priority: dict,
+    sources_blob: str,
+    *,
+    subvertical: str | None = None,
+    period: str | None = None,
+    downgrade_to_sonnet: bool = False,
+) -> tuple[str, str, str | None, float]:
+    """Run the Batch-4 consultant loop to produce narrative + recommendation.
 
-    Returns (narrative, recommendation, chain_id, cost_usd).  Dev-mode resolves
-    to a deterministic canned narrative (so digest tests don't need creds).
+    Per QA_AUDIT.md fix #7 — when the daily Opus output budget is at risk
+    we downgrade to Sonnet for per-priority synthesis (Opus is reserved
+    for the executive summary + cross-pillar coherence). Caller toggles
+    via ``downgrade_to_sonnet=True``.
     """
-    from .consultant_loop import run as run_loop  # cycle-safe late import
+    from .consultant_loop import LeverageTier, run as run_loop  # cycle-safe late import
     from .llm.router import ModelKind
 
     sub_cap_id = priority["sub_cap_id"]
@@ -288,8 +297,17 @@ def _produce_narrative(priority: dict, sources_blob: str) -> tuple[str, str, str
         f"Cite the evidence and recommend a next action for the consulting team. "
         f"Evidence:\n{sources_blob}"
     )
+    model = ModelKind.SONNET if downgrade_to_sonnet else ModelKind.OPUS
     try:
-        loop = run_loop(query=query, sub_cap_id=sub_cap_id, synth_model=ModelKind.OPUS)
+        loop = run_loop(
+            query=query,
+            sub_cap_id=sub_cap_id,
+            synth_model=model,
+            leverage_tier=LeverageTier.DIGEST,
+            operation_type="digest_priority_narrative",
+            subvertical=subvertical,
+            pillar_id=sub_cap_id.split("C")[0] if "C" in sub_cap_id else None,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("opus narrative failed for %s: %s", sub_cap_id, exc)
         return (
@@ -313,6 +331,27 @@ def _produce_narrative(priority: dict, sources_blob: str) -> tuple[str, str, str
         f"Schedule a review of {sub_cap_name} in next quarter's planning cycle."
     )
     return narrative, recommendation, loop.chain_id, loop.total_cost_usd
+
+
+# ─── Opus budget guard (per QA_AUDIT.md fix #7) ─────────────────────────────
+
+
+def _should_downgrade_to_sonnet(*, opus_output_ceiling: int = 60_000,
+                                threshold_pct: float = 0.70) -> bool:
+    """Check the daily Opus output spend; downgrade if over threshold.
+
+    Default ceiling = spec §3 stated 60K out/day; threshold = 70%.
+    """
+    try:
+        from .llm.cost_tracker import CostTracker
+        tracker = CostTracker()
+        # We don't have per-token-class spend; use cost ($30/1M out for Opus
+        # ⇒ 60K out ≈ $1.80) as a proxy.
+        spent = tracker.attributed_spend(operation_type="digest_priority_narrative", days=1)
+        # In dev mode cost is 0; downgrade decision is informational only.
+        return spent / 1.80 >= threshold_pct
+    except Exception:
+        return False
 
 
 # ─── Public API ─────────────────────────────────────────────────────────────
@@ -359,6 +398,17 @@ def _generate_inner(
     total_cost = 0.0
     sources_count = 0
 
+    # Per QA_AUDIT.md fix #7 — Opus daily budget feasibility check.
+    # Each Opus call consumes ~5K out tokens; 60K daily output ceiling.
+    # If today's Opus spend already > 70% of budget, downgrade to Sonnet
+    # for per-priority synthesis (Opus reserved for executive summary).
+    downgrade = _should_downgrade_to_sonnet()
+    if downgrade:
+        logger.warning(
+            "digest %s/%s: Opus budget high → downgrading per-priority synthesis to Sonnet",
+            subvertical, period,
+        )
+
     for p in top:
         sub_cap_id = p["sub_cap_id"]
         sows = _evidence_sow(sub_cap_id)
@@ -381,7 +431,11 @@ def _generate_inner(
                 f"- NEWS [{n['source']}] {n['title']}" for n in news
             )
         )
-        narrative, recommendation, chain_id, cost = _produce_narrative(p, sources_blob)
+        narrative, recommendation, chain_id, cost = _produce_narrative(
+            p, sources_blob,
+            subvertical=subvertical, period=period,
+            downgrade_to_sonnet=downgrade,
+        )
         total_cost += cost
         delta = _delta_vs_previous(sub_cap_id, subvertical=subvertical, previous_period=previous)
         priorities.append(

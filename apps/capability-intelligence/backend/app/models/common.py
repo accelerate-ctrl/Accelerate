@@ -1,3 +1,12 @@
+"""Common enums + schema-version registry.
+
+Every Firestore collection + Pydantic model in the system carries a
+``_schema_version`` so future migrations are traceable. The registry
+below is the single source of truth; bump the value when a breaking
+change ships, and add a migration test in
+``tests/unit/test_schema_versions.py`` against historical fixtures.
+"""
+
 from enum import Enum
 
 
@@ -31,3 +40,69 @@ class MaturityLevel(str, Enum):
     M3 = "M3"
     M4 = "M4"
     M5 = "M5"
+
+
+# ─── Schema-version registry ────────────────────────────────────────────────
+#
+# Single source of truth for every persisted-row schema version.
+# Every domain row written to the repository carries
+# ``_schema_version`` from this map; bump the version when a breaking
+# change ships and add a migration test against fixture rows.
+
+SCHEMA_VERSIONS: dict[str, str] = {
+    # Catalogue spine (Batch 1)
+    "subcap": "subcap-v1",
+    "category": "category-v1",
+    "l1_capability": "l1-v1",
+    "use_case": "use-case-v1",
+    "l3_platform": "l3-v1",
+    "l4_feature": "l4-v1",
+    "maturity_descriptor": "maturity-v1",
+    "theme": "theme-v1",
+    "vc_mapping": "vc-mapping-v1",
+    "story": "story-v1",
+    "version": "version-v1",
+    # Internal evidence (Batch 3)
+    "sow": "sow-v1",
+    "sow_chunk": "sow-chunk-v1",
+    "sow_mention": "sow-mention-v1",
+    "story_canonical": "story-canonical-v1",
+    "client": "client-v1",
+    # LLM core (Batch 4)
+    "reasoning_chain": "reasoning-chain-v1",
+    "suggestion": "suggestion-v1",
+    "validation_gate_run": "gate-run-v1",
+    "news_item": "news-item-v1",
+    "trend_item": "trend-item-v1",
+    # Benchmarks (Batch 5)
+    "benchmark_observation": "benchmark-observation-v1",
+    "benchmark_distribution": "benchmark-distribution-v1",
+    "benchmark_cohort": "benchmark-cohort-v1",
+    # Synthesis (Batch 6)
+    "lifecycle_score": "lifecycle-score-v1",
+    "lifecycle_transition": "lifecycle-transition-v1",
+    "vendor_profile": "vendor-profile-v1",
+    "vendor_adoption": "vendor-adoption-v1",
+    "client_journey": "client-journey-v1",
+    "dma_packet": "dma-handoff-v1",
+    # Digest + audit (Batch 7)
+    "strategic_digest": "strategic-digest-v1",
+    "digest_priority": "digest-priority-v1",
+    "audit_report": "audit-report-v1",
+    # Operator surface (Batch 8)
+    "chat_conversation": "chat-conversation-v1",
+    "what_if_simulation": "what-if-simulation-v1",
+    "notification": "notification-v1",
+    "eval_run": "eval-run-v1",
+    # Production hardening (Batch 9)
+    "reproducibility_manifest": "manifest-v1",
+    # Audit-fix additions
+    "capability_cluster": "cluster-v1",
+    "delta_report": "delta-report-v1",
+    "graph_snapshot_shard": "graph-shard-v1",
+}
+
+
+def schema_version(key: str) -> str:
+    """Lookup a schema version; raises KeyError if unregistered (forces explicit registration)."""
+    return SCHEMA_VERSIONS[key]

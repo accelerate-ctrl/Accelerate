@@ -99,9 +99,26 @@ def test_peer_coverage_passes_when_benchmark_present():
 
 
 def test_run_gates_aggregates_overall_score():
-    out = {"claims": [{"text": "digital banking strategy retail document", "sources": ["s1"]}]}
-    sources = [_src("s1", text="digital banking strategy retail document customer", published_at=datetime.now(timezone.utc).isoformat(), kind="benchmark")]
+    """Spec G1..G8 + auxiliary gates all run; overall reflects worst verdict."""
+    out = {"claims": [{
+        "text": "digital banking strategy retail document",
+        "sources": ["s1", "s2"],
+        "subcap_id": "P1C1.1.1",
+    }]}
+    now = datetime.now(timezone.utc).isoformat()
+    sources = [
+        _src("s1", text="digital banking strategy retail document customer onboarding",
+             published_at=now, kind="benchmark", tier="T1", primary_source_id="s1"),
+        _src("s2", text="digital banking strategy retail document onboarding",
+             published_at=now, kind="analyst", tier="T2", primary_source_id="s2"),
+    ]
     run = run_gates(out, sources, suggestions=[], recent_outputs=[])
     assert run.overall in ("pass", "warn")
     assert 0.0 <= run.score <= 1.0
-    assert len(run.results) == 8  # all 8 gates ran
+    # 8 spec gates + 7 aux gates = 15
+    assert len(run.results) == 15
+    names = {r.name for r in run.results}
+    assert {"g1_novelty", "g2_source_quality", "g3_ers", "g4_independence",
+            "g5_consistency", "g6_adversarial", "g7_drift", "g8_absence"} <= names
+    assert {"aux_schema", "aux_citation", "aux_hallucination", "aux_freshness",
+            "aux_bias", "aux_breaking_change", "aux_peer_coverage"} <= names

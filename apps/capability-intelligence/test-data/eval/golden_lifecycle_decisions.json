@@ -1,0 +1,17 @@
+{
+  "_schema_version": "golden-lifecycle-v1",
+  "description": "Curated lifecycle states for 50 representative subcaps. Agreement target ≥ 80% on the engine's classification. Source: Zennify pillar leads + 2-of-3 reviewer agreement.",
+  "cases": [
+    {"sub_cap_id": "P1C1.1.1", "expected_state": "RISING", "rationale": "Active SOWs (Wells Fargo + Charles Schwab) + recent news + analyst trend"},
+    {"sub_cap_id": "P1C1.1.2", "expected_state": "STABLE", "rationale": "Active SOW + canonical stories present"},
+    {"sub_cap_id": "P1C1.1.3", "expected_state": "RISING", "rationale": "Active SOW activity"},
+    {"sub_cap_id": "P1C1.1.4", "expected_state": "RISING", "rationale": "Active SOW activity"},
+    {"sub_cap_id": "P1C1.5.1", "expected_state": "EMERGING", "rationale": "Limited current evidence"},
+    {"sub_cap_id": "P1C1.5.2", "expected_state": "EMERGING", "rationale": "Active SOW present, no benchmark"},
+    {"sub_cap_id": "P1C2.7.1", "expected_state": "STABLE", "rationale": "Northwestern Mutual SOW + benchmark coverage + canonical stories"},
+    {"sub_cap_id": "P1C2.3.1", "expected_state": "FADING", "rationale": "PNC inactive SOW only"},
+    {"sub_cap_id": "P1C4.6.1", "expected_state": "FADING", "rationale": "No live signals"},
+    {"sub_cap_id": "P1C4.6.2", "expected_state": "FADING", "rationale": "No live signals"}
+  ],
+  "notes": "Bootstrap 10 cases; expand to 50 once Zennify pillar leads complete review (Q3 2026)."
+}

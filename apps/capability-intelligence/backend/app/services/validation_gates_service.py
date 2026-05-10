@@ -1,25 +1,34 @@
-"""8-gate validation engine.
+"""8-gate validation engine — spec G1..G8 + auxiliary checks.
 
-Every consultant-loop output passes through these gates in order.  Each
-gate returns a :class:`GateResult` (verdict + score + reasoning).  A run
-``passes`` when *all* gates verdict ∈ {pass, warn}; any ``fail`` aborts
-the loop and the suggestion is staged for human review with the failure
-attached.
+Per QA_AUDIT.md fix #1: the spec calls for these eight gates (named
+G1..G8) and our previous gate set was off-spec. We now ship the spec
+parity AND keep the previous gates as ``aux_*`` because they catch
+real defects (hallucination, freshness, peer coverage, bias, breaking
+change, schema, citation).
 
-Gates (per spec §6 / ARCHITECTURE Batch 4):
+Spec-parity gates (per spec §5):
 
-    1. SCHEMA          — output JSON validates against the expected shape
-    2. CITATION        — every claim has ≥1 citation that resolves
-    3. HALLUCINATION   — every claim's citation actually mentions key tokens
-    4. FRESHNESS       — citations newer than the per-domain freshness budget
-    5. NOVELTY         — output isn't a near-duplicate of an existing fact
-    6. BIAS            — no single source contributes >70% of citations
-    7. BREAKING_CHANGE — high-impact diffs route to human approver
-    8. PEER_COVERAGE   — claims about the FS sector cite ≥1 peer benchmark
+    G1 NOVELTY         — output is semantically new (not duplicate of recent runs)
+    G2 SOURCE_QUALITY  — ≥1 T1 OR ≥2 T2 sources
+    G3 ERS             — Evidence Relevance Score ≥ threshold
+                         (weights 0.35 recency / 0.25 tier / 0.20 independence
+                          / 0.20 specificity, calibrated against golden_ers.json)
+    G4 INDEPENDENCE    — ≥2 distinct primary sources after dedup by `primary_source_id`
+    G5 CONSISTENCY     — no internal contradiction across claims (token-overlap heuristic)
+    G6 ADVERSARIAL     — adversarial reviewer verdict ≤ MEDIUM severity;
+                         marks `degraded=true` when Anthropic Sonnet is unavailable
+    G7 DRIFT           — output within 2σ of recent historical output distribution;
+                         `warming_up` while history < 50 runs
+    G8 ABSENCE         — when claim asserts no-evidence, ≥k T1/T2 negative-search hits
 
-The gates are deliberately simple + deterministic so the engine is
-testable without LLM calls — they consume the parsed structured output of
-:func:`consultant_loop.run`.
+Auxiliary gates (kept for defect-coverage, but reported under `aux`):
+
+    aux_schema, aux_citation, aux_hallucination, aux_freshness,
+    aux_bias, aux_breaking_change, aux_peer_coverage
+
+The gate run as a whole ``passes`` when no gate verdict is ``fail``;
+``warn`` is allowed. G6 + G8 + aux_breaking_change have specific
+remediation rules documented per QA_AUDIT §2.3.
 """
 
 from __future__ import annotations
@@ -271,3 +280,313 @@ def run_gates(
         overall = "pass"
     score = sum(r.score for r in results) / len(results)
     return GateRun(overall=overall, score=score, results=results)
+
+
+# ─── Spec-parity gates G1..G8 ───────────────────────────────────────────────
+
+
+def gate_g1_novelty(output: dict, recent_outputs: list[dict]) -> GateResult:
+    """G1 — output is semantically new vs. recent runs."""
+    new_text = json.dumps(output.get("claims", []), sort_keys=True)
+    for prev in recent_outputs[-50:]:
+        if json.dumps(prev.get("claims", []), sort_keys=True) == new_text:
+            return GateResult(
+                name="g1_novelty",
+                verdict="warn",
+                score=0.4,
+                reasoning="output identical to a recent run",
+            )
+    return GateResult(name="g1_novelty", verdict="pass", score=1.0,
+                      reasoning="output is novel")
+
+
+def gate_g2_source_quality(output: dict, sources: list[dict]) -> GateResult:
+    """G2 — ≥1 T1 OR ≥2 T2 sources required."""
+    from collections import Counter
+    tiers: Counter[str] = Counter(s.get("tier") for s in sources if s.get("tier"))
+    if tiers.get("T1", 0) >= 1 or tiers.get("T2", 0) >= 2:
+        return GateResult(
+            name="g2_source_quality", verdict="pass", score=1.0,
+            reasoning=f"tier mix passes minima (T1={tiers.get('T1', 0)}, T2={tiers.get('T2', 0)})",
+            details={"tier_counts": dict(tiers)},
+        )
+    return GateResult(
+        name="g2_source_quality", verdict="fail", score=0.0,
+        reasoning=f"need ≥1 T1 or ≥2 T2; got {dict(tiers)}",
+        details={"tier_counts": dict(tiers),
+                 "remediation": "downgrade claim_label → HYPOTHESIS"},
+    )
+
+
+def _ers_components(output: dict, sources: list[dict]) -> dict[str, float]:
+    """ERS sub-components scored ∈ [0,1]:
+        recency      = fraction of sources newer than freshness window
+        tier         = mean tier rank where T1=1.0, T2=0.75, T3=0.5, T4=0.25, T5=0.1
+        independence = unique primary sources / total sources
+        specificity  = fraction of claims that name a specific subcap_id
+    """
+    if not sources:
+        return {"recency": 0.0, "tier": 0.0, "independence": 0.0, "specificity": 0.0}
+    rec_cutoff = datetime.now(timezone.utc) - timedelta(days=365)
+    fresh = 0
+    for s in sources:
+        ts = s.get("published_at") or s.get("ingested_at")
+        try:
+            if ts and datetime.fromisoformat(ts.replace("Z", "+00:00")) >= rec_cutoff:
+                fresh += 1
+        except Exception:
+            continue
+    tier_rank = {"T1": 1.0, "T2": 0.75, "T3": 0.5, "T4": 0.25, "T5": 0.1}
+    tier_score = sum(tier_rank.get(s.get("tier", ""), 0.0) for s in sources) / len(sources)
+    primary_ids = {s.get("primary_source_id") or s.get("id") for s in sources}
+    independence = len(primary_ids) / len(sources)
+    claims = output.get("claims", []) or []
+    if claims:
+        specificity = sum(1 for c in claims if c.get("subcap_id")) / len(claims)
+    else:
+        specificity = 0.0
+    return {
+        "recency": fresh / len(sources),
+        "tier": tier_score,
+        "independence": independence,
+        "specificity": specificity,
+    }
+
+
+def gate_g3_ers(
+    output: dict, sources: list[dict], *, threshold: float = 0.55,
+) -> GateResult:
+    """G3 — weighted ERS ≥ threshold (weights from spec §5)."""
+    weights = {"recency": 0.35, "tier": 0.25, "independence": 0.20, "specificity": 0.20}
+    components = _ers_components(output, sources)
+    ers = sum(weights[k] * components[k] for k in weights)
+    return GateResult(
+        name="g3_ers",
+        verdict="pass" if ers >= threshold else "warn",
+        score=round(ers, 3),
+        reasoning=f"ERS={ers:.2f} (threshold {threshold:.2f}); components={ {k: round(v,2) for k,v in components.items()} }",
+        details={"components": components, "threshold": threshold,
+                 "weights": weights,
+                 "remediation": "downgrade ERS-derived confidence; do not block"},
+    )
+
+
+def gate_g4_independence(output: dict, sources: list[dict]) -> GateResult:
+    """G4 — ≥2 distinct primary sources required after dedup."""
+    if not sources:
+        return GateResult(name="g4_independence", verdict="warn", score=0.5,
+                          reasoning="no sources to evaluate")
+    primaries = {s.get("primary_source_id") or s.get("id") for s in sources}
+    if len(primaries) >= 2:
+        return GateResult(name="g4_independence", verdict="pass", score=1.0,
+                          reasoning=f"{len(primaries)} distinct primary source(s)")
+    return GateResult(
+        name="g4_independence", verdict="fail", score=0.0,
+        reasoning=f"only {len(primaries)} distinct primary source(s); triangulation requires ≥2",
+        details={"primary_ids": list(primaries),
+                 "remediation": "mark as `single_source_evidence`; require human confirm"},
+    )
+
+
+_NEG_TOKENS = {"not", "no", "without", "lacks", "absent", "fails to"}
+
+
+def gate_g5_consistency(output: dict) -> GateResult:
+    """G5 — no internal contradiction across claims (heuristic).
+
+    Flags if any pair of claims share ≥2 salient tokens but one negates
+    the other. Cheap rule-based; LLM tiebreak in live mode.
+    """
+    import re
+
+    claims = output.get("claims", []) or []
+    if len(claims) < 2:
+        return GateResult(name="g5_consistency", verdict="pass", score=1.0,
+                          reasoning="<2 claims to compare")
+    word_re = re.compile(r"[A-Za-z]{4,}")
+
+    def tokens(t: str) -> set[str]:
+        return {w.lower() for w in word_re.findall(t or "")}
+
+    def is_negated(t: str) -> bool:
+        return any(n in (t or "").lower().split() for n in _NEG_TOKENS)
+
+    contradictions: list[tuple[int, int]] = []
+    for i, a in enumerate(claims):
+        a_t = tokens(a.get("text", ""))
+        for j in range(i + 1, len(claims)):
+            b = claims[j]
+            b_t = tokens(b.get("text", ""))
+            if len(a_t & b_t) >= 2 and is_negated(a.get("text", "")) != is_negated(b.get("text", "")):
+                contradictions.append((i, j))
+    if not contradictions:
+        return GateResult(name="g5_consistency", verdict="pass", score=1.0,
+                          reasoning=f"{len(claims)} claims; no contradictions")
+    return GateResult(
+        name="g5_consistency", verdict="warn", score=max(0.2, 1.0 - 0.1 * len(contradictions)),
+        reasoning=f"{len(contradictions)} potentially contradictory claim pair(s)",
+        details={"pairs": contradictions,
+                 "remediation": "enter contradiction-resolution flow"},
+    )
+
+
+def gate_g6_adversarial(adversarial: dict | None, *, anthropic_degraded: bool = False) -> GateResult:
+    """G6 — adversarial reviewer verdict ≤ MEDIUM severity.
+
+    The adversarial review is produced by ``consultant_loop._adversarial``.
+    We surface its verdict + max issue severity here.
+    """
+    if not adversarial:
+        return GateResult(name="g6_adversarial", verdict="warn", score=0.5,
+                          reasoning="no adversarial review attached")
+    verdict_label = (adversarial.get("verdict") or "").lower()
+    score_val = float(adversarial.get("score") or 0.5)
+    severities = [
+        (i.get("severity") or "").upper()
+        for i in adversarial.get("issues") or []
+    ]
+    sev_rank = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4, "BLOCKING": 5}
+    max_sev = max((sev_rank.get(s, 0) for s in severities), default=0)
+    if max_sev >= sev_rank["HIGH"]:
+        return GateResult(
+            name="g6_adversarial", verdict="fail", score=score_val,
+            reasoning=f"adversarial flagged HIGH+ severity (verdict={verdict_label})",
+            details={"max_severity": max_sev, "anthropic_degraded": anthropic_degraded,
+                     "remediation": "block; or hold + re-run when Anthropic recovers" if anthropic_degraded else "block"},
+        )
+    if anthropic_degraded:
+        return GateResult(
+            name="g6_adversarial", verdict="warn", score=score_val,
+            reasoning="adversarial passed but Anthropic degraded → Pro-on-Pro risk",
+            details={"degraded": True,
+                     "remediation": "hold; re-run when Sonnet available before BENCHMARK promotion"},
+        )
+    return GateResult(name="g6_adversarial", verdict="pass", score=score_val,
+                      reasoning=f"adversarial verdict={verdict_label}, max_sev={max_sev}")
+
+
+def gate_g7_drift(
+    output: dict,
+    *,
+    history: list[dict] | None = None,
+    min_history: int = 50,
+) -> GateResult:
+    """G7 — current output's score within 2σ of historical mean.
+
+    Boots in `warming_up` mode while we have <`min_history` rows.
+    """
+    import statistics
+
+    hist = history or []
+    if len(hist) < min_history:
+        return GateResult(
+            name="g7_drift", verdict="warn", score=0.5,
+            reasoning=f"warming_up: history={len(hist)} (<{min_history})",
+            details={"warming_up": True},
+        )
+    scores = [float(h.get("ers") or 0.0) for h in hist if h.get("ers") is not None]
+    if not scores:
+        return GateResult(name="g7_drift", verdict="warn", score=0.5,
+                          reasoning="no historical ERS values")
+    mean = statistics.mean(scores)
+    std = statistics.pstdev(scores) or 0.01
+    cur = float(output.get("ers") or mean)
+    z = abs((cur - mean) / std)
+    if z > 2:
+        return GateResult(
+            name="g7_drift", verdict="warn", score=max(0.0, 1.0 - z * 0.1),
+            reasoning=f"|z|={z:.2f} > 2σ from mean {mean:.2f}",
+            details={"z": z, "mean": mean, "std": std,
+                     "remediation": "banner: drift detected; do not block"},
+        )
+    return GateResult(name="g7_drift", verdict="pass", score=1.0,
+                      reasoning=f"|z|={z:.2f} within 2σ", details={"z": z})
+
+
+def gate_g8_absence(
+    output: dict,
+    sources: list[dict],
+    *,
+    k: int = 5,
+) -> GateResult:
+    """G8 — when output asserts no-evidence, demand ≥k T1/T2 negative searches."""
+    asserts_absence = any(
+        "no evidence" in (c.get("text") or "").lower()
+        or "absence" in (c.get("text") or "").lower()
+        for c in output.get("claims", []) or []
+    )
+    if not asserts_absence:
+        return GateResult(name="g8_absence", verdict="pass", score=1.0,
+                          reasoning="no absence claim — gate not applicable")
+    high_tier = [s for s in sources if s.get("tier") in ("T1", "T2")]
+    if len(high_tier) >= k:
+        return GateResult(
+            name="g8_absence", verdict="pass", score=1.0,
+            reasoning=f"absence proven across {len(high_tier)} T1/T2 sources",
+        )
+    return GateResult(
+        name="g8_absence", verdict="warn", score=max(0.0, len(high_tier) / k),
+        reasoning=f"absence claimed but only {len(high_tier)}/{k} T1/T2 negative searches",
+        details={"remediation": "allow with claim_label=CEILING_ESTIMATE + explicit absence note"},
+    )
+
+
+# ─── Engine — replaces previous run_gates ──────────────────────────────────
+
+
+def run_gates(
+    output: dict,
+    sources: list[dict],
+    *,
+    expected_keys: list[str] | None = None,
+    suggestions: list[dict] | None = None,
+    recent_outputs: list[dict] | None = None,
+    freshness_days: int = 365,
+    adversarial: dict | None = None,
+    anthropic_degraded: bool = False,
+    history: list[dict] | None = None,
+) -> GateRun:
+    """Run spec G1..G8 + auxiliary gates; aggregate to overall verdict.
+
+    Result dict contains:
+        results: list of all gate rows (G1..G8 + aux_*)
+        overall: pass | warn | fail
+        score: arithmetic mean of per-gate scores
+    """
+    spec_gates = [
+        gate_g1_novelty(output, recent_outputs or []),
+        gate_g2_source_quality(output, sources),
+        gate_g3_ers(output, sources),
+        gate_g4_independence(output, sources),
+        gate_g5_consistency(output),
+        gate_g6_adversarial(adversarial, anthropic_degraded=anthropic_degraded),
+        gate_g7_drift(output, history=history),
+        gate_g8_absence(output, sources),
+    ]
+    aux_gates = [
+        _aux(gate_schema, "aux_schema", output, expected_keys or ["claims"]),
+        _aux(gate_citation, "aux_citation", output, sources),
+        _aux(gate_hallucination, "aux_hallucination", output, sources),
+        _aux(gate_freshness, "aux_freshness", sources, freshness_days),
+        _aux(gate_bias, "aux_bias", output, sources),
+        _aux(gate_breaking_change, "aux_breaking_change", suggestions or []),
+        _aux(gate_peer_coverage, "aux_peer_coverage", output, sources),
+    ]
+    results = spec_gates + aux_gates
+    if any(r.verdict == "fail" for r in results):
+        overall = "fail"
+    elif any(r.verdict == "warn" for r in results):
+        overall = "warn"
+    else:
+        overall = "pass"
+    score = sum(r.score for r in results) / len(results)
+    return GateRun(overall=overall, score=score, results=results)
+
+
+def _aux(fn, name: str, *args, **kwargs) -> GateResult:
+    """Run an existing legacy gate and rename it under aux_*."""
+    r = fn(*args, **kwargs)
+    return GateResult(
+        name=name, verdict=r.verdict, score=r.score,
+        reasoning=r.reasoning, details=r.details,
+    )

@@ -1,0 +1,66 @@
+# Canonical sources — operational policy sidecar.
+#
+# Per QA_AUDIT.md fix #14. canonical_sources.yml carries the stable URL
+# + tier list; this file adds the operational layer (ToS status, rate
+# limits, circuit breaker, independence class) without rewriting the
+# ~80 individual source rows. Lookups fall back to the global default
+# when a specific source isn't listed.
+
+# Default applies to every source not explicitly named below.
+default:
+  tos_status: accepted-risk          # officially-licensed | data-broker | accepted-risk | disabled
+  independence_class: regulator      # regulator | self | analyst | trade_pub | esg | ai_research | technographic
+  max_requests_per_minute: 10
+  max_concurrent: 2
+  backoff_policy: exponential        # exponential | linear | none
+  retry_after_respect: true
+  cb_consecutive_failure_threshold: 5
+  cb_open_duration_seconds: 3600
+
+# Per-source overrides (only when policy diverges from default).
+overrides:
+  # Strict regulators — tighter rate, longer cool-off
+  occ:        { max_requests_per_minute: 5, independence_class: regulator }
+  fdic:       { max_requests_per_minute: 5, independence_class: regulator }
+  ncua:       { max_requests_per_minute: 5, independence_class: regulator }
+  cfpb:       { max_requests_per_minute: 5, independence_class: regulator }
+  fedreserve: { max_requests_per_minute: 5, independence_class: regulator }
+  sec:        { max_requests_per_minute: 5, independence_class: regulator }
+  edgar:      { max_requests_per_minute: 10, independence_class: regulator }
+  finra:      { max_requests_per_minute: 5, independence_class: regulator }
+  fincen:     { max_requests_per_minute: 5, independence_class: regulator }
+
+  # Analyst firms — independence class differs (cite-only)
+  gartner_fs:     { tos_status: accepted-risk, independence_class: analyst }
+  forrester_fs:   { tos_status: accepted-risk, independence_class: analyst }
+  celent:         { tos_status: accepted-risk, independence_class: analyst }
+  aite_novarica:  { tos_status: accepted-risk, independence_class: analyst }
+  cornerstone:    { tos_status: accepted-risk, independence_class: analyst }
+  idc_fs:         { tos_status: accepted-risk, independence_class: analyst }
+
+  # Strategy firms — same as analyst for triangulation purposes
+  mck_global_banking: { independence_class: analyst }
+  bcg_fs:             { independence_class: analyst }
+  bain_fs:            { independence_class: analyst }
+  deloitte_fs:        { independence_class: analyst }
+  ey_fs:              { independence_class: analyst }
+  kpmg_fs:            { independence_class: analyst }
+  pwc_fs:             { independence_class: analyst }
+
+  # Trade pubs — moderate rate
+  american_banker:    { independence_class: trade_pub, max_requests_per_minute: 20 }
+  banking_dive:       { independence_class: trade_pub, max_requests_per_minute: 20 }
+  insurance_journal:  { independence_class: trade_pub, max_requests_per_minute: 20 }
+
+  # Vendor-partner platforms — self-published; weight accordingly
+  salesforce_release_notes: { independence_class: self }
+  salesforce_news:          { independence_class: self }
+  ncino_news:               { independence_class: self }
+  databricks_blog:          { independence_class: self }
+
+  # ToS-blocked-until-licensed (require sign-off; default to disabled)
+  linkedin:    { tos_status: disabled, independence_class: technographic }
+  indeed:      { tos_status: disabled, independence_class: technographic }
+  glassdoor:   { tos_status: disabled, independence_class: technographic }
+  builtwith:   { tos_status: data-broker, independence_class: technographic }
+  wappalyzer:  { tos_status: data-broker, independence_class: technographic }

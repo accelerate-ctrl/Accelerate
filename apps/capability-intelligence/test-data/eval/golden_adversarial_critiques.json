@@ -1,0 +1,16 @@
+{
+  "_schema_version": "golden-adversarial-v1",
+  "description": "Synthetic flawed reasoning outputs. Adversary recall target ≥ 0.90 (catches ≥ 27 of 30 issues). Each case has one or more planted defects; the adversarial reviewer must flag at least one.",
+  "cases": [
+    {"case_id": "single-source", "claims": [{"text": "FS adopting GenAI broadly", "sources": ["s1"]}], "sources": [{"id": "s1", "tier": "T2"}], "expected_issue": "single source"},
+    {"case_id": "low-tier-only", "claims": [{"text": "X is dominant", "sources": ["s1", "s2"]}], "sources": [{"id": "s1", "tier": "T5"}, {"id": "s2", "tier": "T5"}], "expected_issue": "low tier"},
+    {"case_id": "stale-source", "claims": [{"text": "current best practice", "sources": ["s1"]}], "sources": [{"id": "s1", "tier": "T2", "published_at": "2018-01-01T00:00:00Z"}], "expected_issue": "stale evidence"},
+    {"case_id": "circular-cite", "claims": [{"text": "Y per FFIEC", "sources": ["s1", "s2", "s3"]}], "sources": [{"id": "s1", "tier": "T1", "primary_source_id": "OCC-2024"}, {"id": "s2", "tier": "T2", "primary_source_id": "OCC-2024"}, {"id": "s3", "tier": "T2", "primary_source_id": "OCC-2024"}], "expected_issue": "n=1 not n=3"},
+    {"case_id": "internal-contradiction", "claims": [{"text": "adoption is 70%", "sources": ["s1"]}, {"text": "adoption is not 70%", "sources": ["s2"]}], "sources": [{"id": "s1", "tier": "T2"}, {"id": "s2", "tier": "T2"}], "expected_issue": "contradiction"},
+    {"case_id": "absence-without-search", "claims": [{"text": "no evidence found for X", "sources": []}], "sources": [], "expected_issue": "no search trail"},
+    {"case_id": "vendor-self-promotion", "claims": [{"text": "Vendor V is best", "sources": ["s1"]}], "sources": [{"id": "s1", "tier": "T5", "source_label": "vendor press release"}], "expected_issue": "self-promotion"},
+    {"case_id": "missing-citation", "claims": [{"text": "claim with no citation"}], "sources": [], "expected_issue": "missing citation"},
+    {"case_id": "weak-overlap", "claims": [{"text": "blockchain crypto trading", "sources": ["s1"]}], "sources": [{"id": "s1", "text": "tomatoes basil garden", "tier": "T2"}], "expected_issue": "weak token overlap"},
+    {"case_id": "ok-baseline", "claims": [{"text": "Wells Fargo digital strategy refresh underway per 10-K Item 7", "sources": ["s1", "s2"], "subcap_id": "P1C1.1.1"}], "sources": [{"id": "s1", "tier": "T1", "primary_source_id": "WF-10K-2024", "text": "Wells Fargo digital strategy"}, {"id": "s2", "tier": "T2", "primary_source_id": "AB-2024-0312", "text": "Wells Fargo digital"}], "expected_issue": null}
+  ]
+}

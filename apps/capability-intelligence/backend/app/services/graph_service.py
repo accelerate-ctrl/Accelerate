@@ -30,6 +30,7 @@ import networkx as nx
 import yaml
 
 from . import catalogue_service as cat
+from .repository import get_repository
 
 log = logging.getLogger(__name__)
 
@@ -238,7 +239,65 @@ def _build_cached(snapshot_id: str) -> nx.MultiDiGraph:
                 seen_stages[key] = stage_nid
             g.add_edge(_nid("Subcap", sid), seen_stages[key], key=f"MAPS_TO_STAGE:{sv}", kind="MAPS_TO_STAGE")
 
-    log.info("kg built snapshot=%s nodes=%d edges=%d", snapshot_id, g.number_of_nodes(), g.number_of_edges())
+    # Per QA_AUDIT.md fix #11 — extend the KG with the spec node types
+    # added in Batches 3-7. Each addition is best-effort: if the
+    # underlying collection is empty the loop is a no-op.
+    repo = get_repository()
+
+    # Vendor + Event nodes (Batch 6)
+    for v in repo.list("vendor_profiles"):
+        nid = _nid("Vendor", v.get("vendor_id") or v.get("name") or "?")
+        if nid in g:
+            continue
+        g.add_node(nid, kind="Vendor", name=v.get("name"),
+                   category=v.get("category"),
+                   companies=v.get("companies") or [])
+    for e in repo.list("vendor_events"):
+        eid = _nid("Event", e.get("id") or "?")
+        g.add_node(eid, kind="Event", title=e.get("title"),
+                   source=e.get("source"), kind_of_event=e.get("kind"))
+        v_nid = _nid("Vendor", e.get("vendor_id") or "?")
+        if v_nid in g:
+            g.add_edge(eid, v_nid, key="ABOUT_VENDOR", kind="ABOUT_VENDOR")
+
+    # Benchmark distribution nodes (Batch 5)
+    for d in repo.list("benchmark_distributions"):
+        nid = _nid("Benchmark", d.get("id") or "?")
+        g.add_node(nid, kind="Benchmark",
+                   metric_id=d.get("metric_id"),
+                   cohort_id=d.get("cohort_id"),
+                   verdict=d.get("verdict"))
+
+    # Suggestion + ReasoningChain + AuditFinding nodes (Batches 4 + 7)
+    for s in repo.list("suggestions"):
+        sid = _nid("Suggestion", s.get("id") or "?")
+        g.add_node(sid, kind="Suggestion",
+                   target=s.get("target"), status=s.get("status"))
+        if s.get("chain_id"):
+            g.add_edge(sid, _nid("ReasoningChain", s["chain_id"]),
+                       key="PRODUCED_BY", kind="PRODUCED_BY")
+        if s.get("sub_cap_id"):
+            sc_nid = _nid("Subcap", s["sub_cap_id"])
+            if sc_nid in g:
+                g.add_edge(sid, sc_nid, key="TARGETS",
+                           kind="TARGETS")
+
+    for c in repo.list("reasoning_chains"):
+        nid = _nid("ReasoningChain", c.get("chain_id") or "?")
+        g.add_node(nid, kind="ReasoningChain",
+                   overall=c.get("overall"),
+                   cost_usd=c.get("total_cost_usd"))
+
+    for r in repo.list("audit_reports"):
+        nid = _nid("AuditFinding", r.get("report_id") or "?")
+        g.add_node(nid, kind="AuditFinding",
+                   summary=r.get("summary"),
+                   findings_count=len(r.get("findings") or []))
+
+    log.info("kg built snapshot=%s nodes=%d edges=%d kinds=%d/%d",
+             snapshot_id, g.number_of_nodes(), g.number_of_edges(),
+             len({d.get('kind') for _, d in g.nodes(data=True)}),
+             len({d.get('kind') for _, _, d in g.edges(data=True)}))
     return g
 
 
@@ -447,3 +506,84 @@ def _to_payload(sub: nx.MultiDiGraph) -> dict:
     for u, v, attrs in sub.edges(data=True):
         edges.append({"data": {"id": f"{u}->{v}::{attrs.get('kind')}", "source": u, "target": v, "kind": attrs.get("kind")}})
     return {"nodes": nodes, "edges": edges}
+
+
+# ─── Sharded persistence (per QA_AUDIT.md fix #11) ──────────────────────────
+#
+# Firestore docs are limited to 1 MB. Persist the KG as N node-shards and
+# M edge-shards where each shard is ≤ 200 nodes / 500 edges so we always
+# stay well under the limit.
+
+NODE_SHARD_SIZE = 200
+EDGE_SHARD_SIZE = 500
+
+
+def persist_snapshot(snapshot_id: str | None = None) -> dict:
+    """Write the current graph to ``graph_snapshots`` as sharded docs.
+
+    Returns shard metadata; round-trip with :func:`load_snapshot`.
+    """
+    g = build_graph(snapshot_id)
+    sid = snapshot_id or _current_snapshot_id()
+    repo = get_repository()
+    nodes = [{"id": n, **dict(g.nodes[n])} for n in g.nodes()]
+    edges = [
+        {"source": u, "target": v, **dict(d)}
+        for u, v, d in g.edges(data=True)
+    ]
+    node_shards = [nodes[i:i + NODE_SHARD_SIZE] for i in range(0, len(nodes), NODE_SHARD_SIZE)]
+    edge_shards = [edges[i:i + EDGE_SHARD_SIZE] for i in range(0, len(edges), EDGE_SHARD_SIZE)]
+    with repo.defer_persist():
+        for i, shard in enumerate(node_shards):
+            repo.upsert(
+                "graph_snapshot_shards",
+                f"{sid}-nodes-{i:04d}",
+                {
+                    "snapshot_id": sid,
+                    "kind": "nodes",
+                    "shard_index": i,
+                    "_schema_version": "graph-shard-v1",
+                    "rows": shard,
+                },
+            )
+        for i, shard in enumerate(edge_shards):
+            repo.upsert(
+                "graph_snapshot_shards",
+                f"{sid}-edges-{i:04d}",
+                {
+                    "snapshot_id": sid,
+                    "kind": "edges",
+                    "shard_index": i,
+                    "_schema_version": "graph-shard-v1",
+                    "rows": shard,
+                },
+            )
+    return {
+        "snapshot_id": sid,
+        "node_shards": len(node_shards),
+        "edge_shards": len(edge_shards),
+        "nodes_total": len(nodes),
+        "edges_total": len(edges),
+    }
+
+
+def load_snapshot(snapshot_id: str) -> nx.MultiDiGraph:
+    """Re-hydrate a graph from sharded docs."""
+    repo = get_repository()
+    shards = [
+        s for s in repo.list("graph_snapshot_shards")
+        if s.get("snapshot_id") == snapshot_id
+    ]
+    g = nx.MultiDiGraph()
+    for s in sorted(shards, key=lambda x: (x.get("kind"), x.get("shard_index", 0))):
+        if s.get("kind") == "nodes":
+            for n in s.get("rows", []):
+                nid = n.get("id")
+                attrs = {k: v for k, v in n.items() if k != "id"}
+                g.add_node(nid, **attrs)
+        elif s.get("kind") == "edges":
+            for e in s.get("rows", []):
+                src, dst = e.get("source"), e.get("target")
+                attrs = {k: v for k, v in e.items() if k not in ("source", "target")}
+                g.add_edge(src, dst, **attrs)
+    return g

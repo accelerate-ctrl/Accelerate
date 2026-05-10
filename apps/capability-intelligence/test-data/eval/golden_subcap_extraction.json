@@ -1,0 +1,13 @@
+{
+  "_schema_version": "golden-subcap-extraction-v1",
+  "description": "SOW-chunk → expected sub_cap_id labels for mention-extraction precision/recall. Targets: precision ≥ 0.85, recall ≥ 0.75.",
+  "cases": [
+    {"case_id": "wf-sow-q4-2024-c1", "chunk": "Wells Fargo Digital Strategy Document refresh for retail banking; aligns to P1C1.1.1.", "expected_sub_cap_ids": ["P1C1.1.1"]},
+    {"case_id": "wf-sow-q4-2024-c2", "chunk": "Business alignment workshop covering executive committee — P1C1.1.2.", "expected_sub_cap_ids": ["P1C1.1.2"]},
+    {"case_id": "nw-sow-c1", "chunk": "Northwestern Mutual Compliance Governance for P1C2.7.1 Regulatory Change Management.", "expected_sub_cap_ids": ["P1C2.7.1"]},
+    {"case_id": "schwab-sow-c1", "chunk": "Charles Schwab discovery for P1C1.1.1 + P1C1.1.3 strategy document refresh cadence.", "expected_sub_cap_ids": ["P1C1.1.1", "P1C1.1.3"]},
+    {"case_id": "pnc-sow-c1", "chunk": "Decommission decisioning platform; subcap P1C2.3.1 affected.", "expected_sub_cap_ids": ["P1C2.3.1"]},
+    {"case_id": "noise-1", "chunk": "Generic project-management copy with no subcap reference.", "expected_sub_cap_ids": []},
+    {"case_id": "fuzzy-1", "chunk": "Working session on Digital Strategy Document refresh and Strategy Refresh Cadence.", "expected_sub_cap_ids": ["P1C1.1.1", "P1C1.1.3"]}
+  ]
+}

@@ -24,8 +24,11 @@ def test_run_loop_writes_chain_and_suggestions(settings_for_tests):
         "adversarial", "propose_suggestions", "gate", "finalize",
     }
 
-    # All 8 gates ran
-    assert len(result.gates["results"]) == 8
+    # Spec G1..G8 + 7 auxiliary gates = 15
+    assert len(result.gates["results"]) == 15
+    names = {r["name"] for r in result.gates["results"]}
+    assert {"g1_novelty", "g2_source_quality", "g3_ers", "g4_independence",
+            "g5_consistency", "g6_adversarial", "g7_drift", "g8_absence"} <= names
 
     # Chain persisted
     persisted = consultant_loop.get_chain(result.chain_id)

@@ -313,7 +313,16 @@ def call(req: LlmRequest) -> LlmResponse:
 
     if req.cache:
         _cache.put(req, resp)
-    _tracker.record(req.model, resp.input_tokens, resp.output_tokens, resp.cost_usd)
+    # Per QA_AUDIT.md fix #12 — propagate attribution from req.metadata.
+    md = req.metadata or {}
+    _tracker.record(
+        req.model, resp.input_tokens, resp.output_tokens, resp.cost_usd,
+        operation_type=md.get("operation_type"),
+        pillar_id=md.get("pillar_id"),
+        subvertical=md.get("subvertical"),
+        sub_cap_id=md.get("sub_cap_id"),
+        batch=md.get("batch"),
+    )
     return resp
 
 

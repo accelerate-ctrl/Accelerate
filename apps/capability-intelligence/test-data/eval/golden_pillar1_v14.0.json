@@ -1,0 +1,25 @@
+{
+  "_schema_version": "golden-pillar1-v1",
+  "description": "Pillar 1 v14.0 expected counts after parser ingest. Ground truth from the canonical workbook 1_Overview header (199 strategic sub-capabilities, 22 tabs).",
+  "expected_counts": {
+    "subcaps": 199,
+    "categories": 4,
+    "l1_capabilities": 36,
+    "use_cases": 827,
+    "l3_platforms": 45,
+    "l4_features": 1852,
+    "stories": 1302,
+    "themes": 33
+  },
+  "expected_node_kinds": [
+    "Pillar", "Category", "L1_Capability", "Subcap", "UseCase", "UC_Tag",
+    "L3_Platform", "L4_Feature", "Theme", "MaturityDescriptor",
+    "Subvertical", "Cluster", "VC_Stage", "Persona"
+  ],
+  "expected_kg_totals": {
+    "nodes_total_min": 4000,
+    "nodes_total_max": 4100,
+    "edges_total_min": 12000,
+    "edges_total_max": 12500
+  }
+}

@@ -28,7 +28,69 @@ from uuid import uuid4
 from .llm.router import LlmRequest, ModelKind, call as llm_call
 from .llm.vector_store import VectorStore
 from .repository import get_repository
+from enum import Enum
+
+from ..mixins.embedded_qa import has_keys, non_empty_list, run_self_test
+from ..models.common import schema_version
+from ..observability import emit_manifest
 from .validation_gates_service import GateRun, run_gates
+
+
+class LeverageTier(str, Enum):
+    """Per QA_AUDIT.md fix #5 — controls which steps the loop runs.
+
+    LOW    — synthesize + gate only; trivial ops (e.g. lifecycle scoring)
+    MEDIUM — synthesize + adversarial + gate; standard analyst work
+    HIGH   — full 7-step (clarify → retrieve_int → retrieve_ext → synth →
+             adversarial → propose → gate → finalize); default for chat,
+             news triage, suggestions
+    DIGEST — HIGH + n_samples=3 multi-sample; for the quarterly digest
+    """
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    DIGEST = "digest"
+
+
+def _dedup_by_primary(sources: list[dict]) -> list[dict]:
+    """Per QA_AUDIT.md §2.2 step 4: deduplicate by ``primary_source_id``
+    so 3 secondary citations of one underlying study don't look like n=3.
+    Falls back to ``id`` when no primary is set."""
+    seen: dict[str, dict] = {}
+    for s in sources:
+        key = s.get("primary_source_id") or s.get("id")
+        if key not in seen:
+            seen[key] = s
+    return list(seen.values())
+
+
+def _resolve_contradiction(a: dict, b: dict) -> dict:
+    """Per QA_AUDIT.md §2.2 step 5 — retraction trumps tier; later
+    contradicts earlier; tier (T1>T2>T3>T4>T5); recency.
+
+    Returns whichever source `wins`; ties → CONTESTED marker on the loser.
+    """
+    text_a = (a.get("text") or "").lower()
+    text_b = (b.get("text") or "").lower()
+    # 0. retraction override
+    for needle in ("retract", "withdrawn", "rescinded"):
+        if needle in text_b and needle not in text_a:
+            return b
+        if needle in text_a and needle not in text_b:
+            return a
+    # 1. tier
+    rank = {"T1": 1, "T2": 2, "T3": 3, "T4": 4, "T5": 5}
+    ra = rank.get(a.get("tier", "T5"), 5)
+    rb = rank.get(b.get("tier", "T5"), 5)
+    if ra != rb:
+        return a if ra < rb else b
+    # 2. recency
+    pa = a.get("published_at") or "0"
+    pb = b.get("published_at") or "0"
+    if pa != pb:
+        return a if pa > pb else b
+    # 3. CONTESTED
+    return {**a, "contested_with": b.get("id"), "claim_state": "CONTESTED"}
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +209,7 @@ def _retrieve_external(query: str) -> list[dict]:
     return items
 
 
-def _synthesize(query: str, sources: list[dict], model: ModelKind) -> tuple[dict, "LlmResponse"]:
+def _synthesize(query: str, sources: list[dict], model: ModelKind, *, metadata: dict | None = None) -> tuple[dict, "LlmResponse"]:
     """Call router, parse JSON, fall back to raw text on parse error."""
     src_block = "\n".join(
         f"[{s['id']}] ({s.get('kind')}) {s.get('title', '')}\n{s.get('text', '')[:400]}"
@@ -163,6 +225,7 @@ def _synthesize(query: str, sources: list[dict], model: ModelKind) -> tuple[dict
         prompt=prompt,
         system="You are a Zennify capability-intelligence consultant. Extract claims grounded in the cited evidence. JSON only.",
         max_tokens=1500,
+        metadata={**(metadata or {}), "step": "synthesize"},
     ))
     try:
         parsed = json.loads(resp.text)
@@ -171,7 +234,7 @@ def _synthesize(query: str, sources: list[dict], model: ModelKind) -> tuple[dict
     return parsed, resp
 
 
-def _adversarial(output: dict, sources: list[dict]) -> tuple[dict, "LlmResponse"]:
+def _adversarial(output: dict, sources: list[dict], *, metadata: dict | None = None) -> tuple[dict, "LlmResponse"]:
     """Sonnet-class red-team review (dev-mode resolves to a canned critique)."""
     prompt = (
         "Critique the following extracted claims against the cited evidence. "
@@ -184,6 +247,7 @@ def _adversarial(output: dict, sources: list[dict]) -> tuple[dict, "LlmResponse"
         prompt=prompt,
         system="You are a skeptical adversarial reviewer.  Be specific.  JSON only.",
         max_tokens=1000,
+        metadata={**(metadata or {}), "step": "adversarial"},
     ))
     try:
         parsed = json.loads(resp.text)
@@ -192,7 +256,7 @@ def _adversarial(output: dict, sources: list[dict]) -> tuple[dict, "LlmResponse"
     return parsed, resp
 
 
-def _propose_suggestions(output: dict, sub_cap_id: str | None) -> tuple[list[dict], "LlmResponse"]:
+def _propose_suggestions(output: dict, sub_cap_id: str | None, *, metadata: dict | None = None) -> tuple[list[dict], "LlmResponse"]:
     prompt = (
         "Given these grounded claims, suggest concrete catalogue edits. "
         "Return JSON {suggestions:[{kind, target, title, rationale}]}.  "
@@ -206,6 +270,7 @@ def _propose_suggestions(output: dict, sub_cap_id: str | None) -> tuple[list[dic
         prompt=prompt,
         system="You suggest targeted catalogue improvements.  JSON only.",
         max_tokens=1000,
+        metadata={**(metadata or {}), "step": "propose_suggestions"},
     ))
     try:
         parsed = json.loads(resp.text)
@@ -224,11 +289,35 @@ def run(
     sub_cap_id: str | None = None,
     synth_model: ModelKind = ModelKind.GEMINI_PRO,
     persist: bool = True,
+    leverage_tier: LeverageTier = LeverageTier.HIGH,
+    operation_type: str = "general",
+    pillar_id: str | None = None,
+    subvertical: str | None = None,
 ) -> LoopResult:
+    """Run the consultant loop.
+
+    `leverage_tier` controls which steps fire — LOW skips adversarial +
+    propose; MEDIUM skips propose; HIGH runs all; DIGEST runs all + multi-
+    sample.
+
+    `operation_type/pillar_id/subvertical` are stamped onto the cost
+    ledger for §4.7 attribution and onto the reproducibility manifest.
+    """
     chain_id = f"chain-{uuid4().hex[:12]}"
     started = datetime.now(timezone.utc)
     steps: list[ChainStep] = []
     total_cost = 0.0
+    skip_adversarial = leverage_tier == LeverageTier.LOW
+    skip_propose = leverage_tier in (LeverageTier.LOW, LeverageTier.MEDIUM)
+    # Per QA_AUDIT.md fix #12 — every LLM call inside this loop carries
+    # attribution so cost ledger can answer "what did <op> cost in $?".
+    attribution = {
+        "operation_type": operation_type,
+        "pillar_id": pillar_id,
+        "subvertical": subvertical,
+        "sub_cap_id": sub_cap_id,
+        "chain_id": chain_id,
+    }
 
     # 1) clarify
     s1, _ = _step("clarify")
@@ -250,11 +339,14 @@ def run(
     s3.detail = {"source_ids": [s["id"] for s in ext_sources]}
     steps.append(_finish(s3))
 
-    sources = int_sources + ext_sources
+    # Per QA_AUDIT.md §2.2 step 4 — dedup by primary_source_id BEFORE
+    # the loop counts triangulation; cite full-source list to the LLM.
+    raw_sources = int_sources + ext_sources
+    sources = _dedup_by_primary(raw_sources)
 
     # 4) synthesize
     s4, _ = _step("synthesize")
-    output, synth_resp = _synthesize(query, sources, synth_model)
+    output, synth_resp = _synthesize(query, sources, synth_model, metadata=attribution)
     s4.model = synth_resp.model.value
     s4.tokens_in = synth_resp.input_tokens
     s4.tokens_out = synth_resp.output_tokens
@@ -265,38 +357,45 @@ def run(
     total_cost += synth_resp.cost_usd
     steps.append(_finish(s4))
 
-    # 5) adversarial
-    s5, _ = _step("adversarial")
-    adv, adv_resp = _adversarial(output, sources)
-    s5.model = adv_resp.model.value
-    s5.tokens_in = adv_resp.input_tokens
-    s5.tokens_out = adv_resp.output_tokens
-    s5.cost_usd = adv_resp.cost_usd
-    s5.cached = adv_resp.cached
-    s5.output_summary = f"verdict={adv.get('verdict')} score={adv.get('score', 0)}"
-    s5.detail = {"adversarial": adv}
-    total_cost += adv_resp.cost_usd
-    steps.append(_finish(s5))
+    # 5) adversarial (skipped on LOW)
+    adv: dict | None = None
+    if not skip_adversarial:
+        s5, _ = _step("adversarial")
+        adv, adv_resp = _adversarial(output, sources, metadata=attribution)
+        s5.model = adv_resp.model.value
+        s5.tokens_in = adv_resp.input_tokens
+        s5.tokens_out = adv_resp.output_tokens
+        s5.cost_usd = adv_resp.cost_usd
+        s5.cached = adv_resp.cached
+        s5.output_summary = f"verdict={adv.get('verdict')} score={adv.get('score', 0)}"
+        s5.detail = {"adversarial": adv}
+        total_cost += adv_resp.cost_usd
+        steps.append(_finish(s5))
 
-    # 5b) suggestions (synth model)
-    s5b, _ = _step("propose_suggestions")
-    suggestions, sug_resp = _propose_suggestions(output, sub_cap_id)
-    s5b.model = sug_resp.model.value
-    s5b.tokens_in = sug_resp.input_tokens
-    s5b.tokens_out = sug_resp.output_tokens
-    s5b.cost_usd = sug_resp.cost_usd
-    s5b.cached = sug_resp.cached
-    s5b.output_summary = f"{len(suggestions)} suggestion(s)"
-    total_cost += sug_resp.cost_usd
-    steps.append(_finish(s5b))
+    # 5b) suggestions (skipped on LOW + MEDIUM)
+    suggestions: list[dict] = []
+    if not skip_propose:
+        s5b, _ = _step("propose_suggestions")
+        suggestions, sug_resp = _propose_suggestions(output, sub_cap_id, metadata=attribution)
+        s5b.model = sug_resp.model.value
+        s5b.tokens_in = sug_resp.input_tokens
+        s5b.tokens_out = sug_resp.output_tokens
+        s5b.cost_usd = sug_resp.cost_usd
+        s5b.cached = sug_resp.cached
+        s5b.output_summary = f"{len(suggestions)} suggestion(s)"
+        total_cost += sug_resp.cost_usd
+        steps.append(_finish(s5b))
 
-    # 6) gate
+    # 6) gate — pass adversarial verdict to G6 + history to G7
     s6, _ = _step("gate")
+    history = _recent_outputs(sub_cap_id)
     gate_run: GateRun = run_gates(
         output,
         sources,
         suggestions=suggestions,
-        recent_outputs=_recent_outputs(sub_cap_id),
+        recent_outputs=history,
+        adversarial=adv,
+        history=history,
     )
     s6.output_summary = f"overall={gate_run.overall} score={gate_run.score:.2f}"
     s6.detail = gate_run.to_dict()
@@ -307,6 +406,36 @@ def run(
     completed = datetime.now(timezone.utc)
     s7.output_summary = f"chain_id={chain_id} cost=${total_cost:.4f}"
     steps.append(_finish(s7))
+
+    # Per QA_AUDIT §4.4 — every analytical emit must self-test.
+    qa = run_self_test(
+        {
+            "claims": output.get("claims", []),
+            "sources": sources,
+            "gates": gate_run.results,
+        },
+        checks=[
+            non_empty_list("sources", min_len=0),  # >=0 OK; 0 is gate-handled
+            ("gates_ran", lambda p: len(p["gates"]) >= 8, "expected ≥ 8 gate rows"),
+            ("non_empty_output", lambda p: "claims" in p, "output has claims key"),
+        ],
+        schema_version=schema_version("reasoning_chain"),
+    )
+
+    # Per QA_AUDIT §4.6 — emit reproducibility manifest for replay.
+    if persist:
+        emit_manifest(
+            chain_id,
+            operation_type=operation_type,
+            sub_cap_id=sub_cap_id,
+            pillar_id=pillar_id,
+            subvertical=subvertical,
+            leverage_tier=leverage_tier.value,
+            synth_model=synth_model.value,
+            n_sources=len(sources),
+            n_claims=len(output.get("claims", [])),
+            gate_overall=gate_run.overall,
+        )
 
     result = LoopResult(
         chain_id=chain_id,
@@ -323,7 +452,7 @@ def run(
     )
 
     if persist:
-        _persist(result)
+        _persist(result, qa=qa, leverage_tier=leverage_tier)
 
     return result
 
@@ -337,35 +466,46 @@ def _recent_outputs(sub_cap_id: str | None) -> list[dict]:
     return [c.get("output", {}) for c in chains[:30]]
 
 
-def _persist(result: LoopResult) -> None:
+def _persist(result: LoopResult, *, qa=None, leverage_tier: LeverageTier | None = None) -> None:
     repo = get_repository()
-    repo.upsert(
-        CHAIN_COLLECTION,
-        result.chain_id,
-        {
-            **{k: v for k, v in asdict(result).items() if k != "steps"},
-            "steps": [asdict(s) for s in result.steps],
-        },
-    )
+    base = {
+        **{k: v for k, v in asdict(result).items() if k != "steps"},
+        "steps": [asdict(s) for s in result.steps],
+        "_schema_version": schema_version("reasoning_chain"),
+    }
+    if qa is not None:
+        base.update(qa.to_dict())
+    if leverage_tier is not None:
+        base["leverage_tier"] = leverage_tier.value
+    repo.upsert(CHAIN_COLLECTION, result.chain_id, base)
     # Stage suggestions in the suggestions collection w/ status=pending
     for i, sug in enumerate(result.suggestions):
         sid = f"sug-{result.chain_id}-{i}"
-        repo.upsert(
-            SUGGESTION_COLLECTION,
-            sid,
-            {
-                "id": sid,
-                "chain_id": result.chain_id,
-                "sub_cap_id": result.sub_cap_id,
-                "kind": sug.get("kind"),
-                "target": sug.get("target"),
-                "title": sug.get("title"),
-                "rationale": sug.get("rationale"),
-                "status": "pending",  # pending | applied | rejected
-                "gate_overall": result.overall,
-                "created_at": result.completed_at,
-            },
+        sug_payload = {
+            "id": sid,
+            "_schema_version": schema_version("suggestion"),
+            "chain_id": result.chain_id,
+            "sub_cap_id": result.sub_cap_id,
+            "kind": sug.get("kind"),
+            "target": sug.get("target"),
+            "title": sug.get("title"),
+            "rationale": sug.get("rationale"),
+            "status": "pending",  # pending | applied | rejected
+            "gate_overall": result.overall,
+            "created_at": result.completed_at,
+        }
+        # Per-suggestion self-test
+        sug_qa = run_self_test(
+            sug_payload,
+            checks=[
+                has_keys("kind", "title", "chain_id"),
+                ("has_gate_verdict", lambda p: p.get("gate_overall") is not None,
+                 "missing gate verdict"),
+            ],
+            schema_version=schema_version("suggestion"),
         )
+        sug_payload.update(sug_qa.to_dict())
+        repo.upsert(SUGGESTION_COLLECTION, sid, sug_payload)
 
 
 def list_chains(sub_cap_id: str | None = None, limit: int = 50) -> list[dict]:

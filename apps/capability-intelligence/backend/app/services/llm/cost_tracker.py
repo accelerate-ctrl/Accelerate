@@ -46,7 +46,19 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int,
         cost_usd: float,
+        *,
+        operation_type: str | None = None,
+        pillar_id: str | None = None,
+        subvertical: str | None = None,
+        sub_cap_id: str | None = None,
+        batch: str | None = None,
     ) -> None:
+        """Per QA_AUDIT.md fix #12 — every LLM call carries attribution.
+
+        Optional kwargs let the caller stamp ``(operation_type, pillar,
+        subvertical, subcap, batch)`` so the cost ledger can answer
+        "what did the digest cost in $ broken down by subvertical?".
+        """
         repo = get_repository()
         now = datetime.now(timezone.utc)
         rec_id = f"cost-{int(now.timestamp() * 1_000_000)}-{model.value}"
@@ -61,8 +73,36 @@ class CostTracker:
                 "cost_usd": float(cost_usd),
                 "ts": now.isoformat(),
                 "day": now.date().isoformat(),
+                "operation_type": operation_type,
+                "pillar_id": pillar_id,
+                "subvertical": subvertical,
+                "sub_cap_id": sub_cap_id,
+                "batch": batch,
             },
         )
+
+    def attributed_spend(
+        self,
+        *,
+        operation_type: str | None = None,
+        pillar_id: str | None = None,
+        subvertical: str | None = None,
+        days: int = 7,
+    ) -> float:
+        """Attribution query: sum cost matching all non-None filters in N days."""
+        cutoff = date.today() - timedelta(days=days - 1)
+        total = 0.0
+        for r in get_repository().list(COST_COLLECTION):
+            if r.get("day", "") < cutoff.isoformat():
+                continue
+            if operation_type and r.get("operation_type") != operation_type:
+                continue
+            if pillar_id and r.get("pillar_id") != pillar_id:
+                continue
+            if subvertical and r.get("subvertical") != subvertical:
+                continue
+            total += float(r.get("cost_usd") or 0.0)
+        return total
 
     def spend_today(self) -> float:
         today = date.today().isoformat()

@@ -167,7 +167,12 @@ def _company_cohorts(company: dict, cohorts: list[dict]) -> list[str]:
 
 
 def _ingest_filings(filings_dir: Path | None, cohorts: list[dict]) -> tuple[list[dict], int]:
-    """Returns (observations, files_loaded)."""
+    """Returns (observations, files_loaded).
+
+    Per QA_AUDIT.md §2.7 — every observation carries a
+    ``primary_source_id`` so hierarchical bootstrap can cluster by it,
+    and a `validation_errors` list when dimensional checks fail.
+    """
     if not filings_dir:
         return [], 0
     raw = _load_json_dir(filings_dir)
@@ -175,14 +180,19 @@ def _ingest_filings(filings_dir: Path | None, cohorts: list[dict]) -> tuple[list
     for filing in raw:
         company = filing.get("filer_name", "?")
         cohort_ids = _company_cohorts(filing, cohorts)
+        # primary source = the regulator filing itself (CIK + period)
+        primary = f"filing-{filing.get('filer_cik', '?')}-{filing.get('period', '?')}"
         for m in filing.get("metrics", []) or []:
+            value = float(m.get("value", 0))
+            ok, err = validate_metric(m.get("metric_id", ""), value)
             obs = {
                 "id": f"obs-filing-{filing.get('filer_cik','?')}-{m.get('metric_id','?')}-{filing.get('period','?')}",
+                "_schema_version": "benchmark-observation-v1",
                 "company": company,
                 "subvertical": filing.get("subvertical"),
                 "asset_size_usd_bn": filing.get("asset_size_usd_bn"),
                 "metric_id": m.get("metric_id"),
-                "value": float(m.get("value", 0)),
+                "value": value,
                 "period": filing.get("period", ""),
                 "source_kind": "filing",
                 "source_label": filing.get("filing_type", "10-K"),
@@ -190,11 +200,37 @@ def _ingest_filings(filings_dir: Path | None, cohorts: list[dict]) -> tuple[list
                 "evidence": m.get("evidence"),
                 "cohort_ids": cohort_ids,
                 "tier": "T1",
+                "primary_source_id": primary,
                 "is_extrapolated": False,
+                "validation_passed": ok,
+                "validation_error": err,
                 "ingested_at": datetime.now(timezone.utc).isoformat(),
             }
             observations.append(obs)
     return observations, len(raw)
+
+
+# ─── Dimensional validator (per QA_AUDIT §2.7) ─────────────────────────────
+
+
+_METRIC_BOUNDS: dict[str, tuple[float, float]] = {
+    "tech_spend_pct_revenue": (0.5, 25.0),
+    "cloud_adoption_pct_workloads": (0.0, 100.0),
+    "digital_active_users_pct": (0.0, 100.0),
+    "ai_assist_adoption_score": (0.0, 100.0),
+}
+
+
+def validate_metric(metric_id: str, value: float) -> tuple[bool, str | None]:
+    """Per-metric numeric range check; OOR = OCR/extraction error."""
+    bounds = _METRIC_BOUNDS.get(metric_id)
+    if not bounds:
+        # Unknown metric — accept but flag.
+        return True, None
+    lo, hi = bounds
+    if not (lo <= value <= hi):
+        return False, f"{metric_id}={value} outside dimensional range [{lo}, {hi}]"
+    return True, None
 
 
 def _ingest_analyst(analyst_dir: Path | None, cohorts: list[dict]) -> list[dict]:
@@ -210,13 +246,16 @@ def _ingest_analyst(analyst_dir: Path | None, cohorts: list[dict]) -> list[dict]
                 # asset_size unknown from analyst extracts → cohort by subvertical only
             }
             cohort_ids = _company_cohorts(company_obj, cohorts)
+            value = float(o.get("value", 0))
+            ok, err = validate_metric(o.get("metric_id", ""), value)
             obs = {
                 "id": f"obs-analyst-{report.get('report_id','?')}-{o.get('company','?')}-{o.get('metric_id','?')}",
+                "_schema_version": "benchmark-observation-v1",
                 "company": o.get("company"),
                 "subvertical": o.get("subvertical"),
                 "asset_size_usd_bn": None,
                 "metric_id": o.get("metric_id"),
-                "value": float(o.get("value", 0)),
+                "value": value,
                 "period": o.get("period", ""),
                 "source_kind": "analyst",
                 "source_label": publisher,
@@ -224,8 +263,14 @@ def _ingest_analyst(analyst_dir: Path | None, cohorts: list[dict]) -> list[dict]
                 "evidence": o.get("evidence"),
                 "cohort_ids": cohort_ids,
                 "tier": "T2",
+                # Per QA_AUDIT §2.7 — analyst reports often re-cite a primary source.
+                # The report's own ID is the analyst's primary; if the report
+                # declares an upstream source, use that instead.
+                "primary_source_id": o.get("primary_source_id") or f"analyst-report-{report.get('report_id', '?')}",
                 "is_extrapolated": False,
                 "license_status": report.get("license_status"),
+                "validation_passed": ok,
+                "validation_error": err,
                 "ingested_at": datetime.now(timezone.utc).isoformat(),
             }
             observations.append(obs)
@@ -241,13 +286,16 @@ def _ingest_technographics(tech_dir: Path | None, cohorts: list[dict]) -> tuple[
         company = row.get("company", "?")
         cohort_ids = _company_cohorts(row, cohorts)
         if (signal := row.get("ai_assist_signal")) is not None:
+            value = float(signal)
+            ok, err = validate_metric("ai_assist_adoption_score", value)
             obs = {
                 "id": f"obs-techno-{company.replace(' ','_')}-ai_assist-{row.get('as_of','')}",
+                "_schema_version": "benchmark-observation-v1",
                 "company": company,
                 "subvertical": row.get("subvertical"),
                 "asset_size_usd_bn": row.get("asset_size_usd_bn"),
                 "metric_id": "ai_assist_adoption_score",
-                "value": float(signal),
+                "value": value,
                 "period": row.get("as_of", "")[:7].replace("-", "-Q") + "?",  # rough quarter
                 "source_kind": "technographic",
                 "source_label": row.get("source", "BuiltWith"),
@@ -255,7 +303,11 @@ def _ingest_technographics(tech_dir: Path | None, cohorts: list[dict]) -> tuple[
                 "evidence": f"Vendor stack: {len(row.get('vendors', []))} signals incl AI",
                 "cohort_ids": cohort_ids,
                 "tier": "T3",
+                # Each technographic vendor is its own primary signal.
+                "primary_source_id": f"techno-{row.get('source', 'unknown')}-{company.replace(' ', '_')}",
                 "is_extrapolated": False,
+                "validation_passed": ok,
+                "validation_error": err,
                 "ingested_at": datetime.now(timezone.utc).isoformat(),
             }
             observations.append(obs)
@@ -298,6 +350,55 @@ def _coef_var(values: list[float]) -> float:
     return statistics.pstdev(values) / abs(mean)
 
 
+def hierarchical_bootstrap_ci(
+    observations: list[dict],
+    *,
+    B: int = 1000,
+    ci: float = 0.90,
+    seed: int = 42,
+) -> dict:
+    """Per QA_AUDIT.md §2.7 — cluster-bootstrap by ``primary_source_id``.
+
+    Naive bootstrap on N observations from M distinct primary sources
+    (M < N) gives anti-conservative CIs.  This routine resamples the
+    *primary sources* with replacement and pools the observations within
+    each chosen primary, yielding effective_n = M (the unique-primary
+    count) and CI width that respects clustering.
+    """
+    import random
+
+    if not observations:
+        return {"median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
+                "effective_n": 0, "method": "hierarchical-bootstrap"}
+    by_primary: dict[str, list[float]] = {}
+    for o in observations:
+        key = o.get("primary_source_id") or o.get("id")
+        by_primary.setdefault(key, []).append(float(o["value"]))
+    primaries = list(by_primary.keys())
+    rng = random.Random(seed)
+    sample_medians: list[float] = []
+    for _ in range(B):
+        chosen = [rng.choice(primaries) for _ in primaries]
+        flat = [v for p in chosen for v in by_primary[p]]
+        if flat:
+            sample_medians.append(statistics.median(flat))
+    sample_medians.sort()
+    if not sample_medians:
+        return {"median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
+                "effective_n": len(by_primary),
+                "method": "hierarchical-bootstrap"}
+    lo_idx = max(0, int(B * (1 - ci) / 2))
+    hi_idx = min(B - 1, int(B * (1 + ci) / 2))
+    return {
+        "median": statistics.median(sample_medians),
+        "ci_low": sample_medians[lo_idx],
+        "ci_high": sample_medians[hi_idx],
+        "effective_n": len(by_primary),
+        "ci_level": ci,
+        "method": "hierarchical-bootstrap",
+    }
+
+
 def _compute_distribution(
     metric_id: str,
     cohort_id: str,
@@ -308,12 +409,15 @@ def _compute_distribution(
     source_kinds = {o["source_kind"] for o in obs}
     has_extra = any(o.get("is_extrapolated") for o in obs)
     cv = _coef_var(values)
+    boot = hierarchical_bootstrap_ci(obs, B=500)
     return {
         "id": f"dist-{metric_id}-{cohort_id}-{period}",
+        "_schema_version": "benchmark-distribution-v1",
         "metric_id": metric_id,
         "cohort_id": cohort_id,
         "period": period,
         "n": len(values),
+        "effective_n": boot["effective_n"],  # ≤ n; cluster-corrected
         "min": values[0] if values else None,
         "max": values[-1] if values else None,
         "mean": statistics.mean(values) if values else None,
@@ -322,6 +426,11 @@ def _compute_distribution(
         "p50": _percentile(values, 0.50),
         "p75": _percentile(values, 0.75),
         "coef_var": round(cv, 4),
+        # Hierarchical-bootstrap CI on the median, clustered by primary_source_id
+        "ci_low": round(boot["ci_low"], 4),
+        "ci_high": round(boot["ci_high"], 4),
+        "ci_method": boot["method"],
+        "ci_level": boot.get("ci_level"),
         "verdict": _verdict(len(values), source_kinds, cv, has_extra),
         "source_kinds": sorted(source_kinds),
         "observation_ids": [o["id"] for o in obs],

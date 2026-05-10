@@ -1,0 +1,11 @@
+{
+  "_schema_version": "golden-triangulation-v1",
+  "description": "Triangulation primary-source dedup. effective_n = unique primary_source_id count. Targets: dedup catches every case below.",
+  "cases": [
+    {"case_id": "circular-occ", "sources": [{"id": "ffiec-2024", "primary_source_id": "OCC-2024-bulletin-2"}, {"id": "occ-press", "primary_source_id": "OCC-2024-bulletin-2"}, {"id": "trade-pub", "primary_source_id": "OCC-2024-bulletin-2"}], "expected_effective_n": 1},
+    {"case_id": "true-3-source", "sources": [{"id": "fdic", "primary_source_id": "FDIC-2024-Q3"}, {"id": "occ", "primary_source_id": "OCC-2024-bulletin-2"}, {"id": "celent", "primary_source_id": "Celent-2024-banking"}], "expected_effective_n": 3},
+    {"case_id": "mixed-2-of-3", "sources": [{"id": "fdic-a", "primary_source_id": "FDIC-2024-Q3"}, {"id": "fdic-b", "primary_source_id": "FDIC-2024-Q3"}, {"id": "celent", "primary_source_id": "Celent-2024-banking"}], "expected_effective_n": 2},
+    {"case_id": "no-primary-set", "sources": [{"id": "a"}, {"id": "b"}, {"id": "c"}], "expected_effective_n": 3},
+    {"case_id": "single", "sources": [{"id": "a", "primary_source_id": "X"}], "expected_effective_n": 1}
+  ]
+}

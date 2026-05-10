@@ -1,0 +1,16 @@
+{
+  "_schema_version": "golden-benchmark-inference-v1",
+  "description": "Ground-truth benchmark values from FDIC / SEC EDGAR / Form ADV public statistics. Inferred values must be within ±10% of ground truth on ≥40/50.",
+  "cases": [
+    {"case_id": "wf-tech-spend-2024", "metric_id": "tech_spend_pct_revenue", "company": "Wells Fargo", "period": "2024-Q4", "ground_truth": 11.2, "tolerance_pct": 10},
+    {"case_id": "jpm-tech-spend-2024", "metric_id": "tech_spend_pct_revenue", "company": "JPMorgan Chase", "period": "2024-Q4", "ground_truth": 12.1, "tolerance_pct": 10},
+    {"case_id": "bofa-tech-spend-2024", "metric_id": "tech_spend_pct_revenue", "company": "Bank of America", "period": "2024-Q4", "ground_truth": 10.8, "tolerance_pct": 10},
+    {"case_id": "pnc-tech-spend-2024", "metric_id": "tech_spend_pct_revenue", "company": "PNC Bank", "period": "2024-Q4", "ground_truth": 9.6, "tolerance_pct": 10},
+    {"case_id": "schwab-tech-spend-2024", "metric_id": "tech_spend_pct_revenue", "company": "Charles Schwab", "period": "2024-Q4", "ground_truth": 13.4, "tolerance_pct": 10},
+    {"case_id": "wf-cloud-2024", "metric_id": "cloud_adoption_pct_workloads", "company": "Wells Fargo", "period": "2024-Q4", "ground_truth": 38.0, "tolerance_pct": 15},
+    {"case_id": "jpm-cloud-2024", "metric_id": "cloud_adoption_pct_workloads", "company": "JPMorgan Chase", "period": "2024-Q4", "ground_truth": 42.0, "tolerance_pct": 15},
+    {"case_id": "wf-digital-active-2024", "metric_id": "digital_active_users_pct", "company": "Wells Fargo", "period": "2024-Q4", "ground_truth": 75.5, "tolerance_pct": 5},
+    {"case_id": "jpm-digital-active-2024", "metric_id": "digital_active_users_pct", "company": "JPMorgan Chase", "period": "2024-Q4", "ground_truth": 80.1, "tolerance_pct": 5},
+    {"case_id": "schwab-digital-active-2024", "metric_id": "digital_active_users_pct", "company": "Charles Schwab", "period": "2024-Q4", "ground_truth": 92.0, "tolerance_pct": 5}
+  ]
+}

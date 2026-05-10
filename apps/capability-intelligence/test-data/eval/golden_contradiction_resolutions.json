@@ -1,0 +1,11 @@
+{
+  "_schema_version": "golden-contradictions-v1",
+  "description": "Pairs of contradicting claims with the resolved 'winner' under the audit-fix rule order: 0) retraction override, 1) tier (T1>T2>T3>T4>T5), 2) recency, 3) CONTESTED tie. Agreement target ≥ 0.85.",
+  "cases": [
+    {"case_id": "retraction-trumps", "a": {"id": "occ-2024-orig", "tier": "T1", "text": "OCC issued guidance"}, "b": {"id": "occ-2025-retract", "tier": "T2", "text": "OCC retracted prior guidance"}, "expected_winner_id": "occ-2025-retract"},
+    {"case_id": "tier-wins", "a": {"id": "trade-pub", "tier": "T2", "text": "X happened", "published_at": "2026-04-01T00:00:00Z"}, "b": {"id": "fdic", "tier": "T1", "text": "X did not happen", "published_at": "2026-04-01T00:00:00Z"}, "expected_winner_id": "fdic"},
+    {"case_id": "recency-wins-same-tier", "a": {"id": "old", "tier": "T1", "text": "X", "published_at": "2024-01-01T00:00:00Z"}, "b": {"id": "new", "tier": "T1", "text": "Y", "published_at": "2026-01-01T00:00:00Z"}, "expected_winner_id": "new"},
+    {"case_id": "contested-tie", "a": {"id": "a", "tier": "T1", "text": "X", "published_at": "2026-01-01T00:00:00Z"}, "b": {"id": "b", "tier": "T1", "text": "Y", "published_at": "2026-01-01T00:00:00Z"}, "expected_winner_id": "CONTESTED"},
+    {"case_id": "withdrawn-trumps", "a": {"id": "orig", "tier": "T1", "text": "guidance issued"}, "b": {"id": "withdraw", "tier": "T3", "text": "guidance withdrawn"}, "expected_winner_id": "withdraw"}
+  ]
+}

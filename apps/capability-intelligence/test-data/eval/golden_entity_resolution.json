@@ -1,0 +1,26 @@
+{
+  "_schema_version": "golden-entity-resolution-v1",
+  "description": "Entity resolver pairs. Positive = should canonicalize to same entity; Negative = MUST NOT collapse despite shared brand. Targets: precision ≥ 0.95 / recall ≥ 0.85.",
+  "positive_pairs": [
+    {"a": "Wells Fargo", "b": "Wells Fargo Bank, N.A.", "expected_canonical": "Wells Fargo"},
+    {"a": "Wells Fargo", "b": "WFC", "expected_canonical": "Wells Fargo"},
+    {"a": "JPMorgan Chase", "b": "JPMorgan", "expected_canonical": "JPMorgan Chase"},
+    {"a": "JPMorgan Chase", "b": "JPMC", "expected_canonical": "JPMorgan Chase"},
+    {"a": "Bank of America", "b": "BofA", "expected_canonical": "Bank of America"},
+    {"a": "Bank of America", "b": "BAC", "expected_canonical": "Bank of America"},
+    {"a": "Charles Schwab", "b": "Schwab", "expected_canonical": "Charles Schwab"},
+    {"a": "Northwestern Mutual", "b": "NW Mutual", "expected_canonical": "Northwestern Mutual"},
+    {"a": "PNC Bank", "b": "PNC", "expected_canonical": "PNC Bank"},
+    {"a": "PNC Bank", "b": "The PNC Financial Services Group", "expected_canonical": "PNC Bank"}
+  ],
+  "negative_pairs": [
+    {"a": "Wells Fargo", "b": "Wells Fargo Advisors", "expected": "DIFFERENT_LEGAL_ENTITY"},
+    {"a": "Wells Fargo", "b": "Wells Fargo Securities", "expected": "DIFFERENT_LEGAL_ENTITY"},
+    {"a": "JPMorgan Chase", "b": "Chase Insurance Agency", "expected": "DIFFERENT_LEGAL_ENTITY"},
+    {"a": "Bank of America", "b": "Merrill Lynch", "expected": "DIFFERENT_BRAND"},
+    {"a": "Charles Schwab", "b": "Charles Schwab Investment Management", "expected": "DIFFERENT_LEGAL_ENTITY"},
+    {"a": "PNC Bank", "b": "PNC Capital Markets", "expected": "DIFFERENT_LEGAL_ENTITY"},
+    {"a": "Northwestern Mutual", "b": "Northwestern University", "expected": "DIFFERENT_BRAND"},
+    {"a": "Acme Holdings", "b": "Goldman Sachs", "expected": "UNRELATED"}
+  ]
+}

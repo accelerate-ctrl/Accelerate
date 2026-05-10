@@ -69,7 +69,9 @@ def test_validation_gates_summary_aggregates(client, auth_headers):
     summary = client.get("/api/validation-gates/summary", headers=auth_headers).json()
     assert summary["total_runs"] >= 1
     assert "by_gate" in summary
-    assert "schema" in summary["by_gate"]
+    # Spec G1..G8 + auxiliary aux_schema must be present after audit fix.
+    assert "g1_novelty" in summary["by_gate"]
+    assert "aux_schema" in summary["by_gate"]
 
 
 def test_unknown_model_400(client, auth_headers):

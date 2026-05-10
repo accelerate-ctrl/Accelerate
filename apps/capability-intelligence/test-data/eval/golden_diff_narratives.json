@@ -1,0 +1,23 @@
+{
+  "_schema_version": "golden-diff-narratives-v1",
+  "description": "Catalogue diff narratives — small-edit ground truth. Embedding distance ≤ 0.1 against generated narrative.",
+  "cases": [
+    {
+      "case_id": "p1c1.1.1-tier-T1-to-T2",
+      "diff": {"sub_cap_id": "P1C1.1.1", "field": "tier", "from": "T1", "to": "T2"},
+      "expected_narrative_keywords": ["digital strategy", "tier", "downgraded", "T1", "T2"]
+    },
+    {
+      "case_id": "p1c1.1.2-rename",
+      "diff": {"sub_cap_id": "P1C1.1.2", "field": "sub_cap_name",
+                "from": "Business Alignment", "to": "Business-IT Alignment"},
+      "expected_narrative_keywords": ["alignment", "renamed", "business"]
+    },
+    {
+      "case_id": "p1c2.7.1-add-l3",
+      "diff": {"sub_cap_id": "P1C2.7.1", "field": "l3_platforms",
+                "from": [], "to": ["[L3-MULESOFT] MuleSoft Anypoint"]},
+      "expected_narrative_keywords": ["regulatory", "mulesoft", "platform", "added"]
+    }
+  ]
+}
