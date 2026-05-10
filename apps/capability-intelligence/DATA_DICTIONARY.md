@@ -46,6 +46,19 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 6
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `lifecycle_scores` | sub_cap_id | Per-subcap state + score + signals + last_signal_at |
+| `lifecycle_transitions` | `trans-{sub_cap_id}-{ts}` | Append-only state-change log |
+| `lifecycle_runs` | `lifecycle-{unix}` | Per-recompute summary (state distribution, transitions) |
+| `vendor_profiles` | vendor_id (slug) | Companies, cohorts, news_mentions, ai_signal_avg |
+| `vendor_adoption` | `adop-{vendor}-{cohort}` | Per (vendor × cohort) adoption % + adopters list |
+| `vendor_events` | `evt-{vendor}-{news_id}` | Vendor-tagged news / trend rows |
+| `vendor_intel_runs` | `vendor-intel-{unix}` | Per-refresh run log |
+| `client_journeys` | client slug | Per-client synthesis: SOWs + touched subcaps + vendor stack |
+
 ## Firestore collections — Batch 5
 
 | Collection | Doc ID | Description |

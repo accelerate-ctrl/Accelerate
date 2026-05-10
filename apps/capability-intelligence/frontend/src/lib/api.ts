@@ -131,6 +131,152 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 6 ────────────────────────────────────────────────────────────────
+
+export type LifecycleState =
+  | 'EMERGING' | 'RISING' | 'STABLE' | 'DECLINING' | 'FADING' | 'DEAD';
+
+export type LifecycleScore = {
+  sub_cap_id: string;
+  sub_cap_name: string;
+  state: LifecycleState;
+  score: number;
+  confidence: number;
+  signals: {
+    sow_active: number;
+    sow_prospect: number;
+    sow_inactive: number;
+    sow_archived: number;
+    sow_recency_days: number | null;
+    canonical_stories: number;
+    jira_stories: number;
+    news_last_90d: number;
+    news_recency_days: number | null;
+    trends_last_90d: number;
+    benchmark_indicative: number;
+    benchmark_full: number;
+    benchmark_exploratory: number;
+    ai_extrapolations: number;
+  };
+  last_signal_at?: string | null;
+  computed_at: string;
+};
+
+export type LifecycleTransition = {
+  id: string;
+  sub_cap_id: string;
+  from_state: LifecycleState;
+  to_state: LifecycleState;
+  score: number;
+  transitioned_at: string;
+};
+
+export type LifecycleRunSummary = {
+  run_id: string;
+  started_at: string;
+  completed_at: string;
+  subcaps_scored: number;
+  state_distribution: Record<LifecycleState, number>;
+  transitions: number;
+  inputs_seen: Record<string, number>;
+};
+
+export type VendorProfile = {
+  vendor_id: string;
+  name: string;
+  category?: string | null;
+  companies: string[];
+  cohorts: string[];
+  news_mentions: number;
+  avg_confidence: number;
+  last_seen_at?: string | null;
+  ai_signal_avg?: number | null;
+};
+
+export type CohortAdoption = {
+  id: string;
+  vendor_id: string;
+  cohort_id: string;
+  adopters: string[];
+  cohort_size: number;
+  adoption_pct: number;
+  avg_confidence: number;
+};
+
+export type VendorEvent = {
+  id: string;
+  vendor_id: string;
+  vendor_name: string;
+  kind: string;
+  title?: string;
+  text?: string;
+  url?: string | null;
+  source?: string;
+  published_at?: string;
+};
+
+export type VendorHeatmap = {
+  vendors: string[];
+  cohorts: string[];
+  cells: Array<{
+    vendor_id: string;
+    cohort_id: string;
+    adoption_pct: number;
+    adopters: string[];
+    cohort_size: number;
+  }>;
+};
+
+export type ClientJourney = {
+  client_name: string;
+  sow_count_active: number;
+  sow_count_prospect: number;
+  sow_count_inactive: number;
+  sow_count_archived: number;
+  cohorts: string[];
+  subverticals: string[];
+  asset_size_usd_bn: number | null;
+  touched_subcaps: Array<{
+    sub_cap_id: string;
+    sub_cap_name: string;
+    state?: LifecycleState | null;
+    score?: number | null;
+    confidence?: number | null;
+    sow_count: number;
+    sow_excerpts: string[];
+    canonical_story_count: number;
+    jira_story_count: number;
+  }>;
+  vendor_stack: Array<{
+    vendor: string;
+    category?: string | null;
+    confidence: number;
+    cohort_adoption: Array<{ cohort_id: string; adoption_pct: number }>;
+  }>;
+  state_distribution: Record<string, number>;
+  most_recent_signal_at?: string | null;
+  computed_at: string;
+};
+
+export type DmaPacket = {
+  schema_version: string;
+  generated_at: string;
+  client: string;
+  asset_size_usd_bn: number | null;
+  subverticals: string[];
+  cohorts: string[];
+  engagement: { active: number; prospect: number; inactive: number; archived: number };
+  vendor_stack: Array<{ vendor: string; category?: string | null; confidence: number }>;
+  state_distribution: Record<string, number>;
+  priorities: Array<{
+    sub_cap_id: string;
+    sub_cap_name: string;
+    state?: string | null;
+    score?: number | null;
+    sow_count: number;
+  }>;
+};
+
 // ─── Batch 5 ────────────────────────────────────────────────────────────────
 
 export type BenchmarkVerdict = 'BENCHMARK' | 'INDICATIVE' | 'EXPLORATORY';

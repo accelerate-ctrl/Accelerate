@@ -17,6 +17,79 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 6 — Lifecycle + Vendor Intelligence + Client Journey
+
+```
+Batch 3 SOWs + mentions + stories ─┐
+Batch 4 news + trends            ─┤
+Batch 5 benchmark distributions  ─┤
+Batch 5 AI extrapolations        ─┘
+                                  │
+                                  ▼
+                  lifecycle_service.recompute_all()
+                  ├── _build_index()  (one pass per collection)
+                  ├── _build_metric_subcap_index()
+                  └── for each subcap:
+                        ├── _gather_signals(idx, metric_subcap_index)
+                        │   ├── SOW counts (active/prospect/inactive/archived)
+                        │   ├── story velocity
+                        │   ├── news + trends 90-day cadence
+                        │   └── benchmark verdict mix
+                        ├── _score(sig)        → 0..100, 4-component weighted
+                        ├── _classify_state(sig, score)
+                        │       EMERGING | RISING | STABLE | DECLINING | FADING | DEAD
+                        └── append transition row if state changed
+                                           │
+                                           ▼
+                  lifecycle_scores  +  lifecycle_transitions  +  lifecycle_runs
+
+
+Batch 5 technographics → vendor_intel_service.refresh()
+                            ├── per-vendor aggregates (companies, cohorts, news_mentions)
+                            ├── per (vendor × cohort) adoption %
+                            └── news + trends event indexing by vendor name
+                                  → vendor_profiles + vendor_adoption + vendor_events
+
+
+Batch 3 SOWs + Batch 6 lifecycle → client_journey_service
+                                     ├── _build_journey(client_name)
+                                     │     ├── SOW counts by status
+                                     │     ├── touched subcaps + lifecycle state
+                                     │     ├── vendor stack + cohort adoption
+                                     │     └── state distribution
+                                     ├── get_journey()  → JSON for UI
+                                     ├── refresh_all()  → one journey per client
+                                     └── dma_packet()   → flat dma-handoff-v1 schema
+```
+
+State classification rules (per spec §8):
+
+| Score   | Recent active signal | State      |
+|---------|----------------------|------------|
+| ≥70     | sow_age ≤ 30d        | RISING / STABLE |
+| 45-69   | any active           | RISING (if news ≥2 or prospect SOW) else STABLE |
+| 20-44   | any active           | EMERGING |
+| <20     | any active           | EMERGING |
+| any     | only historical      | FADING (score<25) / DECLINING |
+| 0       | no signal at all     | DEAD |
+
+Performance — `Repository.defer_persist()`:
+
+The JSON-backed `InMemoryRepository` re-serialises the whole file on every
+`upsert` to keep dev simple. Hot-loop ingest (4,844 stories, 199 subcap
+lifecycle scores) made that O(N²) with per-write disk flushes, blowing
+through 10-minute test timeouts. Batch 6 introduces a context manager:
+
+```python
+with repo.defer_persist():
+    for row in 4844_stories:
+        repo.upsert("stories_canonical", row["story_key"], row)
+```
+
+The repo only flushes once on context exit. Mongo path is a no-op since
+each Mongo write goes to Firestore directly. All Batch 3-6 ingest
+services now wrap their hot loops.
+
 ## Batch 5 — Public benchmarks + technographics + AI extrapolation
 
 ```

@@ -206,4 +206,42 @@ new metrics (each metric carries `subcap_mappings`, `primary_sources`,
 `validation_rules`, `refresh_cadence`).  Re-run *Refresh* and the
 Studio picks up the new cohorts + metrics.
 
-(Steps 19+ ship in later batches per the TOC above.)
+## 19. Recompute lifecycle scores (Batch 6)
+
+**Lifecycle Manager → Recompute** (or `POST /api/lifecycle/recompute`)
+runs the 6-state weighted scoring across every subcap. The engine reads
+SOWs / mentions / stories / news / trends / benchmark distributions and
+emits one `lifecycle_scores` row per subcap, plus a transition record
+when the state changes.
+
+State buckets:
+- **EMERGING**: low score but at least one active signal
+- **RISING**: high score with recent SOW + news cadence
+- **STABLE**: high score + active signal (mature adoption)
+- **DECLINING**: historical evidence but slowing cadence
+- **FADING**: only stale evidence (analysts / canonical stories)
+- **DEAD**: no signals at all
+
+The Lifecycle Manager kanban renders one column per state; per-subcap
+cards show top contributing signals.
+
+## 20. Refresh vendor intelligence (Batch 6)
+
+**Vendor Intelligence → Refresh** (or `POST /api/vendor-intel/refresh`)
+reads Batch 5 technographic seed rows + Batch 4 news, then emits:
+- one `vendor_profiles` row per vendor
+- one `vendor_adoption` row per (vendor × cohort)
+- vendor-tagged news events (`vendor_events`)
+- a `heatmap` view at `/api/vendor-intel/heatmap`
+
+The Studio page heatmap colours each cell by adoption %.
+
+## 21. Build a client journey + DMA packet (Batch 6)
+
+**Client Journey Atlas → Refresh** runs `client_journey_service.refresh_all()`
+to synthesise a per-client view (SOWs + touched subcaps with lifecycle
+state + vendor stack + state distribution). Pick a client and click
+**DMA Packet** to download a flat `dma-handoff-v1` JSON ready for the
+downstream DMA App.
+
+(Steps 22+ ship in later batches per the TOC above.)

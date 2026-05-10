@@ -144,6 +144,11 @@ def refresh() -> IngestSummary:
     s = get_settings()
     repo = get_repository()
     started = datetime.now(timezone.utc)
+    with repo.defer_persist():
+        return _refresh_inner(s=s, repo=repo, started=started)
+
+
+def _refresh_inner(*, s, repo, started) -> IngestSummary:
     issues: list[str] = []
     sources: list[str] = []
     subcaps = _load_subcaps()

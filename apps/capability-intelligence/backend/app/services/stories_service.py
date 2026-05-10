@@ -173,11 +173,14 @@ def ingest_jira(*, by: str = "system") -> tuple[int, str | None, list[str]]:
 
 def refresh_all(*, by: str = "system") -> StoriesIngestResult:
     started = datetime.utcnow()
-    canonical_n, canonical_src, can_issues = ingest_canonical(by=by)
-    jira_n, jira_src, jira_issues = ingest_jira(by=by)
+    repo = get_repository()
+    # Wrap the whole ingest in a deferred-persist block so the JSON repo
+    # writes once at the end instead of after every story (4,844 rows).
+    with repo.defer_persist():
+        canonical_n, canonical_src, can_issues = ingest_canonical(by=by)
+        jira_n, jira_src, jira_issues = ingest_jira(by=by)
     completed = datetime.utcnow()
     run_id = f"stories-ingest-{int(started.timestamp())}"
-    repo = get_repository()
     repo.upsert(INGEST_RUNS_COLL, run_id, {
         "run_id": run_id,
         "started_at": started.isoformat(),

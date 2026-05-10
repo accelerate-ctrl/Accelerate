@@ -387,6 +387,17 @@ def refresh(*, extrapolate: bool = True) -> IngestSummary:
     issues: list[str] = []
     sources: list[str] = []
 
+    # Wrap the entire ingest (cohorts, observations, distributions, sources,
+    # extrapolation chain calls) in a single deferred-persist block. Without
+    # this the JSON repository writes the whole file on every upsert.
+    with repo.defer_persist():
+        return _refresh_inner(extrapolate=extrapolate, started=started, issues=issues, sources=sources)
+
+
+def _refresh_inner(*, extrapolate: bool, started, issues, sources) -> IngestSummary:
+    s = get_settings()
+    repo = get_repository()
+
     cohorts = _load_cohorts()
     metrics = _load_metrics()
     if not cohorts:

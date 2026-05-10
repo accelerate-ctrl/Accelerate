@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import threading
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, Protocol
@@ -41,6 +42,11 @@ class InMemoryRepository:
         self._lock = threading.RLock()
         self._data: dict[str, dict[str, dict]] = {}
         self._persist_path = Path(persist_path) if persist_path else None
+        # When >0 we batch _persist() calls instead of writing on every
+        # mutation. Services with hot-loop upserts wrap them in
+        # ``with repo.defer_persist():`` to avoid O(N²) disk writes.
+        self._defer_depth = 0
+        self._dirty = False
         if self._persist_path and self._persist_path.exists():
             try:
                 self._data = json.loads(self._persist_path.read_text())
@@ -101,13 +107,47 @@ class InMemoryRepository:
                     seen.add(v if not isinstance(v, list) else tuple(v))
         return sorted(seen, key=lambda x: str(x))
 
+    # bulk-write helpers --------------------------------------------------
+    @contextmanager
+    def defer_persist(self):
+        """Suspend disk writes for the duration of the block.
+
+        On exit (when defer depth drops to 0) we flush once.  Nested calls
+        compose; the inner blocks become no-ops.  Used by services that
+        upsert thousands of rows in a tight loop (catalogue, stories,
+        benchmarks, lifecycle).
+        """
+        with self._lock:
+            self._defer_depth += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._defer_depth -= 1
+                should_flush = self._defer_depth == 0 and self._dirty
+            if should_flush:
+                self._flush_to_disk()
+
     # internals -----------------------------------------------------------
     def _persist(self) -> None:
+        # Mark dirty + flush only if we're not inside a defer_persist block.
+        if not self._persist_path:
+            return
+        with self._lock:
+            self._dirty = True
+            if self._defer_depth > 0:
+                return
+        self._flush_to_disk()
+
+    def _flush_to_disk(self) -> None:
         if not self._persist_path:
             return
         try:
             self._persist_path.parent.mkdir(parents=True, exist_ok=True)
-            self._persist_path.write_text(json.dumps(self._data, default=str))
+            with self._lock:
+                snapshot = json.dumps(self._data, default=str)
+                self._dirty = False
+            self._persist_path.write_text(snapshot)
         except Exception:
             pass
 
@@ -143,6 +183,11 @@ class MongoRepository:
 
     def _coll(self, collection: str):
         return self._db[collection]
+
+    @contextmanager
+    def defer_persist(self):
+        """No-op for Mongo — every write goes straight to Firestore."""
+        yield
 
     def list(self, collection: str, filter: dict | None = None) -> list[dict]:
         return [_strip_mongo_id(d) for d in self._coll(collection).find(filter or {})]

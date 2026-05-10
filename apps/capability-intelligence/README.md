@@ -9,6 +9,48 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 6 (Lifecycle + Vendor Intelligence + Client Journey)
+
+Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 are live. The system now has a full
+synthesis layer: every subcap has a lifecycle state, every vendor has
+peer adoption %, every client has a DMA-handoff packet.
+
+**Batch 6 adds:**
+
+- **Lifecycle engine** (`services/lifecycle_service.py`): 6-state
+  weighted scoring per subcap. Inputs combine Batch 3 SOWs + stories,
+  Batch 4 news + trends, Batch 5 benchmarks + AI extrapolations. States:
+  EMERGING / RISING / STABLE / DECLINING / FADING / DEAD. Transitions
+  logged to a per-subcap history.
+- **Vendor Intelligence** (`services/vendor_intel_service.py`):
+  per-vendor profile (companies, cohorts, news mentions, AI signal
+  average), per (vendor × cohort) adoption % rows, heatmap matrix,
+  vendor-tagged news event feed.
+- **Client Journey** (`services/client_journey_service.py`):
+  per-client synthesis joining SOWs + lifecycle states + canonical/Jira
+  velocity + vendor stack. **DMA Packet** export is a flat
+  `dma-handoff-v1` JSON ready for the downstream DMA App.
+- **Performance fix**: added `Repository.defer_persist()` context
+  manager so hot-loop ingest paths (catalogue, stories, SOWs,
+  benchmarks, news, lifecycle, vendor-intel, client-journey) write the
+  JSON file once instead of on every upsert. Ingest test runtime
+  dropped from indefinite hang → ~90s for 29 Batch 6 tests.
+- **Real pages**: Lifecycle Manager (6-column kanban + transitions
+  feed), Vendor Intelligence (vendor × cohort heatmap with intensity
+  cells + vendor profiles + events), Client Journey Atlas (per-client
+  drill-down with KPI strip + touched subcaps + vendor stack +
+  one-click DMA Packet JSON download).
+- **Backend tests**: 29 new (lifecycle scoring + classification, all 8
+  edge cases, vendor adoption math, heatmap shape, client journey
+  synthesis, DMA packet schema, full API integration).
+  221/221 backend pass.
+- **Frontend tests**: 1 new (Lifecycle Manager kanban).
+  43/43 frontend pass; build clean.
+- **End-to-end stress**: 199 subcaps scored across 6 states, 9
+  vendors with 30 adoption rows + 4-cohort heatmap, 4 client journeys
+  built from SOWs, DMA packet exports valid JSON, no Batch 1-5
+  regressions.
+
 ## Status — Batch 5 (Public benchmarks + technographics + AI extrapolation)
 
 Batches 0 + 1 + 2 + 3 + 4 + 5 are live. The system now reasons over both
@@ -230,6 +272,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 3 | **shipped** | SOW ingest (local + Drive/DocAI swap) + DLP redaction + chunking + mention extraction + canonical stories + Jira; SOW Library / Story Library / Project–Subcap Trace pages; entity resolver |
 | 4 | **shipped** | LLM router (Vertex Gemini + Anthropic Claude with hermetic dev-mode), 7-step consultant loop, 8 validation gates, adversarial agent, hallucination + citation verifier, content-hash cache, cost tracker, embeddings + vector store, news + trends ingest, AI Suggestions lifecycle, Reasoning Chain Viewer / Validation Gates / News Watch / Trends Monitor pages |
 | 5 | **shipped** | Public filings + analyst extracts + technographic ingest, peer cohort engine, AI-extrapolation benchmarks (consultant-loop linked), Benchmarks Studio page with verdict + percentile + sources |
+| 6 | **shipped** | 6-state lifecycle scoring (sow + story + news + benchmark signals), Vendor Intelligence (adoption heatmap + events), Client Journey Atlas with DMA Packet handoff, deferred-persist Repository for hot-loop ingest |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

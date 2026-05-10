@@ -51,6 +51,14 @@ them at the start of the batch (or earlier so I can wire them in parallel).
       - Gemini Pro → `gemini-2.5-pro`
 - [ ] Flip `LLM_LIVE_MODE=true` once keys are loaded — no other code change.
 
+## Batch 6 — Lifecycle + Vendor Intelligence + Client Journey — fully supplied
+
+- [x] No new external creds required — Batch 6 reads what's already in
+      the catalogue + benchmarks + news + SOWs + stories.
+- [x] DMA App handoff schema defined as `dma-handoff-v1`. If the DMA
+      App expects a different field shape, adjust
+      `client_journey_service.dma_packet()`.
+
 ## Batch 5 — Benchmarks — partially supplied
 
 - [x] Architecture in place; runs end-to-end in dev mode against

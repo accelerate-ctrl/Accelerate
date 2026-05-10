@@ -295,6 +295,12 @@ def guess_client(text: str, file_name: str) -> tuple[str, str, float]:
 def ingest_all(*, by: str = "system") -> SowIngestResult:
     started = datetime.utcnow()
     repo = get_repository()
+    with repo.defer_persist():
+        return _ingest_all_inner(started=started, by=by)
+
+
+def _ingest_all_inner(*, started, by: str) -> SowIngestResult:
+    repo = get_repository()
     files = discover_sows()
     subcaps = cat.list_subcaps()
 
