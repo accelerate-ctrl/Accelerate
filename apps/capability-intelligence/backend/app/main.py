@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .api import api_router
 from .config import get_settings
+from .observability import install_telemetry
 
 structlog.configure(
     processors=[
@@ -39,6 +40,10 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router, prefix="/api")
+
+    # OpenTelemetry — only attaches when OTEL_EXPORTER_OTLP_ENDPOINT is set
+    # in the environment. In dev / tests it's a no-op.
+    install_telemetry(app)
 
     # Serve the built SPA if present (Docker image bundles it at /app/static
     # via Dockerfile; in local dev, copy frontend/dist → backend/static).

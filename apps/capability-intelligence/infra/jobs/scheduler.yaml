@@ -1,0 +1,79 @@
+# Cloud Scheduler crons → Cloud Run Jobs (Batch 9).
+#
+# Each entry maps a Scheduler job → the Cloud Run Job that executes it.
+# All jobs run via `python -m app.jobs.runner <name>` inside the same
+# container image as the API (the Dockerfile sets that as the default
+# entrypoint when JOB_NAME is set).
+#
+# Cron times in UTC.
+
+jobs:
+  - id: news-poll
+    runs: news_poll
+    cron: "0 * * * *"        # hourly at :00
+    description: "Poll RSS / canonical news sources"
+
+  - id: public-filings-poll
+    runs: public_filings_poll
+    cron: "30 4 * * *"       # daily 04:30 UTC
+    description: "SEC EDGAR + FDIC + Form ADV pulls"
+
+  - id: jira-incremental
+    runs: jira_incremental
+    cron: "*/15 * * * *"     # every 15 minutes
+    description: "Atlassian Jira incremental sync"
+
+  - id: sow-incremental
+    runs: sow_incremental
+    cron: "15 * * * *"       # hourly at :15
+    description: "Drive SOW incremental ingest"
+
+  - id: sow-full-reindex
+    runs: sow_full_reindex
+    cron: "0 5 * * 0"        # Sundays 05:00 UTC
+    description: "Weekly full SOW re-ingest"
+
+  - id: lifecycle-scoring-daily
+    runs: lifecycle_scoring_daily
+    cron: "30 6 * * *"       # daily 06:30 UTC (after filings + news)
+    description: "Recompute 6-state lifecycle scores"
+
+  - id: benchmark-extrapolation
+    runs: benchmark_extrapolation_run
+    cron: "0 7 * * 1"        # Mondays 07:00 UTC
+    description: "AI extrapolation for sparse cohorts"
+
+  - id: benchmark-recompute-quarterly
+    runs: benchmark_recompute_quarterly
+    cron: "0 6 1 1,4,7,10 *" # 1st of Jan / Apr / Jul / Oct, 06:00 UTC
+    description: "Quarterly benchmark recompute"
+
+  - id: digest-quarterly
+    runs: digest_quarterly
+    cron: "0 9 1 1,4,7,10 *" # 1st of Jan / Apr / Jul / Oct, 09:00 UTC
+    description: "Quarterly Strategic Digest generation"
+
+  - id: deep-audit-weekly
+    runs: deep_audit_weekly
+    cron: "0 8 * * 1"        # Mondays 08:00 UTC
+    description: "Weekly deep audit + notification refresh"
+
+  - id: eval-run-weekly
+    runs: eval_run_weekly
+    cron: "30 8 * * 1"       # Mondays 08:30 UTC
+    description: "Weekly eval harness run"
+
+  - id: citation-verify-daily
+    runs: citation_verify_daily
+    cron: "0 3 * * *"        # daily 03:00 UTC
+    description: "URL HEAD probe with 24h cache"
+
+  - id: drift-check-daily
+    runs: drift_check_daily
+    cron: "30 7 * * *"       # daily 07:30 UTC (after lifecycle)
+    description: "Detect non-adjacent lifecycle transitions"
+
+  - id: evidence-promotion-nightly
+    runs: evidence_promotion_nightly
+    cron: "0 2 * * *"        # daily 02:00 UTC
+    description: "Promote raw rows into evidence_index"

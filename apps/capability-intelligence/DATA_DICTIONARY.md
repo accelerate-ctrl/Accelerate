@@ -46,6 +46,16 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 9
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `evidence_index` | `{kind}-{source-id}` | Promoted canonical evidence (news / sow / story) |
+
+(All 14 Cloud Run Jobs write into existing collections defined by their
+respective services; the only new collection in Batch 9 is
+`evidence_index`, populated by `evidence_promotion_nightly`.)
+
 ## Firestore collections — Batch 8
 
 | Collection | Doc ID | Description |

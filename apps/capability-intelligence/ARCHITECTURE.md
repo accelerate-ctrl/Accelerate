@@ -17,6 +17,81 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 9 — Production hardening
+
+```
+                              ┌─────────────────────────────┐
+                              │      Cloud Scheduler        │
+                              │   (14 cron entries, UTC)    │
+                              └─────────────┬───────────────┘
+                                            │ HTTP OAuth
+                                            ▼
+              ┌──────────────────────────────────────────────────┐
+              │            Cloud Run Jobs (14 total)             │
+              │  one container image, JOB_NAME-dispatched         │
+              │     python -m app.jobs.runner <job_name>         │
+              └──────────────────────────────────────────────────┘
+                          │
+                          │ structured logs + spans  ──▶  Cloud Trace + Cloud Logging
+                          │ events                   ──▶  Pub/Sub (5 topics)
+                          │                                   │
+                          │                                   ▼
+                          │                       ┌────────────────────────┐
+                          │                       │ Cloud Tasks DLQ        │
+                          │                       │ (3 retries / 64s back) │
+                          │                       └────────────────────────┘
+                          ▼
+              ┌──────────────────────────────────────────────────┐
+              │       Repository (Firestore-Mongo / Mongo)       │
+              └──────────────────────────────────────────────────┘
+                          ▲
+                          │
+              ┌──────────────────────────────────────────────────┐
+              │            Cloud Run service (api)               │
+              │    same image; install_telemetry() on boot;      │
+              │    serves /api/* + the SPA from /app/static      │
+              └──────────────────────────────────────────────────┘
+                          ▲
+                          │   HTTPS  + OAuth (Firebase auth)
+                          │
+                       Browser
+```
+
+The 14 jobs (with cron + service hookup):
+
+| Job                            | Cron               | Service called |
+|--------------------------------|--------------------|----------------|
+| news_poll                      | hourly             | `news_service.refresh()` |
+| jira_incremental               | every 15 min       | `stories_service.ingest_jira()` |
+| sow_incremental                | hourly             | `sow_service.ingest_all()` |
+| public_filings_poll            | daily 04:30 UTC    | `benchmarks_service.refresh(extrapolate=False)` |
+| lifecycle_scoring_daily        | daily 06:30 UTC    | `lifecycle_service.recompute_all()` |
+| citation_verify_daily          | daily 03:00 UTC    | `citation_verifier.verify_citation` over `citation_probes` |
+| drift_check_daily              | daily 07:30 UTC    | adjacency check over `lifecycle_transitions` |
+| evidence_promotion_nightly     | daily 02:00 UTC    | promotes news / SOW / story rows → `evidence_index` |
+| sow_full_reindex               | weekly Sun 05:00   | `sow_service.ingest_all()` w/ reindex log |
+| benchmark_extrapolation_run    | weekly Mon 07:00   | `benchmarks_service.refresh(extrapolate=True)` |
+| deep_audit_weekly              | weekly Mon 08:00   | `audit_service.run_audit()` + notifications refresh |
+| eval_run_weekly                | weekly Mon 08:30   | `eval_service.run_eval()` |
+| benchmark_recompute_quarterly  | quarterly 1st 06:00| `benchmarks_service.refresh(extrapolate=True)` |
+| digest_quarterly               | quarterly 1st 09:00| `digest_service.generate()` per subvertical |
+
+Pub/Sub topic conventions (per `services/event_bus._TOPIC_MAP`):
+
+| Event                           | Topic              | Producers |
+|---------------------------------|--------------------|-----------|
+| job.completed / job.failed      | job-events         | runner    |
+| audit.critical_finding          | audit-events       | deep_audit_weekly |
+| lifecycle.transitioned          | lifecycle-events   | lifecycle_scoring_daily |
+| digest.generated                | digest-events      | digest_quarterly |
+| suggestion.applied / .rejected  | suggestion-events  | api/suggestions |
+
+Production swap-ins (each gates on its env var):
+- `USE_GCP=true` → `MongoRepository` for Firestore in MongoDB-compat mode
+- `OTEL_EXPORTER_OTLP_ENDPOINT=…` → OpenTelemetry FastAPI instrumentation
+- `LLM_LIVE_MODE=true` → real Anthropic + Vertex calls
+- `BUILTWITH_API_KEY` / `WAPPALYZER_API_KEY` → live technographics
+
 ## Batch 8 — Operator surface (chat + what-if + personas + notifications + exports + eval)
 
 ```

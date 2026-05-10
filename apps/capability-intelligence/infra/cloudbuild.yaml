@@ -1,10 +1,106 @@
-# Cloud Build pipeline. Wired in Batch 9. Placeholder kept here so infra/ has
-# a stable entry point.
+# Cloud Build pipeline (Batch 9).
+#
+# Triggers on push to main + on tag push. Order:
+#   1. backend pytest + ruff
+#   2. frontend npm test + build
+#   3. docker image build (multi-stage Dockerfile bundles SPA into /app/static)
+#   4. push to Artifact Registry
+#   5. deploy to Cloud Run (api service)
+#   6. deploy each Cloud Run Job (image-only update)
+#   7. smoke test the deployed /api/health endpoint
+
+substitutions:
+  _REGION: us-central1
+  _REPO: capability-intelligence
+  _SERVICE_NAME: capability-intelligence-api
 
 steps:
-  - name: gcr.io/cloud-builders/docker
-    args: ["build", "-t", "us-central1-docker.pkg.dev/$PROJECT_ID/capability-intelligence/api:$SHORT_SHA", "."]
+  # 1) Backend tests
+  - id: backend-tests
+    name: python:3.12
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        cd apps/capability-intelligence/backend
+        pip install -q -r requirements.txt
+        ruff check .
+        pytest -q
+
+  # 2) Frontend tests + build
+  - id: frontend-tests
+    name: node:20
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        cd apps/capability-intelligence/frontend
+        npm ci --no-audit --no-fund
+        npm test -- --run
+        npm run build
+
+  # 3) Build image (Dockerfile copies frontend/dist → /app/static)
+  - id: docker-build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+      - "apps/capability-intelligence"
+
+  # 4) Push
+  - id: docker-push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "--all-tags", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api"]
+
+  # 5) Deploy API
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        gcloud run services replace apps/capability-intelligence/infra/service.yaml \
+          --region=${_REGION} \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+
+  # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed by Terraform)
+  - id: deploy-jobs
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        for JOB in news-poll public-filings-poll jira-incremental sow-incremental \
+                  sow-full-reindex lifecycle-scoring-daily benchmark-extrapolation-run \
+                  benchmark-recompute-quarterly digest-quarterly deep-audit-weekly \
+                  eval-run-weekly citation-verify-daily drift-check-daily \
+                  evidence-promotion-nightly; do
+          gcloud run jobs update $JOB \
+            --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA} \
+            --region=${_REGION}
+        done
+
+  # 7) Smoke test
+  - id: smoke
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        for i in 1 2 3 4 5; do
+          if curl -sf "$URL/api/health"; then exit 0; fi
+          sleep 5
+        done
+        exit 1
+
 images:
-  - "us-central1-docker.pkg.dev/$PROJECT_ID/capability-intelligence/api:$SHORT_SHA"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

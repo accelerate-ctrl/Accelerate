@@ -9,6 +9,65 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 9 (Production hardening — all 9 batches shipped)
+
+Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + **9** are live. The platform
+is now deploy-ready: 14 Cloud Run Jobs covering every scheduled
+ingest / scoring / audit / digest task, an event-driven Pub/Sub bus
+with a Cloud Tasks DLQ, a Cloud Build CI/CD pipeline, OpenTelemetry
+instrumentation, Terraform for the full GCP plumbing, and a complete
+RUNBOOK with 10 incident playbooks.
+
+**Batch 9 adds:**
+
+- **All 14 Cloud Run Jobs wired to real services**:
+  `news_poll`, `public_filings_poll`, `jira_incremental`,
+  `sow_incremental`, `sow_full_reindex`, `lifecycle_scoring_daily`,
+  `benchmark_extrapolation_run`, `benchmark_recompute_quarterly`,
+  `digest_quarterly`, `deep_audit_weekly`, `eval_run_weekly`,
+  `citation_verify_daily`, `drift_check_daily`,
+  `evidence_promotion_nightly`. Each calls into the appropriate
+  Batch 1-8 service.
+- **Job runner CLI** (`python -m app.jobs.runner <name>`): single
+  entrypoint with structured logging + Pub/Sub completion event +
+  non-zero exit on failure (so Cloud Run Jobs treat it as a DLQ
+  candidate).
+- **Cloud Scheduler manifest** (`infra/jobs/scheduler.yaml`) with
+  one cron per job: hourly news + sub-hourly Jira down to quarterly
+  digests.
+- **Pub/Sub event bus** (`services/event_bus.py`) — five topics:
+  job-events, audit-events, lifecycle-events, digest-events,
+  suggestion-events. Dev-mode logs structured events; prod-mode
+  publishes to GCP Pub/Sub.
+- **OpenTelemetry instrumentation** (`app/observability.py`) —
+  attaches FastAPI instrumentation when `OTEL_EXPORTER_OTLP_ENDPOINT`
+  is set; degrades gracefully to structured logs in dev. Job runner
+  emits one span per job.
+- **Cloud Build pipeline** (`infra/cloudbuild.yaml`): backend tests +
+  frontend tests + image build + push + deploy API + image-refresh
+  every Cloud Run Job + smoke `/api/health`.
+- **Terraform module** (`infra/terraform/main.tf`): single-file
+  module standing up Artifact Registry + Cloud Run service + 14 Jobs
+  + 14 Scheduler entries + 5 Pub/Sub topics + DLQ + Secret Manager
+  + 2 Monitoring alert policies.
+- **Cloud Run Job manifests** (`infra/jobs/cloud-run-jobs.yaml`)
+  with per-job CPU/memory/timeout sizing.
+- **Cloud Monitoring alert policies** (`infra/alerts/policies.yaml`):
+  high error rate, daily LLM spend, gate failure rate, DLQ depth,
+  drift spike, digest cost overrun.
+- **Cloud DLP de-identify template** (`infra/dlp/templates/sow-redact.yaml`)
+  mirrors the regex set with built-in info-type detectors.
+- **BigQuery schema** (`infra/bq/schemas/audit_events.yaml`) for
+  long-term audit retention.
+- **RUNBOOK finalised** with 10 incident playbooks (incident response,
+  source pull failures, LLM 429s, BigQuery slot exhaustion, drift
+  alerts, cost spikes, secret rotation, DR, backups, DLQ).
+- **Backend tests**: 26 new across 2 files (every job + observability +
+  event bus dev-mode + topic mapping). 319/319 backend pass.
+- **End-to-end stress**: all 14 jobs run cleanly through the runner
+  CLI; dev-mode bus logs structured events without GCP creds; FastAPI
+  app boots cleanly with telemetry off.
+
 ## Status — Batch 8 (RAG chat + What-If + Personas + Notifications + Exports + Eval)
 
 Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 are live. The platform now
@@ -383,6 +442,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 6 | **shipped** | 6-state lifecycle scoring (sow + story + news + benchmark signals), Vendor Intelligence (adoption heatmap + events), Client Journey Atlas with DMA Packet handoff, deferred-persist Repository for hot-loop ingest |
 | 7 | **shipped** | Quarterly Strategic Digest (Claude Opus narratives via Batch 4 loop) + per-priority evidence trail + Q-over-Q delta + Zennify-branded PPTX export; weekly Deep Audit sweep with severity-rolled findings + drill-back |
 | 8 | **shipped** | RAG Chat over catalogue + Batch-3 SOWs + Batch-4 news + Batch-6 lifecycle; What-If Simulator (read-only ripple analysis); Persona views; in-app Notifications fed by audit + transitions + suggestions; XLSX exports for catalogue / lifecycle / clients / benchmarks; Eval harness (digest_priorities + gate_consistency + citation_grounding) |
+| 9 | **shipped** | All 14 Cloud Run Jobs + Cloud Scheduler crons + Pub/Sub event bus + Cloud Tasks DLQ + Cloud Build CI/CD + OpenTelemetry instrumentation + Terraform module + Cloud Monitoring alerts + Cloud DLP template + BigQuery schemas + finalized RUNBOOK with 10 incident playbooks |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

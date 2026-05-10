@@ -1,0 +1,225 @@
+# Cloud Run Job manifests (Batch 9).
+#
+# All 14 jobs share the same container image — the runner CLI dispatches
+# on the JOB_NAME env var. Per-job CPU + memory + timeout follow spec §20.
+# Failed executions retry once via Cloud Tasks DLQ (configured in
+# infra/terraform/pubsub.tf).
+
+apiVersion: run.googleapis.com/v1
+kind: JobList
+items:
+  # ─── Hourly / sub-hourly ──────────────────────────────────────────────────
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata:
+      name: news-poll
+      labels: { batch: "9" }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "news_poll"]
+                  resources: { limits: { cpu: "1", memory: "2Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: jira-incremental, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "jira_incremental"]
+                  resources: { limits: { cpu: "1", memory: "2Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: sow-incremental, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1800
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "sow_incremental"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  # ─── Daily ────────────────────────────────────────────────────────────────
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: public-filings-poll, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1800
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "public_filings_poll"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: lifecycle-scoring-daily, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 900
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "lifecycle_scoring_daily"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: citation-verify-daily, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1200
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "citation_verify_daily"]
+                  resources: { limits: { cpu: "1", memory: "1Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: drift-check-daily, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "drift_check_daily"]
+                  resources: { limits: { cpu: "1", memory: "1Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: evidence-promotion-nightly, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1800
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "evidence_promotion_nightly"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  # ─── Weekly ───────────────────────────────────────────────────────────────
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: sow-full-reindex, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 3600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "sow_full_reindex"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: benchmark-extrapolation-run, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 3600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "benchmark_extrapolation_run"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: deep-audit-weekly, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1800
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "deep_audit_weekly"]
+                  resources: { limits: { cpu: "2", memory: "4Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: eval-run-weekly, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 1200
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "eval_run_weekly"]
+                  resources: { limits: { cpu: "1", memory: "2Gi" } }
+
+  # ─── Quarterly ────────────────────────────────────────────────────────────
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: benchmark-recompute-quarterly, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 7200
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "benchmark_recompute_quarterly"]
+                  resources: { limits: { cpu: "4", memory: "8Gi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
+    metadata: { name: digest-quarterly, labels: { batch: "9" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 7200
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "digest_quarterly"]
+                  resources: { limits: { cpu: "4", memory: "8Gi" } }

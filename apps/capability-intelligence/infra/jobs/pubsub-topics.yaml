@@ -1,0 +1,35 @@
+# Pub/Sub topics + Cloud Tasks DLQ (Batch 9).
+#
+# Each event family from `services/event_bus.py::_TOPIC_MAP` lands on
+# its own topic. A single dead-letter queue catches anything that
+# fails three publish retries (exponential backoff 4s / 16s / 64s).
+
+topics:
+  - name: job-events
+    description: "Job lifecycle (job.completed, job.failed)"
+    retention: 7d
+
+  - name: audit-events
+    description: "Deep-audit critical findings"
+    retention: 30d
+
+  - name: lifecycle-events
+    description: "Lifecycle state transitions"
+    retention: 14d
+
+  - name: digest-events
+    description: "Strategic Digest generations"
+    retention: 90d
+
+  - name: suggestion-events
+    description: "AI suggestion lifecycle (applied / rejected)"
+    retention: 30d
+
+dead_letter_queue:
+  name: capability-intelligence-dlq
+  retention: 30d
+  retry_policy:
+    minimum_backoff: 4s
+    maximum_backoff: 64s
+    max_attempts: 3
+  oncall_alert: pagerduty

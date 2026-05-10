@@ -337,4 +337,52 @@ extend with custom labels. Three kinds:
 - **gate_consistency** — same prompt yields same gate verdict twice
 - **citation_grounding** — every claim cites a real source_id
 
-(Steps 31+ ship in later batches per the TOC above.)
+## 31. Run a Cloud Run Job manually (Batch 9)
+
+```
+# Locally (against the in-memory repo):
+python -m app.jobs.runner news_poll
+python -m app.jobs.runner digest_quarterly --arg period=2026-Q2 --arg priority_limit=3
+
+# In production:
+gcloud run jobs execute news-poll --region us-central1 --wait
+```
+
+Each runner invocation logs `job.started` / `job.completed` (or
+`job.failed`) as structured JSON, and emits a Pub/Sub event on the
+`job-events` topic.
+
+## 32. Subscribe to Pub/Sub events (Batch 9)
+
+```
+gcloud pubsub subscriptions create my-watcher --topic lifecycle-events
+gcloud pubsub subscriptions pull my-watcher --auto-ack --limit 10
+```
+
+Topics: `job-events`, `audit-events`, `lifecycle-events`,
+`digest-events`, `suggestion-events`.
+
+## 33. Apply Terraform (Batch 9)
+
+```
+cd infra/terraform
+terraform init
+terraform apply \
+  -var="project_id=zennify-cap-intel" \
+  -var="region=us-central1" \
+  -var="image_tag=$(git rev-parse --short HEAD)"
+```
+
+Stands up Artifact Registry + Cloud Run service + 14 Jobs + 14
+Scheduler entries + 5 Pub/Sub topics + DLQ + Secret Manager + 2
+Monitoring alert policies in one apply.
+
+## 34. Watch the alerts (Batch 9)
+
+`infra/alerts/policies.yaml` lists every Cloud Monitoring alert with
+its runbook back-link. Notification channels are wired separately per
+environment; the Terraform module leaves `notification_channels = []`
+so each env configures its own PagerDuty / Slack.
+
+(Steps 35+ are open for future iteration — Batch 9 closes the
+shipped roadmap.)

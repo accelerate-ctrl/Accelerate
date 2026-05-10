@@ -96,11 +96,21 @@ them at the start of the batch (or earlier so I can wire them in parallel).
       extend; without them, scoring runs against the live lifecycle
       engine's top priorities.
 
-## Batch 9 — Production hardening
+## Batch 9 — Production hardening — partially supplied
 
-- [ ] Slack webhook URL for alerts (optional)
-- [ ] Approver UIDs / emails for the breaking-change gate
-- [ ] DMA App handoff schema if it exists; else I publish v1 and you integrate
+- [x] All 14 Cloud Run Jobs wired + Cloud Build pipeline + Terraform
+      module shipped. Runs end-to-end against the in-memory repo
+      without GCP creds; flips to live mode on `USE_GCP=true`.
+- [x] DMA App handoff schema published as `dma-handoff-v1` (see
+      `services/client_journey_service.py::dma_packet`).
+- [ ] Slack webhook URL for alerts (optional). Drop into
+      `infra/alerts/policies.yaml::notification_channels` once you
+      have one.
+- [ ] Approver UIDs / emails for the breaking-change gate (Batch 4
+      gate config).
+- [ ] PagerDuty integration key (or equivalent) for critical alerts.
+- [ ] Cross-region GCS bucket name for DR backups
+      (`gs://<bucket>/firestore-exports/`).
 
 ---
 

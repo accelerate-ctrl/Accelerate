@@ -1,0 +1,39 @@
+# Cloud DLP de-identify template (Batch 9).
+#
+# Activated when USE_GCP=true; otherwise services/dlp_service.py uses
+# regex redaction (Batch 3). Mirrors the regex set with Cloud DLP's
+# built-in info-type detectors so prod redaction has higher recall.
+
+inspectConfig:
+  infoTypes:
+    - name: US_SOCIAL_SECURITY_NUMBER
+    - name: EMAIL_ADDRESS
+    - name: PHONE_NUMBER
+    - name: CREDIT_CARD_NUMBER
+    - name: IBAN_CODE
+    - name: US_BANK_ROUTING_MICR
+    - name: US_DRIVERS_LICENSE_NUMBER
+    - name: PASSPORT
+    - name: PERSON_NAME
+  minLikelihood: POSSIBLE
+  includeQuote: false
+
+deidentifyConfig:
+  infoTypeTransformations:
+    transformations:
+      - infoTypes:
+          - { name: US_SOCIAL_SECURITY_NUMBER }
+          - { name: EMAIL_ADDRESS }
+          - { name: PHONE_NUMBER }
+          - { name: CREDIT_CARD_NUMBER }
+          - { name: IBAN_CODE }
+          - { name: US_BANK_ROUTING_MICR }
+          - { name: US_DRIVERS_LICENSE_NUMBER }
+          - { name: PASSPORT }
+        primitiveTransformation:
+          replaceWithInfoTypeConfig: {}
+      - infoTypes:
+          - { name: PERSON_NAME }
+        primitiveTransformation:
+          replaceConfig:
+            newValue: { stringValue: "[REDACTED:NAME]" }

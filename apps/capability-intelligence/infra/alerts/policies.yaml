@@ -1,0 +1,62 @@
+# Cloud Monitoring alert policies (Batch 9).
+#
+# Mirror of the Terraform module's `google_monitoring_alert_policy`
+# resources, kept in YAML form for ad-hoc gcloud apply / review without
+# running Terraform.
+
+policies:
+  - name: high-error-rate
+    display: "Capability Intelligence — high error rate"
+    condition: "5xx response rate > 5% over 5 minutes"
+    metric: run.googleapis.com/request_count
+    filter: "response_code_class=5xx"
+    threshold: 5
+    duration_seconds: 300
+    severity: page
+    runbook: RUNBOOK.md#1-incident-response
+
+  - name: digest-cost-overrun
+    display: "Strategic Digest cost overrun"
+    condition: "Digest run cost > $50"
+    metric: custom.googleapis.com/digest/cost_usd
+    threshold: 50
+    duration_seconds: 60
+    severity: warn
+    runbook: COST_GUIDE.md#quarterly-digest-cost-batch-7
+
+  - name: daily-llm-spend
+    display: "Daily LLM spend"
+    condition: "Daily spend > 80% of ceiling"
+    metric: custom.googleapis.com/llm/daily_spend_usd
+    threshold: 0.8
+    duration_seconds: 300
+    severity: warn
+    runbook: COST_GUIDE.md#auto-throttling
+
+  - name: gate-failure-rate
+    display: "Gate failure rate"
+    condition: ">20% gate fails over the last 1h"
+    metric: custom.googleapis.com/gates/fail_rate
+    threshold: 0.2
+    duration_seconds: 3600
+    severity: warn
+    runbook: RUNBOOK.md#5-drift-alerts
+
+  - name: dead-letter-queue
+    display: "Cloud Tasks DLQ depth"
+    condition: "DLQ depth > 5"
+    metric: pubsub.googleapis.com/subscription/num_undelivered_messages
+    filter: "subscription_id=capability-intelligence-dlq"
+    threshold: 5
+    duration_seconds: 300
+    severity: page
+    runbook: RUNBOOK.md#10-dlq-investigation
+
+  - name: drift-spike
+    display: "Lifecycle drift spike"
+    condition: "drift_check_daily reported >5 non-adjacent transitions"
+    metric: custom.googleapis.com/lifecycle/drift_count
+    threshold: 5
+    duration_seconds: 86400
+    severity: warn
+    runbook: RUNBOOK.md#5-drift-alerts
