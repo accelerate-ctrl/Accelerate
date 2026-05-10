@@ -131,6 +131,83 @@ export type Diff = {
   pillar_count_deltas: Record<string, number>;
 };
 
+// ─── Batch 7 ────────────────────────────────────────────────────────────────
+
+export type DigestPriority = {
+  sub_cap_id: string;
+  sub_cap_name: string;
+  state?: string | null;
+  score?: number | null;
+  confidence?: number | null;
+  narrative: string;
+  recommendation: string;
+  evidence_sows: Array<{
+    sow_id?: string;
+    client?: string;
+    status?: string;
+    excerpt?: string;
+    method?: string;
+    confidence?: number;
+  }>;
+  evidence_benchmarks: Array<{
+    metric_id?: string;
+    cohort_id?: string;
+    period?: string;
+    verdict?: string;
+    n?: number;
+    p25?: number;
+    p50?: number;
+    p75?: number;
+  }>;
+  evidence_news: Array<{
+    id?: string;
+    title?: string;
+    source?: string;
+    published_at?: string;
+    url?: string | null;
+    kind?: string;
+  }>;
+  delta?: {
+    previous_state?: string | null;
+    previous_score?: number | null;
+    previous_period?: string;
+  } | null;
+  chain_id?: string | null;
+  cost_usd: number;
+};
+
+export type StrategicDigest = {
+  digest_id: string;
+  subvertical: string;
+  period: string;
+  previous_period: string | null;
+  generated_at: string;
+  model: string;
+  priorities: DigestPriority[];
+  summary: string;
+  sources_count: number;
+  total_cost_usd: number;
+};
+
+export type AuditFinding = {
+  kind: string;
+  severity: 'critical' | 'warn' | 'info';
+  title: string;
+  detail: string;
+  ref_collection?: string | null;
+  ref_id?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+export type AuditReport = {
+  report_id: string;
+  started_at: string;
+  completed_at: string;
+  findings: AuditFinding[];
+  summary: { critical: number; warn: number; info: number };
+  inputs_seen: Record<string, number>;
+};
+
 // ─── Batch 6 ────────────────────────────────────────────────────────────────
 
 export type LifecycleState =

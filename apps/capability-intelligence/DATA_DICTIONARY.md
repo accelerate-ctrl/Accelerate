@@ -46,6 +46,14 @@
 | `reasoning_chains` | decomposed steps for analysis | Batch 4 |
 | `cost_tracking` | token usage by model, service, day | Batch 4 |
 
+## Firestore collections — Batch 7
+
+| Collection | Doc ID | Description |
+|---|---|---|
+| `strategic_digests` | `digest-{subvertical-slug}-{period}` | Quarterly digest with priorities + narratives + evidence + Q-over-Q delta |
+| `digest_runs` | `digest-run-{unix}` | Per-generation run log |
+| `audit_reports` | `audit-{micro-ts}` | Per-audit findings + severity rollup + inputs_seen |
+
 ## Firestore collections — Batch 6
 
 | Collection | Doc ID | Description |

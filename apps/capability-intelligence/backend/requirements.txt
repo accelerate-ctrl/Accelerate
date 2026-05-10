@@ -38,6 +38,9 @@ google-cloud-aiplatform==1.71.1
 feedparser==6.0.11
 numpy==1.26.4
 
+# Batch 7 — Quarterly digest + deep audit + PPTX export
+python-pptx==1.0.2
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0

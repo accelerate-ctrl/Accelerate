@@ -77,14 +77,23 @@ them at the start of the batch (or earlier so I can wire them in parallel).
 - [ ] Optional cohort overrides in `config/peer_cohorts.yml` if the
       FDIC bucket bootstrap doesn't fit a target sub-vertical.
 
-## Batch 7 — Strategic digest
+## Batch 7 — Strategic digest — partially supplied
 
-- [ ] Zennify logo (PNG + SVG)
-- [ ] Confirm 8-token brand palette (already locked from spec §14)
-- [ ] Optional `.pptx` template if one exists; else the digest export ships in
-      a clean Zennify-branded layout
-- [ ] Confirm "5 historical quarters of curated priorities" do not exist; if so
-      I'll bootstrap synthetic golden labels for the digest eval
+- [x] Architecture in place; runs end-to-end against Batch 1-6 data and
+      produces both JSON and a 37 KB Zennify-branded PPTX deck without
+      external creds (dev-mode Opus narratives).
+- [x] 8-token brand palette wired into the PPTX renderer
+      (`services/pptx_export.py`) per spec §14.
+- [x] Default digest layout ships out-of-the-box with Zennify wordmark,
+      executive overview, per-priority slides, and watchlist.
+- [ ] Zennify logo (PNG + SVG) — once supplied, drop into
+      `static/brand/logo.png` and the title slide will swap from
+      wordmark-only to logo + wordmark.
+- [ ] Optional `.pptx` template if you have a corporate master deck;
+      currently the renderer builds slides from scratch.
+- [ ] Optional: 5 historical quarters of curated priorities for the
+      digest evaluation harness (Batch 8). Without them, the eval
+      bootstrap synthesises golden labels from the lifecycle engine.
 
 ## Batch 9 — Production hardening
 

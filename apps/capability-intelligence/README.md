@@ -9,6 +9,58 @@ the system map, and the per-batch sections of this README for what's live now.
 
 ---
 
+## Status — Batch 7 (Quarterly Strategic Digest + Deep Audit + PPTX export)
+
+Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 + 7 are live. The full Zennify
+Capability Intelligence consultant loop now closes — synthesis layer
+(Batch 6) feeds quarterly digests with Claude Opus narratives + PPTX
+export, and a weekly deep audit sweep verifies the health of every
+input.
+
+**Batch 7 adds:**
+
+- **Strategic digest engine** (`services/digest_service.py`):
+  - Pulls top 3-5 priorities per (subvertical, period) from Batch 6
+    `lifecycle_scores`, intersected with Batch 2 `vc_mappings` to keep
+    them subvertical-relevant.
+  - For each priority assembles SOW excerpts (Batch 3) + benchmark
+    distributions (Batch 5) + news / trends (Batch 4) into a structured
+    evidence block.
+  - Routes to Batch-4 consultant loop on `ModelKind.OPUS` to synthesize
+    a narrative + recommendation per priority. Dev-mode resolves the
+    canned response so digests run hermetically; live mode (with
+    `LLM_LIVE_MODE=true` + Anthropic key) routes to actual Opus.
+  - Q-over-Q delta lookup against the previous quarter's digest.
+  - Persists `strategic_digests` keyed by digest-{subvertical}-{period}.
+- **Deep audit** (`services/audit_service.py`): weekly sweep across
+  reasoning_chains (gate fails + low scores), pending suggestions
+  older than 14 days, DEAD-state subcaps, open flags, and daily LLM
+  spend at ≥80% of ceiling. Findings classified as critical / warn /
+  info; persisted to `audit_reports`.
+- **Zennify-branded PPTX export** (`services/pptx_export.py`): 16:9
+  deck with title slide (Zennify wordmark + period + subvertical),
+  executive overview with 6-KPI strip, per-priority slides (state
+  badge, narrative, recommendation, evidence column), watchlist slide
+  for next quarter's RISING/EMERGING.  Uses spec §14 brand palette.
+- **Real pages**: Strategic Digest (subvertical + period generator,
+  digest list, per-priority cards with narrative + delta + evidence
+  drilldown + PPTX download). QA & Audit Dashboard (severity-filtered
+  findings + history + drill-back to chain / suggestion / subcap).
+- **Backend tests**: 26 new (digest generation + Q-over-Q delta +
+  evidence + persistence + unknown-subvertical edge case + filter,
+  audit sweeps + report ordering + naive-iso parsing + per-finding
+  severity, pptx slide-count + brand text + zero-priority case, full
+  API integration covering generate / list / detail / pptx / audit
+  run / latest). 247/247 backend pass total.
+- **Frontend tests**: 1 new (StrategicDigest list + detail flow with
+  Q-over-Q delta render). 44/44 vitest pass.
+- **End-to-end stress test**: live uvicorn produced 3 RISING
+  priorities (lead: P1C1.1.1 Digital Strategy Document, score 51) with
+  20 sources cited; Q1→Q2 transition shows 3/3 priorities with delta;
+  PPTX download is 37 KB valid OOXML; audit report identified 6
+  critical GATE_FAIL chains + 118 DEAD_LIFECYCLE info findings; Batch
+  1-6 regressions clean.
+
 ## Status — Batch 6 (Lifecycle + Vendor Intelligence + Client Journey)
 
 Batches 0 + 1 + 2 + 3 + 4 + 5 + 6 are live. The system now has a full
@@ -273,6 +325,7 @@ Graph (Batch 2), LLM calls (Batch 4), benchmarks (Batch 5), digest (Batch 7).
 | 4 | **shipped** | LLM router (Vertex Gemini + Anthropic Claude with hermetic dev-mode), 7-step consultant loop, 8 validation gates, adversarial agent, hallucination + citation verifier, content-hash cache, cost tracker, embeddings + vector store, news + trends ingest, AI Suggestions lifecycle, Reasoning Chain Viewer / Validation Gates / News Watch / Trends Monitor pages |
 | 5 | **shipped** | Public filings + analyst extracts + technographic ingest, peer cohort engine, AI-extrapolation benchmarks (consultant-loop linked), Benchmarks Studio page with verdict + percentile + sources |
 | 6 | **shipped** | 6-state lifecycle scoring (sow + story + news + benchmark signals), Vendor Intelligence (adoption heatmap + events), Client Journey Atlas with DMA Packet handoff, deferred-persist Repository for hot-loop ingest |
+| 7 | **shipped** | Quarterly Strategic Digest (Claude Opus narratives via Batch 4 loop) + per-priority evidence trail + Q-over-Q delta + Zennify-branded PPTX export; weekly Deep Audit sweep with severity-rolled findings + drill-back |
 | 2 | planned | KG v1 + 9 lenses + Knowledge Graph page + Value Chain Atlas + Subvertical Compare + Maturity Heatmap + Use Case Explorer + Platform Catalog |
 | 3 | planned | Internal evidence: SOWs (DLP redacted) + Jira + gen-stories; Story / SOW / Project–Subcap pages |
 | 4 | planned | LLM router (Vertex Gemini + Anthropic Claude), 7-step consultant loop, 8 validation gates, adversarial agent, Reasoning Chain Viewer, AI Suggestions, Trends, News, hallucination detector |

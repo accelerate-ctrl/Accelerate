@@ -244,4 +244,42 @@ state + vendor stack + state distribution). Pick a client and click
 **DMA Packet** to download a flat `dma-handoff-v1` JSON ready for the
 downstream DMA App.
 
-(Steps 22+ ship in later batches per the TOC above.)
+## 22. Generate a quarterly digest (Batch 7)
+
+**Strategic Digest → Generate** (or `POST /api/digest/generate` with
+`{subvertical, period, priority_limit}`) runs `digest_service.generate()`:
+1. Resolves the subvertical (accepts the code "RB", the slug
+   "retail-banking", or the human name "Retail Banking").
+2. Pulls top RISING / STABLE / EMERGING subcaps from Batch 6 lifecycle
+   scores, intersected with Batch 2 vc_mappings.
+3. For each priority, assembles SOW excerpts + benchmark distributions
+   + news/trends mentions into one evidence block.
+4. Routes to the Batch-4 consultant loop on **Claude Opus** to
+   synthesise a narrative + recommendation per priority. Q-over-Q
+   delta vs the previous quarter's digest auto-applies.
+5. Persists the digest under `digest-{subvertical}-{period}`.
+
+The page renders priorities with state badges + delta arrow + evidence
+drilldown + a one-click PPTX download.
+
+## 23. Download the PPTX deck (Batch 7)
+
+`GET /api/digest/{digest_id}/pptx` returns a Zennify-branded 16:9
+widescreen deck. Title slide + executive overview + per-priority slide
+with state badge + watchlist slide for next quarter. The download button
+on the Strategic Digest page wraps that endpoint.
+
+## 24. Run a deep audit (Batch 7)
+
+**QA & Audit Dashboard → Run audit** (or `POST /api/audit/run`) sweeps
+the full stack:
+- Reasoning-chain failures (critical) + low gate scores (warn)
+- Pending suggestions older than 14 days (warn)
+- DEAD-state subcaps (info — retirement candidates)
+- Open flags (warn)
+- Daily LLM cost at ≥80% of ceiling (warn / critical)
+
+Each finding carries a back-link to its source row (chain / suggestion /
+subcap) so reviewers can drill into the underlying detail.
+
+(Steps 25+ ship in later batches per the TOC above.)

@@ -17,6 +17,85 @@
 10. Security & compliance — Batch 9
 11. ADRs — appended as decisions are made
 
+## Batch 7 — Strategic digest + Deep audit + PPTX export
+
+```
+                ┌──────────────────────────────────────────────────────┐
+POST /api/      │              digest_service.generate()                │
+digest/         │                                                       │
+generate     ──▶│  1. Resolve subvertical → vc_mappings codes (RB/WM/…) │
+                │  2. Filter lifecycle_scores by subcap_ids in mapping  │
+                │  3. Sort by score desc, keep RISING/STABLE/EMERGING   │
+                │  4. For each priority:                                │
+                │       SOW excerpts (Batch 3)                          │
+                │       benchmark distributions (Batch 5)               │
+                │       news + trends (Batch 4)                         │
+                │  5. consultant_loop.run(model=OPUS) → narrative       │
+                │  6. Q-over-Q delta vs previous_period digest          │
+                │  7. Persist → strategic_digests                       │
+                └────────────────────────┬──────────────────────────────┘
+                                         │
+                                         ▼
+                            ┌─────────────────────────┐
+GET /api/digest/{id}/pptx ─▶│   pptx_export.render()  │
+                            │   1. title slide (logo) │
+                            │   2. executive overview │
+                            │   3. priority N slides  │
+                            │   4. watchlist slide    │
+                            │   → bytes (Microsoft    │
+                            │     PowerPoint 2007+)   │
+                            └─────────────────────────┘
+
+
+POST /api/audit/run ──▶  audit_service.run_audit()
+                          ├── _sweep_gates()       reasoning_chains: fail + low score
+                          ├── _sweep_stale_…       suggestions: pending > 14d
+                          ├── _sweep_dead_subcaps  lifecycle_scores: state == DEAD
+                          ├── _sweep_flags         flags: status == OPEN
+                          └── _sweep_cost          llm_costs: today ≥ 80% of cap
+                                  ▼
+                          audit_reports collection (severity-rolled findings)
+```
+
+Subvertical resolution: `digest_service._resolve_subvertical_codes()` maps
+the user-facing input ("RB", "retail-banking", "Retail Banking") to the
+canonical short code from `config/subverticals.yml`. The matched codes
+intersect with `vc_mappings.subvertical_code` to find subcaps for that
+slice.
+
+Q-over-Q delta: `_previous_period("2026-Q2")` → `"2026-Q1"`; if a digest
+exists for the previous period, each priority gets a `delta` block with
+`previous_state` + `previous_score` + `previous_period`. The PPTX
+priority slide and the StrategicDigest UI both render this delta as
+`previous_state → current_state`.
+
+PPTX schema:
+- 16:9 widescreen, 13.333" × 7.5"
+- Brand palette wired from spec §14 (`ZEN_DARK_GREEN`, `ZEN_TEAL`, etc.)
+- Title slide: Zennify wordmark + tagline + period + subvertical
+- Overview slide: summary + 6-KPI strip (priorities / rising / stable /
+  emerging / sources / cost)
+- One slide per priority: state badge (rounded rectangle, brand-coloured),
+  narrative + recommendation column + evidence column
+- Watchlist slide: RISING / EMERGING for next quarter
+
+Audit findings severity rules:
+
+| Kind              | Severity | Trigger |
+|-------------------|----------|---------|
+| GATE_FAIL         | critical | reasoning_chain.overall == "fail" |
+| LOW_GATE_SCORE    | warn     | warn + score < 0.5 |
+| STALE_SUGGESTION  | warn     | pending suggestion older than 14 days |
+| DEAD_LIFECYCLE    | info     | lifecycle_scores.state == DEAD |
+| OPEN_FLAGS        | warn     | flag with status OPEN |
+| HIGH_COST_DAY     | warn / critical | daily LLM spend ≥ 80% / ≥ throttle_pct |
+
+Production swap-ins (when keys land):
+- Live mode + Anthropic key → real Opus narratives via the Batch 4 router.
+- `BATCH7_SCHEDULE` cron (Cloud Scheduler) → weekly audit + monthly digest
+  jobs (deferred to Batch 9).
+- Logo upload via Settings page → drops in to PPTX title slide.
+
 ## Batch 6 — Lifecycle + Vendor Intelligence + Client Journey
 
 ```
