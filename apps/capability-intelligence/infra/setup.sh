@@ -146,9 +146,32 @@ for secret in anthropic-api-key google-oauth-client-secret jira-api-token; do
     gcloud secrets create "$secret" --replication-policy=automatic
 done
 
+# ─── 8. Self-validation ────────────────────────────────────────────────────
+echo "▶ self-validating provisioned resources"
+fail=0
+check() { if eval "$2" >/dev/null 2>&1; then echo "  ✓ $1"; else echo "  ✗ $1"; fail=$((fail+1)); fi; }
+
+check "Artifact Registry repo"   "gcloud artifacts repositories describe $REPO --location=$REGION"
+check "Runtime SA"               "gcloud iam service-accounts describe $RUNTIME_SA_EMAIL"
+check "Firestore dma-assessor"   "gcloud firestore databases describe --database=dma-assessor"
+for suffix in sows-raw sows-redacted snapshots reports jira-raw news-raw; do
+  check "Bucket $suffix"         "gcloud storage buckets describe gs://${PROJECT_ID}-${suffix}"
+done
+for ds in capability_catalogue continuous_validation benchmarks lifecycle vendor_intel evals evidence_index reasoning_chains cost_tracking; do
+  check "BQ dataset $ds"         "bq --project_id=$PROJECT_ID show $ds"
+done
+for s in anthropic-api-key google-oauth-client-secret jira-api-token; do
+  check "Secret $s"              "gcloud secrets describe $s"
+done
+
+if [ $fail -gt 0 ]; then
+  echo "✗ $fail resource(s) missing — see ✗ marks above."
+  exit 1
+fi
+
 cat <<'EOF'
 
-✓ Bootstrap complete.
+✓ Bootstrap complete — all resources validated.
 
 Next steps:
   1. Populate secrets:

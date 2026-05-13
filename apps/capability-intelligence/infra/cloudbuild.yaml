@@ -55,16 +55,20 @@ steps:
     name: gcr.io/cloud-builders/docker
     args: ["push", "--all-tags", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api"]
 
-  # 5) Deploy API
+  # 5) Render manifest with the freshly-built image tag, then replace.
   - id: deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - "-c"
       - |
-        gcloud run services replace apps/capability-intelligence/infra/service.yaml \
-          --region=${_REGION} \
-          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}
+        set -euo pipefail
+        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
+        sed -e "s|IMAGE_TAG|$${IMAGE}|g" \
+            apps/capability-intelligence/infra/service.yaml \
+            > /workspace/service.rendered.yaml
+        gcloud run services replace /workspace/service.rendered.yaml \
+          --region=${_REGION} --project=${PROJECT_ID}
 
   # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed by
   # Terraform). Tolerates missing jobs so the initial deploy succeeds before
