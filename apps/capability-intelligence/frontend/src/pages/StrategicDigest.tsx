@@ -66,7 +66,7 @@ export default function StrategicDigest() {
 
   const downloadPptx = async (digestId: string) => {
     const res = await fetch(`/api/digest/${encodeURIComponent(digestId)}/pptx`, {
-      headers: { Authorization: 'Bearer dev-dev@zennify.com' },
+      headers: { Authorization: 'Bearer dev-mishley.otiende@zennify.com' },
     });
     if (!res.ok) return;
     const blob = await res.blob();

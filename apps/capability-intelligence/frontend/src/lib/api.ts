@@ -1,7 +1,7 @@
 // Typed API client. Real auth wired in Batch 1; user is the dev-mode email
 // for now and switches to Firebase ID token in production (Batch 9).
 
-const DEV_TOKEN = 'dev-dev@zennify.com';
+const DEV_TOKEN = 'dev-mishley.otiende@zennify.com';
 
 function url(path: string): string {
   return `/api${path}`;

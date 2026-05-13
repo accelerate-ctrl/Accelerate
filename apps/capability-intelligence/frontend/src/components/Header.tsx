@@ -86,7 +86,7 @@ export default function Header() {
         className="flex items-center gap-2 text-sm text-zen-dark-teal hover:text-zen-dark-green"
       >
         <User size={18} />
-        <span>dev@zennify.com</span>
+        <span>mishley.otiende@zennify.com</span>
       </Link>
     </header>
   );

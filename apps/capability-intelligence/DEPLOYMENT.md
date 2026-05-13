@@ -94,6 +94,35 @@ Paste keys interactively (the leading space makes bash skip history):
  unset KEY1 KEY2 KEY3
 ```
 
+### 4b) Share Drive sources with the runtime SA
+
+The deployed Cloud Run service runs as the **runtime service account**.
+It can call the Drive API, but each Drive folder/shared-drive must be
+explicitly shared with that SA. The SA email is:
+
+```
+capability-intelligence@digital-maturity-assessor.iam.gserviceaccount.com
+```
+
+Two locations need access (both pre-wired in `service.yaml`):
+
+1. **Catalogue folder** (Pillar 1–4 .xlsx, auto-version-picked)
+   → https://drive.google.com/drive/folders/1rF9zdx1qF7BJ9t21eFdvZQW11Y5dUjy3
+   → click **Share**, paste the SA email above, role: **Viewer**.
+
+2. **SOWs shared drive** (deep-recursive walk through every
+   `Client/Project/phase/...` subfolder)
+   → https://drive.google.com/drive/folders/0AFm0q8PCUPy-Uk9PVA
+   → this is a **Shared Drive** (ID starts with `0A`), which has its
+   own ACL system: open the drive, click the drive name at the top →
+   **Manage members** → **Add member** → SA email, role: **Viewer**
+   (or **Content manager** if write is later needed).
+   Sharing a *folder inside* a Shared Drive is NOT enough — the SA
+   must be a member of the drive itself.
+
+Without this step every ingest will return 403/empty and the SPA will
+look empty.
+
 ### 5) Deploy
 
 ```bash
@@ -137,6 +166,37 @@ Cloud Console → **APIs & Services → Credentials → web client
 2. **Authorized redirect URIs**: add `$URL/api/auth/google/callback`
    (n8n's `https://oauth.n8n.cloud/oauth2/callback` is already pre-set).
 3. **OAuth consent screen → Authorized domains**: `zennify.com`.
+
+### 8) Pull all sources (first ingest)
+
+The SPA's "Pull all sources" button (top-right) now POSTs
+`/api/ingest/refresh-all` which fans out to all 7 source ingests:
+catalogue → SOWs → stories → news → vendors → benchmarks → client
+journeys. You can also trigger it from the CLI:
+
+```bash
+URL=$(gcloud run services describe capability-intelligence-api \
+        --region=us-central1 --format='value(status.url)')
+
+# AUTH_MODE=dev: paste your email as the bearer token
+TOKEN='dev-mishley.otiende@zennify.com'
+
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+     -H 'Content-Type: application/json' -d '{}' \
+     "$URL/api/ingest/refresh-all" | jq
+```
+
+Expect `sources_succeeded: 7` once Drive ACLs are in place. If any
+source fails, its `error` field surfaces the reason
+(e.g. Jira creds missing, Drive folder not shared, etc.). Tail the
+revision logs for detail:
+
+```bash
+gcloud logging read \
+  'resource.type=cloud_run_revision AND resource.labels.service_name=capability-intelligence-api' \
+  --project=digital-maturity-assessor --limit=80 \
+  --format='value(textPayload,jsonPayload.message)'
+```
 
 > **Never commit live secrets to the repo.** Even temporary "test" keys
 > end up in git history, Cloud Build logs, and forks. Always populate

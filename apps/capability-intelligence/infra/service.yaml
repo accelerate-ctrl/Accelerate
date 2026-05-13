@@ -105,7 +105,7 @@ spec:
             - name: COST_THROTTLE_PCT
               value: "0.9"
             - name: SEC_EDGAR_EMAIL
-              value: ops@zennify.com
+              value: mishley.otiende@zennify.com
             # ── Drive ingest sources ─────────────────────────────────────
             # Pillar catalogue folder — auto-discovers the highest-version
             # Pillar 1..4 .xlsx inside this folder (or its Pillar-* subfolders).
@@ -121,7 +121,7 @@ spec:
             - name: JIRA_BASE_URL
               value: https://zennify.atlassian.net
             - name: JIRA_EMAIL
-              value: ops@zennify.com
+              value: mishley.otiende@zennify.com
             - name: JIRA_PROJECT_KEYS
               value: "[]"
             # ── News feeds — FS industry RSS pulled by news_service ──────
