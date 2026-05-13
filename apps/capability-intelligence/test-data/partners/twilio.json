@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Twilio Verify — passkey support",
+    "summary": "Verify API now supports passkey enrolment + login challenges alongside SMS, voice, email, and TOTP. Enabled for all paid plans.",
+    "url": "https://example.com/twilio/passkeys",
+    "published_at": "2026-05-09T09:00:00+00:00"
+  }
+]

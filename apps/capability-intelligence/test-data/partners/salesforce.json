@@ -1,0 +1,14 @@
+[
+  {
+    "title": "Salesforce Summer '26 — Financial Services Cloud GA",
+    "summary": "Financial Services Cloud now ships Action Plans for Wealth client onboarding, with a redesigned Compliance Workspace and AI-powered relationship insights for retail-banking advisors.",
+    "url": "https://example.com/salesforce/summer26",
+    "published_at": "2026-05-10T09:00:00+00:00"
+  },
+  {
+    "title": "Einstein Agent for FSC — public beta",
+    "summary": "Conversational agent for FSC handles client onboarding intake, KYC document collection, and post-call summarisation. Available to all FSC orgs.",
+    "url": "https://example.com/salesforce/einstein-agent",
+    "published_at": "2026-05-03T09:00:00+00:00"
+  }
+]

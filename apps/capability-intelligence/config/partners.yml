@@ -1,0 +1,69 @@
+# Zennify partner ecosystem — six platforms whose release notes the
+# capability-intelligence agent scans for newly-shipped features that
+# may need to be reflected in the L1/L2 catalogue.
+#
+# Each partner declares:
+#   * code:            stable id used as a foreign key everywhere
+#   * name:            display name
+#   * category:        bucket for vendor_intel grouping
+#   * release_notes:   page humans read (used as a link in the UI)
+#   * rss_url:         RSS feed of release notes when one exists. The
+#                      scanner prefers this over scraping. Null when the
+#                      vendor doesn't publish an RSS; the scanner falls
+#                      back to local seed files in test-data/partners/.
+#   * lookback_days:   how far back the scan considers items
+#   * user_agent:      polite UA when fetching (some vendors gate scrape).
+#
+# Adding a partner: pick a code, fill in the URLs, drop a seed file at
+#   test-data/partners/<code>.json
+# with a list of {title, summary, url, published_at} so dev runs without
+# network can still light up the page.
+
+partners:
+  - code: salesforce
+    name: Salesforce
+    category: salesforce
+    release_notes: "https://help.salesforce.com/s/articleView?id=release-notes.salesforce_release_notes.htm"
+    rss_url: "https://help.salesforce.com/s/topic/0TO5e000000IxKYGA0/release-notes/feed"
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"
+
+  - code: ncino
+    name: nCino
+    category: ncino
+    release_notes: "https://www.ncino.com/release-notes"
+    rss_url: null
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"
+
+  - code: databricks
+    name: Databricks
+    category: databricks
+    release_notes: "https://docs.databricks.com/release-notes/index.html"
+    rss_url: "https://docs.databricks.com/release-notes/feed.atom"
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"
+
+  - code: twilio
+    name: Twilio
+    category: twilio
+    release_notes: "https://www.twilio.com/changelog"
+    rss_url: "https://www.twilio.com/changelog/feed"
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"
+
+  - code: mulesoft
+    name: MuleSoft
+    category: mulesoft
+    release_notes: "https://docs.mulesoft.com/release-notes/"
+    rss_url: null
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"
+
+  - code: agentforce
+    name: Agentforce
+    category: salesforce
+    release_notes: "https://help.salesforce.com/s/articleView?id=release-notes.salesforce_agentforce_release_notes.htm"
+    rss_url: null
+    lookback_days: 90
+    user_agent: "Zennify-CapabilityIntelligence/1.0"

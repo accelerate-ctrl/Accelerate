@@ -163,6 +163,7 @@ steps:
         TAG=$$(cat /workspace/.tag)
         IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG"
         for JOB in news-poll news-impact-synthesis trends-recompute \
+                  partner-release-scan \
                   public-filings-poll jira-incremental sow-incremental \
                   sow-full-reindex lifecycle-scoring-daily benchmark-extrapolation-run \
                   benchmark-recompute-quarterly digest-quarterly deep-audit-weekly \

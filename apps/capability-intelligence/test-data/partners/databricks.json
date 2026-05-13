@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Databricks Lakeflow — declarative pipelines GA",
+    "summary": "Lakeflow declarative pipelines now generally available with native Snowflake source connectors and ML-assisted schema inference. Adds DataFrame-native APIs for streaming joins.",
+    "url": "https://example.com/databricks/lakeflow-ga",
+    "published_at": "2026-05-08T09:00:00+00:00"
+  }
+]
