@@ -2,40 +2,46 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, BookOpenCheck, History } from 'lucide-react';
 import { apiGet, type Overview } from '@/lib/api';
+import PillarBreakdown, { type Structure } from '@/components/PillarBreakdown';
 import PillarRefreshPanel from '@/components/PillarRefreshPanel';
 import horizonBand from '@/assets/illustrations/horizon_minimal_band.jpg';
 
-const PILLAR_ACCENT: Record<string, string> = {
-  P1: 'border-zen-dark-green',
-  P2: 'border-zen-dark-teal',
-  P3: 'border-zen-teal',
-  P4: 'border-zen-light-teal',
-};
-
 export default function MissionControl() {
-  const { data, isLoading, error } = useQuery<Overview>({
+  const { data: overview, isLoading, error } = useQuery<Overview>({
     queryKey: ['overview'],
     queryFn: () => apiGet<Overview>('/catalogue/overview'),
   });
 
+  const { data: structure } = useQuery<Structure>({
+    queryKey: ['catalogue-structure'],
+    queryFn: () => apiGet<Structure>('/catalogue/structure'),
+  });
+
+  const totals = structure?.totals;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 md:space-y-6">
+      {/* Title row */}
       <div>
         <h1 className="text-2xl font-semibold text-zen-dark-green">Mission Control</h1>
-        <p className="text-sm text-zen-dark-teal/80">
-          State of the catalogue across the four pillars. Refresh sources to pull the latest from Drive.
+        <p className="text-sm text-zen-dark-teal/80 max-w-3xl">
+          The four-pillar capability catalogue at a glance: every pillar shows its categories,
+          L1 capabilities, and subcaps. Click any pillar to expand it; click an L1 to drill
+          into its subcaps.
         </p>
       </div>
 
-      {isLoading && <div className="text-xs text-zen-dark-teal/60">Loading…</div>}
+      {isLoading && <div className="text-xs text-zen-muted-text">Loading…</div>}
+
       {error && (
-        <div className="text-xs text-zen-orange">
+        <div className="text-xs text-zen-orange bg-zen-light-orange/40 border border-zen-orange/30 rounded p-3">
           Failed to load overview: {error instanceof Error ? error.message : 'unknown error'}.
-          If this is a fresh deploy, click <b>Pull all sources</b> (top-right) once to ingest from
+          If this is a fresh deploy, click <b>Pull sources</b> (top-right) once to ingest from
           Drive; this page populates after the catalogue ingest finishes.
         </div>
       )}
-      {data && data.totals.pillars_loaded === 0 && (
+
+      {overview && overview.totals.pillars_loaded === 0 && (
         <div className="relative overflow-hidden rounded-lg border border-zen-separator bg-white shadow-sm">
           <img
             src={horizonBand}
@@ -60,127 +66,111 @@ export default function MissionControl() {
         </div>
       )}
 
-      {data && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <SummaryStat label="Pillars loaded" value={data.totals.pillars_loaded} sub="of 4" />
-            <SummaryStat label="Subcaps" value={data.totals.subcaps} />
-            <SummaryStat
-              label="Open flags"
-              value={data.totals.open_flags}
-              sub={data.totals.open_flags > 0 ? 'needs review' : 'clean'}
-              warn={data.totals.open_flags > 0}
-            />
+      {/* Top KPI strip — four compact tiles on desktop, two-column on small */}
+      {totals && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+          <KPI label="Pillars" value={totals.pillars} sub={overview ? `${overview.totals.pillars_loaded}/4 loaded` : ''} />
+          <KPI label="Categories" value={totals.categories} />
+          <KPI label="L1 capabilities" value={totals.l1s} />
+          <KPI label="Subcaps" value={totals.subcaps} accent />
+        </div>
+      )}
+
+      {/* Main pillar breakdown — the new declutterred hierarchy view */}
+      {structure && totals && totals.pillars > 0 && (
+        <PillarBreakdown data={structure} />
+      )}
+
+      {/* Sidebar — last-ingest + quick actions. Folded to a single row on
+          mobile, full sidebar on lg+ */}
+      {overview && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="bg-white rounded-lg border border-zen-separator p-3 lg:col-span-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-zen-dark-green flex items-center gap-1.5 mb-2">
+              <History size={13} /> Last ingest
+            </h2>
+            {overview.last_ingest ? (
+              <div className="text-xs text-zen-text-gray space-y-0.5">
+                <div className="font-mono text-[10px] text-zen-muted-text truncate">
+                  {overview.last_ingest.run_id}
+                </div>
+                <div>started: {new Date(overview.last_ingest.started_at).toLocaleString()}</div>
+                <div>loaded: {overview.last_ingest.pillars_loaded.join(', ') || '—'}</div>
+              </div>
+            ) : (
+              <div className="text-xs text-zen-muted-text italic">
+                No ingestions yet. Click <b>Pull sources</b> (top-right) to fetch from Drive.
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-zen-dark-green mb-2">Pillar tiles</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(['P1', 'P2', 'P3', 'P4'] as const).map((pid) => {
-                  const tile = data.pillars[pid];
-                  return (
-                    <div
-                      key={pid}
-                      className={`bg-white rounded-lg shadow-sm border-l-4 ${PILLAR_ACCENT[pid]} p-3`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-xs font-semibold text-zen-dark-teal/70">{pid}</div>
-                          <div className="text-sm font-medium text-zen-dark-green">
-                            {tile?.pillar.name || (pid === 'P1' ? 'Strategic Foundation' : 'awaiting input')}
-                          </div>
-                        </div>
-                        {tile?.pillar.schema_status === 'incomplete' && (
-                          <span className="text-[10px] uppercase bg-zen-light-orange text-zen-dark-green rounded px-1.5 py-0.5">
-                            schema
-                          </span>
-                        )}
-                      </div>
-                      {tile ? (
-                        <dl className="mt-2 grid grid-cols-3 gap-1 text-xs">
-                          <Stat label="Categories" v={tile.category_count} />
-                          <Stat label="Subcaps" v={tile.subcap_count} />
-                          <Stat label="Active" v={tile.active_subcaps} />
-                        </dl>
-                      ) : (
-                        <div className="mt-2 text-xs text-zen-dark-teal/60">
-                          No file ingested yet. Upload a Pillar {pid.slice(1)} workbook with the
-                          Pillar 1 schema to your Drive folder, then refresh.
-                        </div>
-                      )}
-                      {tile?.pillar.source_version && (
-                        <div className="mt-1.5 text-[10px] text-zen-dark-teal/60 truncate">
-                          Source: {tile.pillar.source_file_name} ({tile.pillar.source_version})
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <PillarRefreshPanel />
-
-              <div className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-4">
-                <h2 className="text-sm font-semibold text-zen-dark-green flex items-center gap-2 mb-2">
-                  <History size={16} /> Last ingest
-                </h2>
-                {data.last_ingest ? (
-                  <div className="text-xs text-zen-dark-teal space-y-0.5">
-                    <div>
-                      <span className="font-mono text-[10px] text-zen-dark-teal/60">
-                        {data.last_ingest.run_id}
-                      </span>
-                    </div>
-                    <div>started: {new Date(data.last_ingest.started_at).toLocaleString()}</div>
-                    <div>loaded: {data.last_ingest.pillars_loaded.join(', ') || '—'}</div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-zen-dark-teal/60">
-                    No ingestions yet. Click Refresh all to ingest from Drive.
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <Link
-                  to="/explorer"
-                  className="block text-xs text-zen-dark-green bg-zen-light-green/40 hover:bg-zen-light-green/70 rounded p-2 text-center"
-                >
-                  <BookOpenCheck size={14} className="inline mr-1" /> Open Capability Explorer
-                </Link>
-                <Link
-                  to="/flags"
-                  className="block text-xs text-zen-dark-green bg-zen-light-green/40 hover:bg-zen-light-green/70 rounded p-2 text-center"
-                >
-                  <AlertTriangle size={14} className="inline mr-1" /> Review flags
-                </Link>
-              </div>
-            </div>
+          <div className="lg:col-span-2">
+            <PillarRefreshPanel />
           </div>
-        </>
+        </div>
+      )}
+
+      {/* Quick actions — concise grid */}
+      {overview && totals && totals.subcaps > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <QuickLink to="/explorer" icon={<BookOpenCheck size={14} />} label="Capability Explorer" />
+          <QuickLink to="/graph" icon={<History size={14} />} label="Knowledge Graph" />
+          <QuickLink to="/flags" icon={<AlertTriangle size={14} />} label="Review flags" warn />
+          <QuickLink to="/suggestions" icon={<BookOpenCheck size={14} />} label="AI Suggestions" />
+        </div>
       )}
     </div>
   );
 }
 
-function SummaryStat({ label, value, sub, warn }: { label: string; value: number; sub?: string; warn?: boolean }) {
+function KPI({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-4">
-      <div className="text-xs text-zen-dark-teal/70">{label}</div>
-      <div className={`text-2xl font-semibold ${warn ? 'text-zen-orange' : 'text-zen-dark-green'}`}>{value}</div>
-      {sub && <div className="text-xs text-zen-dark-teal/60">{sub}</div>}
+    <div className="bg-white rounded-lg border border-zen-separator p-3 md:p-4">
+      <div className="text-[10px] uppercase tracking-wider text-zen-muted-text">{label}</div>
+      <div
+        className={`text-xl md:text-2xl font-semibold mt-0.5 ${
+          accent ? 'text-zen-teal' : 'text-zen-dark-green'
+        }`}
+      >
+        {value.toLocaleString()}
+      </div>
+      {sub && <div className="text-[10px] text-zen-muted-text mt-0.5">{sub}</div>}
     </div>
   );
 }
 
-function Stat({ label, v }: { label: string; v: number }) {
+function QuickLink({
+  to,
+  icon,
+  label,
+  warn,
+}: {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  warn?: boolean;
+}) {
   return (
-    <div>
-      <div className="text-zen-dark-teal/60 text-[10px] uppercase tracking-wider">{label}</div>
-      <div className="font-mono text-zen-dark-green">{v}</div>
-    </div>
+    <Link
+      to={to}
+      className={`flex items-center gap-2 text-xs px-2.5 py-2 rounded border transition-colors ${
+        warn
+          ? 'bg-zen-light-orange/30 border-zen-orange/30 text-zen-dark-green hover:bg-zen-light-orange/50'
+          : 'bg-white border-zen-separator text-zen-dark-green hover:bg-zen-ice'
+      }`}
+    >
+      <span className="text-zen-teal">{icon}</span>
+      <span className="truncate">{label}</span>
+    </Link>
   );
 }

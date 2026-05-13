@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, X } from 'lucide-react';
+import { Layers, PieChart, Search, X } from 'lucide-react';
 import { apiGet, type Tree } from '@/lib/api';
 import CatalogueSunburst from '@/components/CatalogueSunburst';
 import CatalogueTree from '@/components/CatalogueTree';
+import PillarBreakdown, { type Structure } from '@/components/PillarBreakdown';
 import { useFilters } from '@/store/filters';
 
 type MaturityDist = {
@@ -19,9 +21,12 @@ const MATURITY_BANDS: { key: string; bg: string; accent: string }[] = [
   { key: 'm5', bg: 'bg-zen-light-green/70', accent: 'text-zen-teal' },
 ];
 
+type ViewMode = 'hierarchy' | 'sunburst';
+
 export default function CapabilityExplorer() {
   const { pillarId, categoryId, search, setPillar, setCategory, setSearch, reset } = useFilters();
   const params = pillarId ? `?pillar_id=${encodeURIComponent(pillarId)}` : '';
+  const [view, setView] = useState<ViewMode>('hierarchy');
 
   const { data: maturityDist } = useQuery<MaturityDist>({
     queryKey: ['maturity-dist', pillarId],
@@ -31,7 +36,24 @@ export default function CapabilityExplorer() {
   const { data, isLoading, error } = useQuery<Tree>({
     queryKey: ['catalogue-tree', pillarId],
     queryFn: () => apiGet<Tree>(`/catalogue/tree${params}`),
+    enabled: view === 'sunburst',
   });
+
+  const { data: structure } = useQuery<Structure>({
+    queryKey: ['catalogue-structure', pillarId],
+    queryFn: () => apiGet<Structure>('/catalogue/structure'),
+    enabled: view === 'hierarchy',
+  });
+
+  // When a pillar filter is set, slice the structure down to that one
+  // pillar so the hierarchy view stays focused.
+  const structureFiltered: Structure | undefined =
+    structure && pillarId
+      ? {
+          ...structure,
+          pillars: structure.pillars.filter((p) => p.pillar_id === pillarId),
+        }
+      : structure;
 
   const filtered: Tree | undefined = data && categoryId
     ? {
@@ -48,9 +70,33 @@ export default function CapabilityExplorer() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-zen-dark-green">Capability Explorer</h1>
-        <p className="text-sm text-zen-dark-teal/80">
-          Click a slice to drill in; double-click a subcap to open Subcap Deep Dive.
+        <p className="text-sm text-zen-dark-teal/80 max-w-3xl">
+          Two ways to navigate the four-pillar catalogue. <b>Hierarchy</b> shows the
+          Pillar → Category → L1 → Subcap structure with counts at every level. <b>Sunburst</b>
+          renders the same tree visually; double-click a subcap slice to deep-dive.
         </p>
+      </div>
+
+      {/* View toggle */}
+      <div className="inline-flex items-center bg-zen-ice rounded-lg border border-zen-separator p-0.5">
+        {([
+          { key: 'hierarchy', label: 'Hierarchy', Icon: Layers },
+          { key: 'sunburst', label: 'Sunburst', Icon: PieChart },
+        ] as { key: ViewMode; label: string; Icon: typeof Layers }[]).map((v) => (
+          <button
+            key={v.key}
+            type="button"
+            onClick={() => setView(v.key)}
+            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded ${
+              view === v.key
+                ? 'bg-white shadow-sm text-zen-dark-green font-medium'
+                : 'text-zen-text-gray'
+            }`}
+          >
+            <v.Icon size={12} />
+            {v.label}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white rounded-lg border border-zen-light-green/40 p-2">
@@ -104,18 +150,27 @@ export default function CapabilityExplorer() {
         </div>
       )}
 
-      {isLoading && <div className="text-xs text-zen-muted-text">Loading…</div>}
-      {error && <div className="text-xs text-zen-orange">Failed to load tree.</div>}
+      {/* HIERARCHY VIEW */}
+      {view === 'hierarchy' && structureFiltered && (
+        <PillarBreakdown data={structureFiltered} />
+      )}
 
-      {filtered && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-3 flex items-center justify-center min-h-[560px]">
-            <CatalogueSunburst tree={filtered} />
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-2 max-h-[640px] overflow-auto">
-            <CatalogueTree tree={filtered} search={search} />
-          </div>
-        </div>
+      {/* SUNBURST VIEW (existing) */}
+      {view === 'sunburst' && (
+        <>
+          {isLoading && <div className="text-xs text-zen-muted-text">Loading…</div>}
+          {error && <div className="text-xs text-zen-orange">Failed to load tree.</div>}
+          {filtered && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+              <div className="bg-white rounded-lg shadow-sm border border-zen-separator p-3 flex items-center justify-center min-h-[400px] md:min-h-[560px]">
+                <CatalogueSunburst tree={filtered} />
+              </div>
+              <div className="bg-white rounded-lg shadow-sm border border-zen-separator p-2 max-h-[480px] md:max-h-[640px] overflow-auto">
+                <CatalogueTree tree={filtered} search={search} />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

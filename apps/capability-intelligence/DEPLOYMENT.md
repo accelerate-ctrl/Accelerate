@@ -187,6 +187,59 @@ Verify after these are saved (allow ~5 min for Google to propagate):
 # ID token (no more dev fallback).
 ```
 
+#### Troubleshooting: `Error 401: invalid_client`
+
+If the Continue-with-Google popup shows `Error 401: invalid_client` and
+`flowName=GeneralOAuthFlow`, Google is rejecting the client. Walk
+through these in order — the cause is always one of these four:
+
+1. **Cloud Run origin not on the allowlist** (the most common cause —
+   ~95% of `invalid_client` reports).
+   * Cloud Console → APIs & Services → Credentials → click the web
+     client `306195530103-…`.
+   * Confirm **Authorized JavaScript origins** contains the exact
+     Cloud Run URL printed by step 6, with `https://` and no trailing
+     slash. Example:
+     ```
+     https://capability-intelligence-api-306195530103.us-central1.run.app
+     ```
+   * Also add the custom domain if one is mapped:
+     `https://capability.zennify.com`.
+   * Click **Save**. Google takes 5–10 minutes to propagate; force-
+     reload the SPA in an incognito tab to bypass the GIS cache.
+
+2. **Wrong client type**. The credential must be type **Web
+   application**. iOS / Desktop / Android client types are rejected by
+   `google.accounts.id.initialize`.
+
+3. **OAuth consent screen is in Testing mode and you're not a test
+   user**. Cloud Console → APIs & Services → OAuth consent screen →
+   **Test users** → add the operator's email. Or publish the consent
+   screen.
+
+4. **Client ID typo in service.yaml**. Quick check:
+   ```bash
+   gcloud run services describe capability-intelligence-api \
+     --region=us-central1 \
+     --format='value(spec.template.spec.containers[0].env)' \
+     | tr ',' '\n' | grep GOOGLE_OAUTH_CLIENT_ID
+   # expect: 306195530103-ub6t46i8sd9q1eatpt6dgo0i9811mnrp.apps.googleusercontent.com
+   ```
+   Match it character-for-character with the client ID shown in Cloud
+   Console Credentials. If they differ, redeploy with the correct value
+   in `infra/service.yaml`.
+
+To verify the SPA reads the right client_id without leaving the
+browser, run in the dev-tools console:
+
+```js
+fetch('/api/auth/config').then(r=>r.json()).then(console.log)
+```
+
+The `google_oauth_client_id` field must match the Cloud Console client
+ID and your "Authorized JavaScript origins" entry must contain
+`window.location.origin`.
+
 ### 8) Pull all sources (first ingest)
 
 The SPA's "Pull all sources" button (top-right) now POSTs

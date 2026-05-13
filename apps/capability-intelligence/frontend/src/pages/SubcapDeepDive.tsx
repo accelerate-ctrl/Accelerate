@@ -70,6 +70,35 @@ export default function SubcapDeepDive() {
         </div>
       </div>
 
+      {/* Completeness profile — at-a-glance counts of every link type
+          (stories, L4 features, maturity descriptors, L3 platforms,
+          use cases, themes, SOW mentions) bound to this subcap. Mirrors
+          Sheet 18 (SubCap_Completeness_Profile) of the Pillar workbook. */}
+      <Section title="Completeness profile">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5">
+          <Stat n={data.stories?.length || 0} label="Stories" />
+          <Stat n={data.l4_features?.length || 0} label="L4 features" />
+          <Stat
+            n={['m1', 'm2', 'm3', 'm4', 'm5'].filter((k) => (m as Record<string, string | null>)[k]).length}
+            label="M-levels"
+            sub="of 5"
+          />
+          <Stat
+            n={Array.from(
+              new Set(
+                (data.l4_features || []).flatMap((f) =>
+                  ((f as Record<string, unknown>).l3_platform_id ? [(f as Record<string, string>).l3_platform_id] : []),
+                ),
+              ),
+            ).length}
+            label="L3 platforms"
+          />
+          <Stat n={data.use_cases?.length || 0} label="Use cases" />
+          <Stat n={data.themes?.length || 0} label="Themes" />
+          <Stat n={data.sow_signals?.mention_count || 0} label="SOW mentions" />
+        </div>
+      </Section>
+
       {s.description && (
         <Section title="Description">
           <p className="text-sm text-zen-dark-teal whitespace-pre-line">{s.description}</p>
@@ -278,4 +307,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Empty() {
   return <div className="text-xs text-zen-dark-teal/50 italic">none</div>;
+}
+
+function Stat({ n, label, sub }: { n: number; label: string; sub?: string }) {
+  return (
+    <div className="bg-zen-ice/60 rounded p-2 text-center">
+      <div className={`text-lg font-semibold ${n > 0 ? 'text-zen-teal' : 'text-zen-muted-text'}`}>
+        {n}
+      </div>
+      <div className="text-[10px] uppercase tracking-wider text-zen-text-gray">{label}</div>
+      {sub && <div className="text-[9px] text-zen-muted-text">{sub}</div>}
+    </div>
+  );
 }

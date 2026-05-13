@@ -126,6 +126,136 @@ def maturity_distribution(
     }
 
 
+@router.get("/structure")
+def get_structure(_=Depends(auth_dep)) -> dict:
+    """Hierarchical catalogue structure for Mission Control + Explorer
+    breakdown views.
+
+    Returns one entry per ingested pillar with subcap counts at every
+    level so the UI can render the **Pillar → Category → L1 → Subcap**
+    tree without doing N round-trips:
+
+      {
+        "pillars": [
+          {
+            "pillar_id": "P1", "name": "...", "schema_status": "...",
+            "version": "v6.8", "source_file_name": "...",
+            "subcap_total": 199, "l1_total": 36, "category_total": 4,
+            "categories": [
+              {
+                "category_id": "P1C1", "name": "...",
+                "subcap_total": 50, "l1_total": 9,
+                "l1s": [
+                  {
+                    "l1_capability": "Adoption Management",
+                    "subcap_count": 7, "active_subcap_count": 5,
+                    "subcaps": [
+                      {"sub_cap_id": "P1C1.1.1",
+                       "sub_cap_name": "...",
+                       "zennify_status": "active"}, …
+                    ],
+                  }, …
+                ],
+              }, …
+            ],
+          }, …
+        ],
+        "totals": {"pillars": 3, "subcaps": 650, "l1s": 102, "categories": 12}
+      }
+    """
+    pillars = svc.list_pillars()
+    cats = svc.list_categories()
+    subs = svc.list_subcaps()
+
+    cats_by_id = {c.get("category_id"): c for c in cats}
+
+    pillar_payload: list[dict] = []
+    grand_subs = 0
+    grand_l1s = 0
+    grand_cats = 0
+    for p in pillars:
+        pid = p["pillar_id"]
+        p_subs = [s for s in subs if (s.get("pillar_id") or "") == pid]
+        p_cats = [c for c in cats if (c.get("pillar_id") or "") == pid]
+
+        # Bucket by (category_id, l1_capability).
+        l1_buckets: dict[tuple[str, str], list[dict]] = {}
+        for s in p_subs:
+            key = (s.get("category_id") or "?", s.get("l1_capability") or "Uncategorised")
+            l1_buckets.setdefault(key, []).append(s)
+
+        # Group buckets into categories.
+        cat_payload: list[dict] = []
+        cat_ids_seen = sorted({c.get("category_id") for c in p_cats if c.get("category_id")})
+        # Make sure every L1 bucket's category gets a row even if the
+        # category row is missing.
+        for k in l1_buckets:
+            if k[0] not in cat_ids_seen and k[0] != "?":
+                cat_ids_seen.append(k[0])
+        cat_ids_seen.sort()
+
+        for cid in cat_ids_seen:
+            cat_row = cats_by_id.get(cid) or {}
+            l1_payload: list[dict] = []
+            cat_sub_total = 0
+            for (lc_id, l1_name), bucket in sorted(l1_buckets.items()):
+                if lc_id != cid:
+                    continue
+                bucket_sorted = sorted(bucket, key=lambda s: s.get("sub_cap_id") or "")
+                active = sum(
+                    1 for s in bucket_sorted
+                    if (s.get("zennify_status") or "").lower() == "active"
+                )
+                l1_payload.append({
+                    "l1_capability": l1_name,
+                    "subcap_count": len(bucket_sorted),
+                    "active_subcap_count": active,
+                    "subcaps": [
+                        {
+                            "sub_cap_id": s.get("sub_cap_id"),
+                            "sub_cap_name": s.get("sub_cap_name") or s.get("name"),
+                            "zennify_status": s.get("zennify_status") or "active",
+                        }
+                        for s in bucket_sorted
+                    ],
+                })
+                cat_sub_total += len(bucket_sorted)
+            cat_payload.append({
+                "category_id": cid,
+                "name": cat_row.get("name") or cat_row.get("category_name") or cid,
+                "subcap_total": cat_sub_total,
+                "l1_total": len(l1_payload),
+                "l1s": l1_payload,
+            })
+
+        l1_total = sum(c["l1_total"] for c in cat_payload)
+        sub_total = sum(c["subcap_total"] for c in cat_payload)
+        pillar_payload.append({
+            "pillar_id": pid,
+            "name": p.get("name") or pid,
+            "schema_status": p.get("schema_status"),
+            "version": p.get("source_version") or p.get("parsed_version"),
+            "source_file_name": p.get("source_file_name"),
+            "subcap_total": sub_total,
+            "l1_total": l1_total,
+            "category_total": len(cat_payload),
+            "categories": cat_payload,
+        })
+        grand_subs += sub_total
+        grand_l1s += l1_total
+        grand_cats += len(cat_payload)
+
+    return {
+        "pillars": pillar_payload,
+        "totals": {
+            "pillars": len(pillar_payload),
+            "subcaps": grand_subs,
+            "l1s": grand_l1s,
+            "categories": grand_cats,
+        },
+    }
+
+
 @router.get("/tree")
 def get_tree(pillar_id: str | None = None, _=Depends(auth_dep)) -> dict:
     """Hierarchical tree for sunburst / collapsible-tree rendering."""
