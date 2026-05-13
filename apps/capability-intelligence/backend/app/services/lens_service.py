@@ -171,17 +171,116 @@ def subvertical_gaps(from_code: str, to_code: str, pillar_id: str | None = None)
 # ─── Maturity Heatmap ────────────────────────────────────────────────────────
 
 
-def maturity_heatmap(pillar_id: str | None = None) -> dict:
-    """Return a 199 × 5 matrix for the heatmap."""
+# ─── Maturity Heatmap ──────────────────────────────────────────────────────
+#
+# Each row is a subcap; cells are the five canonical M-bands (M1
+# Foundational … M5 Transformational). For each row we now also compute:
+#
+#   * current_level  — the deepest M-band index that has a descriptor.
+#                     Anchors the row's "you are here" tier.
+#   * benchmark_level — the cohort median tier from benchmarks_service
+#                      when a cohort is selected; null if no cohort data.
+#   * gap            — current_level - benchmark_level (positive = ahead,
+#                     negative = behind). Drives the "largest gap" sort.
+#   * zds_band       — one of four ZDS marketing bands (activating /
+#                     building / competing / differentiating). Mapped
+#                     from current_level so the UI can colour-code with
+#                     the canonical marketing palette.
+#
+# Cohort selection is best-effort: when `cohort_id` is passed but the
+# cohort has no benchmark observations, we fall back to descriptor-only
+# colouring and report `cohort_observations: 0` so the UI can warn.
+
+_ZDS_BANDS = [
+    None,                 # 0 (no descriptor at all)
+    "activating",         # M1
+    "building",           # M2
+    "competing",          # M3
+    "differentiating",    # M4
+    "differentiating",    # M5 (top tier — same band, deepest level)
+]
+
+
+def _deepest_level(row: dict) -> int:
+    """Return the deepest M-band index that has a non-empty descriptor,
+    or 0 if none. Used as the row's `current_level`."""
+    deepest = 0
+    for i in range(1, 6):
+        if row.get(f"m{i}"):
+            deepest = i
+    return deepest
+
+
+def _zds_band_for(level: int) -> str | None:
+    if level <= 0 or level > 5:
+        return None
+    return _ZDS_BANDS[level]
+
+
+def _benchmark_levels_for_cohort(cohort_id: str | None) -> dict[str, int]:
+    """For every subcap that has a benchmark distribution for the given
+    cohort, return the median maturity tier (1–5).
+
+    No-op when `cohort_id` is None or when benchmarks have no observations
+    for the cohort. Implementation reuses the existing benchmarks
+    repository — no new metrics computed here, just a lookup.
+    """
+    if not cohort_id:
+        return {}
+    from .repository import get_repository
+    repo = get_repository()
+    out: dict[str, int] = {}
+    for dist in repo.list("benchmark_distributions"):
+        if dist.get("cohort_id") != cohort_id:
+            continue
+        sid = dist.get("sub_cap_id")
+        median = dist.get("median")
+        if not sid or median is None:
+            continue
+        # Distribution medians are reported on 0–5 scale per benchmarks_service.
+        try:
+            lvl = max(1, min(5, int(round(float(median)))))
+        except (TypeError, ValueError):
+            continue
+        out[sid] = lvl
+    return out
+
+
+def maturity_heatmap(
+    pillar_id: str | None = None,
+    cohort_id: str | None = None,
+    sort: str = "category",
+) -> dict:
+    """Return rows × 5-band heatmap with ZDS band assignment + optional
+    benchmark cohort overlay.
+
+    Args:
+        pillar_id:  filter to a single pillar (P1..P4).
+        cohort_id:  optional benchmark cohort; rows get a `benchmark_level`
+                    and `gap` derived from the cohort medians.
+        sort:       "category" (default — pillar / category / l1 / id)
+                    or "gap" (largest negative gap first → biggest
+                    opportunities up top).
+    """
     rows = cat.list_maturity({"pillar_id": pillar_id} if pillar_id else None)
-    out_rows = []
+    bench_levels = _benchmark_levels_for_cohort(cohort_id)
+
     levels = ["m1", "m2", "m3", "m4", "m5"]
+    out_rows: list[dict] = []
     for r in rows:
+        sid = r.get("sub_cap_id")
+        current = _deepest_level(r)
+        benchmark = bench_levels.get(sid) if cohort_id else None
+        gap = (current - benchmark) if benchmark is not None else None
         out_rows.append({
-            "sub_cap_id": r.get("sub_cap_id"),
+            "sub_cap_id": sid,
             "sub_cap_name": r.get("sub_cap_name"),
             "category_id": r.get("category_id"),
             "l1_capability": r.get("l1_capability"),
+            "current_level": current,
+            "benchmark_level": benchmark,
+            "gap": gap,
+            "zds_band": _zds_band_for(current),
             "cells": [
                 {
                     "level": lvl.upper(),
@@ -191,9 +290,38 @@ def maturity_heatmap(pillar_id: str | None = None) -> dict:
                 for lvl in levels
             ],
         })
-    # Sort by category, then l1, then id for stable layout
-    out_rows.sort(key=lambda x: (x.get("category_id") or "", x.get("l1_capability") or "", x.get("sub_cap_id") or ""))
-    return {"pillar_id": pillar_id, "levels": [lvl.upper() for lvl in levels], "rows": out_rows}
+
+    if sort == "gap" and cohort_id:
+        # Negative gap = below benchmark = biggest opportunity. Stable by id.
+        out_rows.sort(
+            key=lambda x: (
+                x.get("gap") if x.get("gap") is not None else 999,
+                x.get("sub_cap_id") or "",
+            )
+        )
+    else:
+        out_rows.sort(
+            key=lambda x: (
+                x.get("category_id") or "",
+                x.get("l1_capability") or "",
+                x.get("sub_cap_id") or "",
+            )
+        )
+
+    return {
+        "pillar_id": pillar_id,
+        "cohort_id": cohort_id,
+        "cohort_observations": len(bench_levels),
+        "sort": sort,
+        "levels": [lvl.upper() for lvl in levels],
+        "bands": [
+            {"key": "activating", "label": "Activating", "tier_range": [1, 1]},
+            {"key": "building", "label": "Building", "tier_range": [2, 2]},
+            {"key": "competing", "label": "Competing", "tier_range": [3, 3]},
+            {"key": "differentiating", "label": "Differentiating", "tier_range": [4, 5]},
+        ],
+        "rows": out_rows,
+    }
 
 
 # ─── Use Case Explorer ───────────────────────────────────────────────────────

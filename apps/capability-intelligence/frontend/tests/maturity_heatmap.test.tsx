@@ -6,15 +6,29 @@ import MaturityHeatmap from '../src/pages/MaturityHeatmap';
 
 const mockResponses: Record<string, unknown> = {
   '/api/catalogue/pillars': [{ pillar_id: 'P1', name: 'Strategic', schema_status: 'complete' }],
-  '/api/lens/maturity-heatmap?pillar_id=P1': {
+  '/api/lens/cohorts': [],
+  '/api/lens/maturity-heatmap?pillar_id=P1&sort=category': {
     pillar_id: 'P1',
+    cohort_id: null,
+    cohort_observations: 0,
+    sort: 'category',
     levels: ['M1', 'M2', 'M3', 'M4', 'M5'],
+    bands: [
+      { key: 'activating', label: 'Activating', tier_range: [1, 1] },
+      { key: 'building', label: 'Building', tier_range: [2, 2] },
+      { key: 'competing', label: 'Competing', tier_range: [3, 3] },
+      { key: 'differentiating', label: 'Differentiating', tier_range: [4, 5] },
+    ],
     rows: [
       {
         sub_cap_id: 'P1C1.1.1',
         sub_cap_name: 'Digital Strategy Document',
         category_id: 'P1C1',
         l1_capability: 'Strategy Foundation & Alignment',
+        current_level: 5,
+        benchmark_level: null,
+        gap: null,
+        zds_band: 'differentiating',
         cells: [
           { level: 'M1', filled: true, preview: 'Doc-based' },
           { level: 'M2', filled: true, preview: 'In FSC' },

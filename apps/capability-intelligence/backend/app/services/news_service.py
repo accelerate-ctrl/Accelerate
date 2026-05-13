@@ -238,3 +238,187 @@ def latest_run() -> dict | None:
         return None
     runs.sort(key=lambda r: r.get("started_at", ""), reverse=True)
     return runs[0]
+
+
+# ─── Impact synthesis ───────────────────────────────────────────────────────
+#
+# For each news item we ask Gemini Flash (cheap, ~$0.0003 per item) to:
+#   1. Summarise the article in one sentence (≤30 words).
+#   2. Classify catalogue impact: catalogue_extension | reinforcement |
+#      benchmark_source | no_impact.
+#   3. List affected sub_cap_ids (must come from the catalogue inventory).
+#   4. Optionally suggest a brand-new sub_cap_id when the item describes
+#      a capability the catalogue doesn't cover.
+#   5. Confidence 0–1.
+#
+# Output is persisted onto the news item itself at `impact = {...}`. The UI
+# renders these as insight cards. The function is idempotent — items
+# already carrying a non-null `impact` block are skipped unless `force=True`.
+
+IMPACT_CLASSES = ("catalogue_extension", "reinforcement", "benchmark_source", "no_impact")
+
+_IMPACT_SYSTEM = (
+    "You are a Zennify strategist judging whether a news article changes the "
+    "FS-industry capability catalogue. Be precise, conservative, and ground "
+    "every claim in the article body. Output STRICT JSON only — no prose."
+)
+
+_IMPACT_PROMPT_TPL = """\
+Catalogue inventory (truncated to the most relevant 60 sub_caps):
+{subcaps_blob}
+
+News item:
+  title:        {title}
+  source:       {source}
+  published_at: {published_at}
+  url:          {url}
+  body:
+  ---
+  {body}
+  ---
+
+Return JSON with this exact schema:
+{{
+  "summary": "<one sentence, ≤30 words, what the article says>",
+  "impact_class": "<catalogue_extension | reinforcement | benchmark_source | no_impact>",
+  "affects_subcaps": ["P1C…", "P1C…"],  // 0–4 ids drawn from the inventory above
+  "suggests_new_subcap": null | {{
+      "name": "<short capability name>",
+      "rationale": "<why this isn't already covered>",
+      "candidate_l1": "<one of the L1 capabilities in the inventory>"
+  }},
+  "confidence": 0.0–1.0
+}}
+
+Rules:
+* Never invent a sub_cap_id that isn't in the inventory.
+* "catalogue_extension" requires `suggests_new_subcap` to be non-null.
+* "no_impact" means the article is FS-news but doesn't touch capability scope.
+* "benchmark_source" means the article reports a quantitative benchmark we
+  could ingest (cite the metric in `summary`).
+"""
+
+
+def _subcap_inventory_blob(subcaps: list[dict], limit: int = 60) -> str:
+    """Render a compact inventory the LLM can match against. We surface
+    id, name, L1, and a one-line description — enough for the model to
+    pick the right anchor."""
+    out = []
+    for s in subcaps[:limit]:
+        sid = s.get("sub_cap_id")
+        name = (s.get("sub_cap_name") or s.get("name") or "").strip()
+        l1 = s.get("l1_capability") or s.get("category_id") or ""
+        desc = (s.get("description") or "").strip()[:160]
+        out.append(f"  {sid} · {l1} · {name}{(' — ' + desc) if desc else ''}")
+    return "\n".join(out) if out else "  (catalogue empty)"
+
+
+def _ensure_dict(obj: object) -> dict:
+    """Defensive JSON unwrap — the LLM occasionally returns text-wrapped JSON."""
+    import json
+    import re
+    if isinstance(obj, dict):
+        return obj
+    if isinstance(obj, str):
+        # Strip ```json … ``` fences if any
+        m = re.search(r"\{.*\}", obj, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:  # noqa: BLE001
+                pass
+    return {}
+
+
+def synthesise_impact(item: dict, *, subcaps: list[dict] | None = None) -> dict:
+    """Run the Gemini-Flash impact classifier on one news item.
+
+    Returns the impact dict (always with all five fields, with safe defaults
+    if the LLM call fails). Caller is responsible for persisting it back to
+    the news item.
+    """
+    from .llm.router import LlmRequest, ModelKind
+    from .llm.router import call as llm_call
+    subcaps = subcaps if subcaps is not None else _load_subcaps()
+    prompt = _IMPACT_PROMPT_TPL.format(
+        subcaps_blob=_subcap_inventory_blob(subcaps),
+        title=(item.get("title") or "")[:200],
+        source=item.get("source") or item.get("source_domain") or "?",
+        published_at=item.get("published_at") or "?",
+        url=item.get("url") or "?",
+        body=(item.get("text") or item.get("body") or item.get("summary") or "")[:2400],
+    )
+    try:
+        resp = llm_call(LlmRequest(
+            model=ModelKind.GEMINI_FLASH,
+            prompt=prompt,
+            system=_IMPACT_SYSTEM,
+            max_tokens=512,
+            metadata={"operation_type": "news_impact_synthesis"},
+        ))
+        payload = _ensure_dict(resp.text)
+    except Exception as exc:  # noqa: BLE001 — surface, don't propagate
+        logger.warning("impact synth failed for %s: %s", item.get("id"), exc)
+        payload = {}
+    # Coerce + validate.
+    klass = payload.get("impact_class") or "no_impact"
+    if klass not in IMPACT_CLASSES:
+        klass = "no_impact"
+    affects = [s for s in (payload.get("affects_subcaps") or []) if isinstance(s, str)][:4]
+    suggested = payload.get("suggests_new_subcap")
+    if klass != "catalogue_extension":
+        suggested = None
+    elif not isinstance(suggested, dict):
+        suggested = None
+    try:
+        conf = float(payload.get("confidence") or 0.0)
+        conf = max(0.0, min(1.0, conf))
+    except (TypeError, ValueError):
+        conf = 0.0
+    return {
+        "summary": (payload.get("summary") or "")[:400],
+        "impact_class": klass,
+        "affects_subcaps": affects,
+        "suggests_new_subcap": suggested,
+        "confidence": round(conf, 3),
+        "synthesised_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def synthesise_impact_batch(*, limit: int = 50, force: bool = False) -> dict:
+    """Run impact synthesis for up to `limit` recent news items that don't
+    yet have an `impact` block (or all of them when `force=True`).
+
+    Cap of 50 is the daily safety limit per the operator-confirmed weekly
+    cadence; even at one Gemini Flash call per item with ~$0.0003 average
+    cost the run stays inside the daily ceiling.
+    """
+    repo = get_repository()
+    items = sorted(
+        repo.list(NEWS_COLLECTION),
+        key=lambda r: r.get("published_at", ""),
+        reverse=True,
+    )
+    targets = [
+        i for i in items
+        if force or not (i.get("impact") or {}).get("synthesised_at")
+    ][:limit]
+    subcaps = _load_subcaps()
+    n_ok = 0
+    n_err = 0
+    for it in targets:
+        impact = synthesise_impact(it, subcaps=subcaps)
+        it["impact"] = impact
+        try:
+            repo.upsert(NEWS_COLLECTION, it.get("id") or it.get("news_id"), it)
+            n_ok += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("impact persist failed for %s: %s", it.get("id"), exc)
+            n_err += 1
+    return {
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "scanned": len(items),
+        "synthesised": n_ok,
+        "errors": n_err,
+        "force": force,
+    }

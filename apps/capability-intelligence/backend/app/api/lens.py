@@ -50,8 +50,24 @@ def subvertical_gaps(
 
 
 @router.get("/maturity-heatmap")
-def maturity_heatmap(pillar_id: str | None = None, _=Depends(auth_dep)) -> dict:
-    return ls.maturity_heatmap(pillar_id=pillar_id)
+def maturity_heatmap(
+    pillar_id: str | None = None,
+    cohort_id: str | None = None,
+    sort: str = "category",
+    _=Depends(auth_dep),
+) -> dict:
+    return ls.maturity_heatmap(pillar_id=pillar_id, cohort_id=cohort_id, sort=sort)
+
+
+@router.get("/cohorts")
+def cohorts(_=Depends(auth_dep)) -> list[dict]:
+    """Surface the benchmark cohorts so the heatmap can offer them in a
+    selector. Reuses benchmarks_service's persisted cohort registry; if
+    none have been ingested yet, returns an empty list."""
+    from ..services.repository import get_repository
+    out = list(get_repository().list("benchmark_cohorts"))
+    out.sort(key=lambda c: (c.get("subvertical_code") or "", c.get("cohort_id") or ""))
+    return out
 
 
 @router.get("/use-case-explorer")
