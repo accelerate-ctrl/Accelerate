@@ -10,7 +10,6 @@ from . import (
     client_journeys,
     diffs,
     digest,
-    eval as _eval,
     exports,
     flags,
     graph,
@@ -23,7 +22,6 @@ from . import (
     projects,
     reasoning_chains,
     search,
-    settings as _settings,
     sheets,
     sows,
     stories,
@@ -33,6 +31,12 @@ from . import (
     vendor_intel,
     versions,
     what_if,
+)
+from . import (
+    eval as _eval,
+)
+from . import (
+    settings as _settings,
 )
 
 api_router = APIRouter()

@@ -7,7 +7,6 @@ cadence; uses Claude Opus narratives via the Batch-4 consultant loop.
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import date
 
 from ..services import digest_service

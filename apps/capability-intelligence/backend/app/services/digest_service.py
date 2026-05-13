@@ -97,8 +97,9 @@ def _resolve_subvertical_codes(subvertical: str) -> set[str]:
     or the human name ("Retail Banking"). Returns a set of matching short codes
     from config/subverticals.yml.
     """
-    import yaml
     from pathlib import Path
+
+    import yaml
 
     needle = subvertical.lower().replace("-", " ").strip()
     candidates: set[str] = set()
@@ -284,7 +285,8 @@ def _produce_narrative(
     for the executive summary + cross-pillar coherence). Caller toggles
     via ``downgrade_to_sonnet=True``.
     """
-    from .consultant_loop import LeverageTier, run as run_loop  # cycle-safe late import
+    from .consultant_loop import LeverageTier  # cycle-safe late import
+    from .consultant_loop import run as run_loop
     from .llm.router import ModelKind
 
     sub_cap_id = priority["sub_cap_id"]

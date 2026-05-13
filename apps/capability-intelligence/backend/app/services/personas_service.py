@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from dataclasses import asdict, dataclass
-from typing import Any
 
 from .repository import get_repository
 

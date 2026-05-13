@@ -15,9 +15,7 @@ from .graph_service import (
     _load_vcc_clusters,
     classify_stage,
     extract_uc_tag,
-    family_for_tag,
 )
-
 
 # ─── Reference loaders (frontend asks for these too) ─────────────────────────
 
@@ -47,7 +45,6 @@ def value_chain_atlas(subvertical_code: str | None = None) -> dict:
     Returns: {clusters: [{code, name, color, stages: [{name, subvertical_code, subcap_count}], total_subcaps}]}
     """
     cluster_defs = _load_vcc_clusters()
-    cluster_index = {c["code"]: c for c in cluster_defs}
 
     # subvertical_code -> stage_name -> {subcap_ids, cluster}
     by_stage: dict[tuple[str, str], dict] = {}

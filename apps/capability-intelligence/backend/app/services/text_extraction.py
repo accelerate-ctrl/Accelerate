@@ -38,6 +38,7 @@ def extract(content: bytes, *, file_name: str) -> ExtractedDocument:
 
 def _extract_pdf(content: bytes) -> ExtractedDocument:
     from io import BytesIO
+
     from pypdf import PdfReader
     reader = PdfReader(BytesIO(content))
     parts: list[str] = []
@@ -49,6 +50,7 @@ def _extract_pdf(content: bytes) -> ExtractedDocument:
 
 def _extract_docx(content: bytes) -> ExtractedDocument:
     from io import BytesIO
+
     from docx import Document
     doc = Document(BytesIO(content))
     text = "\n".join(p.text for p in doc.paragraphs if p.text)

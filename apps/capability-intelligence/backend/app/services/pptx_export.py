@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import io
 import logging
-from typing import Any
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor

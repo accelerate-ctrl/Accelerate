@@ -22,28 +22,46 @@ covers the structural fixes that aren't yet covered by per-feature tests:
 import pytest
 
 from app.mixins.embedded_qa import (
-    Check, EmbeddedQAResult, has_keys, non_empty_list, number_in_range, run_self_test,
+    Check,
+    EmbeddedQAResult,
+    has_keys,
+    non_empty_list,
+    number_in_range,
+    run_self_test,
 )
 from app.models.common import SCHEMA_VERSIONS, schema_version
 from app.observability import emit_manifest
 from app.services.benchmarks_service import (
-    hierarchical_bootstrap_ci, validate_metric,
+    hierarchical_bootstrap_ci,
+    validate_metric,
 )
 from app.services.consultant_loop import (
-    LeverageTier, _dedup_by_primary, _resolve_contradiction,
+    LeverageTier,
+    _dedup_by_primary,
+    _resolve_contradiction,
 )
 from app.services.knowledge_maturation import (
-    on_corroborating_source, on_source_retraction, recompute_label_for_edge,
+    on_corroborating_source,
+    on_source_retraction,
+    recompute_label_for_edge,
 )
 from app.services.source_policy import (
-    independence_class, is_disabled, policy_for, rate_limits,
+    independence_class,
+    is_disabled,
+    policy_for,
+    rate_limits,
 )
 from app.services.validation_gates_service import (
-    gate_g1_novelty, gate_g2_source_quality, gate_g3_ers, gate_g4_independence,
-    gate_g5_consistency, gate_g6_adversarial, gate_g7_drift, gate_g8_absence,
+    gate_g1_novelty,
+    gate_g2_source_quality,
+    gate_g3_ers,
+    gate_g4_independence,
+    gate_g5_consistency,
+    gate_g6_adversarial,
+    gate_g7_drift,
+    gate_g8_absence,
     run_gates,
 )
-
 
 # ─── Embedded QA ────────────────────────────────────────────────────────────
 

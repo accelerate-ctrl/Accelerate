@@ -41,10 +41,9 @@ import json
 import logging
 import math
 import statistics
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
 
 import yaml
 
@@ -490,7 +489,6 @@ def _extrapolate(metric: dict, cohort: dict, period: str, neighbour_obs: list[di
 
 
 def refresh(*, extrapolate: bool = True) -> IngestSummary:
-    s = get_settings()
     repo = get_repository()
     started = datetime.now(timezone.utc)
     issues: list[str] = []
@@ -549,8 +547,6 @@ def _refresh_inner(*, extrapolate: bool, started, issues, sources) -> IngestSumm
     # 5) Optional AI extrapolation for sparse cohorts
     extrapolations = 0
     if extrapolate and metrics:
-        metric_by_id = {m["metric_id"]: m for m in metrics}
-        cohort_by_id = {c["cohort_id"]: c for c in cohorts}
         # iterate every (metric × cohort) pair and check coverage at any period
         for metric in metrics:
             for cohort in cohorts:

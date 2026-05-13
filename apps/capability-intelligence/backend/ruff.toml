@@ -1,0 +1,46 @@
+# Ruff config — scoped to actual errors, not style.
+#
+# Cloud Build's step 1 runs `ruff check .` strictly; a non-zero exit
+# fails the build. This codebase uses a number of idiomatic FastAPI +
+# legacy patterns (Depends in defaults, datetime.timezone.utc instead of
+# datetime.UTC, etc.) that would otherwise emit hundreds of "style"
+# violations. We pin the rule set to the truly broken cases:
+#
+#   F (pyflakes)        — undefined names, unused imports, redefinitions
+#   E9                  — syntax errors (E9xx) only, not whitespace
+#   B0  (bugbear)       — minus B008 (FastAPI `Depends` idiom is fine)
+#                       — minus B904 (raise...from is style, not bug)
+#                       — minus B023 (loop-var closure is legitimate
+#                                     when the loop is the only call site)
+#   I001 (isort)        — keep imports sorted
+#
+# Anything else (UP, BLE, etc.) is left to local pre-commit, not CI.
+
+line-length = 120
+target-version = "py312"
+
+# Exclude generated, third-party, and test-data trees.
+extend-exclude = [
+    ".venv",
+    "build",
+    "dist",
+    "static",
+    "test-data",
+    "__pycache__",
+]
+
+[lint]
+select = ["F", "E9", "B", "I001"]
+ignore = [
+    "B008",   # FastAPI `Depends` in default args is idiomatic
+    "B904",   # `raise ... from None/exc` is preferred but not required
+    "B023",   # closure-over-loop-var, used intentionally in dispatchers
+    "B905",   # zip strict=, legacy patterns
+    "B033",   # duplicate set/list items, sometimes from formatting
+]
+
+[lint.per-file-ignores]
+# Tests are allowed unused imports + closures + reassignments.
+"tests/**" = ["F401", "F811", "F841", "B"]
+# __init__.py re-exports look unused to ruff.
+"**/__init__.py" = ["F401"]

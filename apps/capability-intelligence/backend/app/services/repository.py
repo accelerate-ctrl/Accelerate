@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import json
 import threading
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Iterable, Protocol
+from typing import Any, Protocol
 
 
 class Repository(Protocol):

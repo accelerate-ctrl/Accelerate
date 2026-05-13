@@ -38,8 +38,8 @@ def embed_text(text: str) -> list[float]:
     if not s.llm_live_mode:
         return _hash_embed(text)
     # Live Vertex path — lazy import so dev never needs the SDK.
-    from vertexai.language_models import TextEmbeddingModel  # type: ignore[import-not-found]
     import vertexai  # type: ignore[import-not-found]
+    from vertexai.language_models import TextEmbeddingModel  # type: ignore[import-not-found]
 
     if not s.gcp_project_id:
         raise RuntimeError("gcp_project_id not set; cannot call Vertex embeddings")

@@ -250,38 +250,6 @@ def gate_peer_coverage(output: dict, sources: list[dict]) -> GateResult:
     )
 
 
-# ─── Engine ─────────────────────────────────────────────────────────────────
-
-
-def run_gates(
-    output: dict,
-    sources: list[dict],
-    *,
-    expected_keys: list[str] | None = None,
-    suggestions: list[dict] | None = None,
-    recent_outputs: list[dict] | None = None,
-    freshness_days: int = 365,
-) -> GateRun:
-    results = [
-        gate_schema(output, expected_keys or ["claims"]),
-        gate_citation(output, sources),
-        gate_hallucination(output, sources),
-        gate_freshness(sources, freshness_days),
-        gate_novelty(output, recent_outputs or []),
-        gate_bias(output, sources),
-        gate_breaking_change(suggestions or []),
-        gate_peer_coverage(output, sources),
-    ]
-    if any(r.verdict == "fail" for r in results):
-        overall = "fail"
-    elif any(r.verdict == "warn" for r in results):
-        overall = "warn"
-    else:
-        overall = "pass"
-    score = sum(r.score for r in results) / len(results)
-    return GateRun(overall=overall, score=score, results=results)
-
-
 # ─── Spec-parity gates G1..G8 ───────────────────────────────────────────────
 
 

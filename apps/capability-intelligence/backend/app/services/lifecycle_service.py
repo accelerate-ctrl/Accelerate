@@ -29,8 +29,7 @@ have a history to drive Lifecycle Manager kanban + Subcap Deep Dive.
 from __future__ import annotations
 
 import logging
-import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 

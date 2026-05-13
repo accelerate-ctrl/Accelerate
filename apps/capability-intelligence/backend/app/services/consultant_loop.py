@@ -22,17 +22,17 @@ import json
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 from uuid import uuid4
-
-from .llm.router import LlmRequest, ModelKind, call as llm_call
-from .llm.vector_store import VectorStore
-from .repository import get_repository
-from enum import Enum
 
 from ..mixins.embedded_qa import has_keys, non_empty_list, run_self_test
 from ..models.common import schema_version
 from ..observability import emit_manifest
+from .llm.router import LlmRequest, LlmResponse, ModelKind
+from .llm.router import call as llm_call
+from .llm.vector_store import VectorStore
+from .repository import get_repository
 from .validation_gates_service import GateRun, run_gates
 
 

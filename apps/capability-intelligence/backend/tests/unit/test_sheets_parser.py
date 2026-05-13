@@ -24,8 +24,9 @@ def test_parse_returns_pillar_metadata(pillar1_file):
 
 def test_parse_handles_missing_sheets():
     # Build a tiny xlsx in memory missing 2_Capability_Map → should report incomplete
-    import openpyxl
     from io import BytesIO
+
+    import openpyxl
     wb = openpyxl.Workbook()
     wb.active.title = "1_Overview"
     wb.active["A1"] = "header"

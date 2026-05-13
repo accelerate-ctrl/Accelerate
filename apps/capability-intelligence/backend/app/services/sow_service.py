@@ -18,7 +18,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 from rapidfuzz import fuzz
 
@@ -152,6 +151,7 @@ def _read_bytes(sow: SowFile) -> bytes:
     file_id = sow.file_uri.removeprefix("drive:")
     request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
     from io import BytesIO
+
     from googleapiclient.http import MediaIoBaseDownload
     buf = BytesIO()
     downloader = MediaIoBaseDownload(buf, request, chunksize=4 * 1024 * 1024)

@@ -247,8 +247,8 @@ def _call_vertex(req: LlmRequest) -> LlmResponse:
     s = get_settings()
     if not s.gcp_project_id:
         raise RuntimeError("gcp_project_id not set; cannot call Vertex in live mode")
-    from vertexai.generative_models import GenerativeModel  # type: ignore[import-not-found]
     import vertexai  # type: ignore[import-not-found]
+    from vertexai.generative_models import GenerativeModel  # type: ignore[import-not-found]
 
     vertexai.init(project=s.gcp_project_id, location=s.vertex_region)
     model_id = (

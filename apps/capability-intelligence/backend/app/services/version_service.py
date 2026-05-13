@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .catalogue_service import COLLECTIONS, list_pillars, list_subcaps
+from .catalogue_service import list_pillars, list_subcaps
 from .repository import get_repository
 
 log = logging.getLogger(__name__)
@@ -110,7 +110,6 @@ def diff_versions(version_a: str, version_b: str) -> dict:
         if field_diffs:
             modified.append({"sub_cap_id": sid, "fields": field_diffs})
 
-    a_cats = {c["category_id"]: c for p in snap_a.get("pillars", []) for c in []}
     a_cats_set = {s.get("category_id") for s in a_subs.values() if s.get("category_id")}
     b_cats_set = {s.get("category_id") for s in b_subs.values() if s.get("category_id")}
     added_cats = sorted(b_cats_set - a_cats_set)

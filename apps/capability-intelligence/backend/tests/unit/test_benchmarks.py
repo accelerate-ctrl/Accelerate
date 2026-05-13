@@ -5,10 +5,10 @@ import pytest
 from app.services import benchmarks_service as bm
 from app.services.benchmarks_service import (
     VERDICT_BENCHMARK,
-    VERDICT_INDICATIVE,
     VERDICT_EXPLORATORY,
-    _company_cohorts,
+    VERDICT_INDICATIVE,
     _coef_var,
+    _company_cohorts,
     _matches_cohort,
     _percentile,
     _verdict,

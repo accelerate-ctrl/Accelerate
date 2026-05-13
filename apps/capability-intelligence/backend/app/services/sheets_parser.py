@@ -358,8 +358,9 @@ def _read_vc_sheet(ws) -> tuple[list[list[Any]], list[str]]:
 
 # Subvertical column-name → canonical code (loaded from config at module import).
 def _load_subvertical_aliases() -> dict[str, str]:
-    import yaml
     from pathlib import Path
+
+    import yaml
     p = Path(__file__).resolve().parents[3] / "config" / "subverticals.yml"
     if not p.exists():
         return {}

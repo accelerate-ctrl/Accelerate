@@ -20,7 +20,6 @@ Public surface:
 from __future__ import annotations
 
 import contextlib
-import logging
 import os
 import time
 from typing import Any, Iterator
@@ -94,11 +93,11 @@ def install_telemetry(app) -> bool:
         return False
     try:
         from opentelemetry import trace  # type: ignore[import-not-found]
-        from opentelemetry.instrumentation.fastapi import (  # type: ignore[import-not-found]
-            FastAPIInstrumentor,
-        )
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore[import-not-found]
             OTLPSpanExporter,
+        )
+        from opentelemetry.instrumentation.fastapi import (  # type: ignore[import-not-found]
+            FastAPIInstrumentor,
         )
         from opentelemetry.sdk.resources import Resource  # type: ignore[import-not-found]
         from opentelemetry.sdk.trace import TracerProvider  # type: ignore[import-not-found]

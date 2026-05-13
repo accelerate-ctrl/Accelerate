@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import io
 import logging
-from typing import Any
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill

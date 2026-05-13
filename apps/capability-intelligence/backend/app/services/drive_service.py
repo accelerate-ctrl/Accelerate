@@ -282,6 +282,7 @@ def _download_drive(file: CatalogueFile) -> bytes:
     else:
         request = drive.files().get_media(fileId=file.file_id, supportsAllDrives=True)
     from io import BytesIO
+
     from googleapiclient.http import MediaIoBaseDownload
     buf = BytesIO()
     downloader = MediaIoBaseDownload(buf, request, chunksize=4 * 1024 * 1024)

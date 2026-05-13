@@ -24,9 +24,8 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Iterable
 
 from .repository import get_repository
 
@@ -120,8 +119,8 @@ def _technographic_rows() -> list[dict]:
     the AI-assist signal as an observation; the full vendor list is in
     the source files.
     """
-    from .benchmarks_service import _resolve_dir, _load_json_dir, DEFAULT_TECHNOGRAPHICS_DIR
     from ..config import get_settings
+    from .benchmarks_service import DEFAULT_TECHNOGRAPHICS_DIR, _load_json_dir, _resolve_dir
 
     s = get_settings()
     tdir = _resolve_dir(s.local_technographics_dir, DEFAULT_TECHNOGRAPHICS_DIR)
