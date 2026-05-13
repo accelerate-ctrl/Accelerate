@@ -77,7 +77,7 @@ export default function MaturityHeatmap() {
                       className="px-1 py-0.5 text-center"
                       title={c.preview}
                       style={{
-                        backgroundColor: c.filled ? FILL_COLORS[i] : '#f8f8f8',
+                        backgroundColor: c.filled ? FILL_COLORS[i] : '#F5F5F5',
                         color: i >= 3 ? 'white' : '#1c4a4d',
                       }}
                     >

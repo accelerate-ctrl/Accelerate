@@ -1,9 +1,15 @@
-import { Bell, Loader2, Search, User } from 'lucide-react';
+import { Loader2, Menu, Search } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiPost } from '../lib/api';
+import { SUBVERTICALS, useFilters } from '../store/filters';
+import iconTeal from '../assets/zennify/icon_teal.png';
 
-export default function Header() {
+type Props = {
+  onOpenMobileMenu?: () => void;
+};
+
+export default function Header({ onOpenMobileMenu }: Props) {
+  const { subverticalCode, setSubvertical, search, setSearch } = useFilters();
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<{
     sources_succeeded: number;
@@ -37,57 +43,67 @@ export default function Header() {
   return (
     <header
       data-testid="header"
-      className="h-14 shrink-0 bg-white border-b border-zen-light-green/50 flex items-center px-6 gap-4"
+      className="h-14 shrink-0 bg-white border-b border-zen-separator flex items-center px-3 md:px-6 gap-2 md:gap-4"
     >
+      {/* Mobile hamburger */}
+      <button
+        type="button"
+        aria-label="open menu"
+        onClick={onOpenMobileMenu}
+        className="md:hidden text-zen-dark-green p-1 -ml-1"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Chevron icon (icon_teal.png from ZDS) — branded anchor */}
+      <img src={iconTeal} alt="" className="hidden md:block w-7 h-7" />
+
+      {/* Search */}
       <div className="flex items-center gap-2 flex-1 max-w-xl">
-        <Search size={16} className="text-zen-dark-teal/60" />
+        <Search size={16} className="text-zen-muted-text" />
         <input
           type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search subcaps, vendors, clients, news…"
-          className="w-full bg-transparent text-sm outline-none placeholder:text-zen-dark-teal/50"
+          className="w-full bg-transparent text-sm outline-none placeholder:text-zen-muted-text"
           aria-label="global search"
         />
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-zen-dark-teal">
-        <span className="bg-zen-light-green/40 rounded-full px-2 py-0.5">Persona: Senior Partner</span>
-        <span className="bg-zen-light-green/40 rounded-full px-2 py-0.5">All subverticals</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={pullAll}
-          disabled={busy}
-          aria-label="pull all sources"
-          className="bg-zen-teal hover:bg-zen-dark-teal text-white text-xs font-medium px-3 py-1.5 rounded transition-colors duration-200 disabled:opacity-60 flex items-center gap-1"
-        >
-          {busy && <Loader2 size={12} className="animate-spin" />}
-          {busy ? 'Pulling…' : 'Pull all sources'}
-        </button>
-        {last && (
-          <span
-            className="text-xs text-zen-dark-teal/70"
-            title={last.failures.join('\n')}
-            aria-live="polite"
-          >
-            {last.sources_succeeded}/{last.sources_total} ok
-          </span>
-        )}
-      </div>
-
-      <button type="button" aria-label="notifications" className="text-zen-dark-teal/70 hover:text-zen-dark-teal">
-        <Bell size={18} />
-      </button>
-
-      <Link
-        to="/settings"
-        aria-label="user menu / settings"
-        className="flex items-center gap-2 text-sm text-zen-dark-teal hover:text-zen-dark-green"
+      {/* Subvertical filter — real dropdown driven by the filter store */}
+      <select
+        value={subverticalCode ?? ''}
+        onChange={(e) => setSubvertical(e.target.value || null)}
+        aria-label="subvertical filter"
+        className="hidden sm:block text-xs bg-zen-ice text-zen-dark-green rounded px-2 py-1 border border-zen-separator focus:outline-none focus:ring-1 focus:ring-zen-teal"
       >
-        <User size={18} />
-        <span>mishley.otiende@zennify.com</span>
-      </Link>
+        <option value="">All subverticals</option>
+        {SUBVERTICALS.map((s) => (
+          <option key={s.code} value={s.code}>{s.label}</option>
+        ))}
+      </select>
+
+      {/* Pull-all-sources */}
+      <button
+        type="button"
+        onClick={pullAll}
+        disabled={busy}
+        aria-label="pull all sources"
+        className="bg-zen-teal hover:bg-zen-dark-teal text-white text-xs font-medium px-3 py-1.5 rounded transition-colors duration-200 disabled:opacity-60 flex items-center gap-1 whitespace-nowrap"
+      >
+        {busy && <Loader2 size={12} className="animate-spin" />}
+        {busy ? 'Pulling…' : 'Pull sources'}
+      </button>
+      {last && (
+        <span
+          className="hidden lg:inline text-xs text-zen-muted-text"
+          title={last.failures.join('\n')}
+          aria-live="polite"
+        >
+          {last.sources_succeeded}/{last.sources_total} ok
+        </span>
+      )}
     </header>
   );
 }

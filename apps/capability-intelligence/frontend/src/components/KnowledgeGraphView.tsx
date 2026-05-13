@@ -65,9 +65,9 @@ export default function KnowledgeGraphView({ elements, height = 560, onSelect }:
           selector: 'edge',
           style: {
             'curve-style': 'bezier',
-            'line-color': '#cfeae4',
+            'line-color': '#B0EDD3',
             width: 1,
-            'target-arrow-color': '#cfeae4',
+            'target-arrow-color': '#B0EDD3',
             'target-arrow-shape': 'triangle',
             'arrow-scale': 0.6,
           } as cytoscape.Css.Edge,

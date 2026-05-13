@@ -118,7 +118,7 @@ export default function VendorIntelligence() {
                             className="text-right px-2 py-1 font-mono text-[10px]"
                             style={{
                               backgroundColor: `rgba(20, 116, 110, ${0.10 + intensity * 0.50})`,
-                              color: intensity > 0.5 ? 'white' : '#1f4f4d',
+                              color: intensity > 0.5 ? 'white' : '#1C4A4D',
                             }}
                             title={`${cell.adopters.join(', ')} of ${cell.cohort_size}`}
                           >

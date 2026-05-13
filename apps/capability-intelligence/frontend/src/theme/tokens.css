@@ -2,19 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Zennify Design System v2.4.14 — canonical CSS variables.
+   Use the `zen-*` Tailwind classes in components; these vars are kept
+   for legacy components that interpolate colors via inline style. */
 :root {
-  --zen-dark-green: #1c4a4d;
-  --zen-dark-teal: #185f60;
-  --zen-teal: #27bbaf;
-  --zen-light-teal: #62d7b8;
-  --zen-light-green: #b0eed3;
-  --zen-white-green: #e8f7f6;
-  --zen-light-orange: #ffcb99;
-  --zen-orange: #fe9732;
+  /* Greens */
+  --zen-dark-green: #1C4A4D;
+  --zen-dark-teal: #185F60;
+  --zen-teal: #27BBAF;
+  --zen-accent-green: #139F94;
+  --zen-light-teal: #62D7B8;
+  --zen-mint: #79E2BF;
+  --zen-light-green: #B0EDD3;
+  --zen-ice: #E8F7F6;
+  --zen-white-green: #E8F7F6; /* alias */
+  /* Blues + purples */
+  --zen-lavender: #F2F4F9;
+  --zen-blue: #3D81F6;
+  --zen-purple-grey: #C7D3EC;
+  /* Oranges */
+  --zen-light-orange: #FFCB99;
+  --zen-orange: #FE9732;
+  /* Functional */
+  --zen-white: #FFFFFF;
+  --zen-light-bg: #F5F5F5;
+  --zen-separator: #E5E7EB;
+  --zen-muted-text: #6B7280;
+  --zen-text-gray: #4A5568;
 }
 
 html, body, #root { height: 100%; }
-body { font-family: 'Inter', system-ui, sans-serif; }
+body { font-family: 'DM Sans', 'Inter', system-ui, sans-serif; }
 
 *:focus-visible {
   outline: 2px solid var(--zen-teal);
