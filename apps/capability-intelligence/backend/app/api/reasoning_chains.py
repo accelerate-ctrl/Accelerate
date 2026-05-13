@@ -1,5 +1,7 @@
 """7-step reasoning chain log viewer + ad-hoc loop trigger."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -9,6 +11,7 @@ from ..services.llm.cost_tracker import BudgetExceeded
 from ..services.llm.router import ModelKind
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 @router.get("/_stub")
@@ -41,6 +44,16 @@ class LoopBody(BaseModel):
 
 @router.post("/run")
 def trigger(body: LoopBody, _=Depends(auth_dep)) -> dict:
+    """Run the 7-step consultant loop.
+
+    Failure semantics — never returns 500:
+      400  invalid model string
+      422  loop raised — body includes `{error_type, stage, detail}` so the
+           UI can render an actionable message instead of a blank "Lookup
+           failed". Common cases: Anthropic key invalid, Vertex region
+           misconfigured, repository unreachable.
+      429  budget ceiling hit
+    """
     try:
         model = ModelKind(body.model)
     except ValueError:
@@ -53,6 +66,30 @@ def trigger(body: LoopBody, _=Depends(auth_dep)) -> dict:
         )
     except BudgetExceeded as exc:
         raise HTTPException(status_code=429, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 — boundary handler
+        log.exception("consultant_loop.run failed (query=%r sub_cap_id=%r)",
+                      body.query[:120], body.sub_cap_id)
+        # Try to figure out which stage we were in. The loop logs steps as
+        # it goes; in dev we read the *most recent* persisted chain even if
+        # it failed mid-way so the UI can show partial progress.
+        latest = consultant_loop.list_chains(
+            sub_cap_id=body.sub_cap_id, limit=1
+        )
+        last_step = None
+        if latest:
+            steps = latest[0].get("steps") or []
+            last_step = (steps[-1] or {}).get("name") if steps else None
+        raise HTTPException(status_code=422, detail={
+            "error_type": type(exc).__name__,
+            "stage": last_step or "unknown",
+            "detail": str(exc)[:500],
+            "model_requested": body.model,
+            "hint": (
+                "Check /api/ready → llm.adapters for credential health. "
+                "If anthropic/vertex show error, re-rotate the Secret "
+                "Manager secret and redeploy."
+            ),
+        })
     out = {
         "chain_id": result.chain_id,
         "sub_cap_id": result.sub_cap_id,

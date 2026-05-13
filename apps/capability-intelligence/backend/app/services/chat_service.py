@@ -58,6 +58,10 @@ class ChatTurn:
     cost_usd: float = 0.0
     sources: list[dict] = field(default_factory=list)
     created_at: str = ""
+    # Populated only on assistant turns where the consultant loop raised.
+    # Lets the SPA show "Anthropic key invalid (stage=synthesize)" instead
+    # of the generic "Lookup failed" string.
+    error: dict | None = None
 
 
 @dataclass
@@ -69,6 +73,7 @@ class ChatReply:
     chain_id: str | None
     cost_usd: float
     sources: list[dict]
+    error: dict | None = None
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -219,14 +224,33 @@ def post_message(
         cost = loop.total_cost_usd
     except Exception as exc:  # noqa: BLE001
         logger.warning("chat consultant_loop failed: %s", exc)
+        # Find which step we were in by looking at the latest persisted chain
+        # (the loop persists each step as it goes).
+        from .consultant_loop import list_chains as _list_chains
+        latest_chain = _list_chains(sub_cap_id=sub_cap_id, limit=1)
+        stage = None
+        if latest_chain:
+            steps = latest_chain[0].get("steps") or []
+            stage = (steps[-1] or {}).get("name") if steps else None
+        err = {
+            "error_type": type(exc).__name__,
+            "stage": stage or "unknown",
+            "detail": str(exc)[:400],
+            "hint": (
+                "Check /api/ready → llm.adapters for credential health, then "
+                "rotate the Secret Manager secret and redeploy if needed."
+            ),
+        }
         reply_text = (
-            "Lookup failed — the underlying consultant loop raised an error. "
-            "Please re-try; if the problem persists, see the QA & Audit "
-            "Dashboard for diagnostics."
+            f"The {stage or 'consultant'} step failed: {type(exc).__name__}. "
+            "See diagnostic block below — and the QA & Audit Dashboard for "
+            "the persisted reasoning chain."
         )
         cited = []
         chain_id = None
         cost = 0.0
+    else:
+        err = None
 
     assistant_turn = ChatTurn(
         role="assistant",
@@ -236,6 +260,7 @@ def post_message(
         cost_usd=cost,
         sources=sources,
         created_at=datetime.now(timezone.utc).isoformat(),
+        error=err,
     )
     convo["turns"].append(asdict(assistant_turn))
     convo["updated_at"] = assistant_turn.created_at
@@ -252,4 +277,5 @@ def post_message(
         chain_id=chain_id,
         cost_usd=cost,
         sources=sources,
+        error=err,
     )

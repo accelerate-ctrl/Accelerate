@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brain, Send, MessageSquare, ExternalLink, DollarSign } from 'lucide-react';
+import { AlertTriangle, Brain, DollarSign, ExternalLink, MessageSquare, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiGet, apiPost, type ChatConversation, type ChatReply } from '@/lib/api';
+
+type ChatError = { error_type: string; stage: string; detail: string; hint?: string };
 
 export default function AiChat() {
   const qc = useQueryClient();
@@ -48,7 +50,7 @@ export default function AiChat() {
       <div>
         <h1 className="text-2xl font-semibold text-zen-dark-green">AI Chat</h1>
         <p className="text-sm text-zen-dark-teal/80">
-          RAG over the catalogue + Batch-3 SOWs + Batch-4 news + Batch-6 lifecycle.
+          Grounded over the catalogue, SOWs, stories, news, trends and lifecycle.
           Mention a subcap ID (e.g. <span className="font-mono">P1C1.1.1</span>) to anchor retrieval.
         </p>
       </div>
@@ -127,6 +129,28 @@ export default function AiChat() {
                   )}
                 </div>
                 <div className="text-zen-dark-teal mt-1 whitespace-pre-wrap">{t.text}</div>
+                {(t as unknown as { error?: ChatError }).error && (
+                  <div className="mt-2 border border-zen-orange/40 bg-zen-light-orange/30 rounded p-2 text-[11px]">
+                    <div className="flex items-center gap-1 font-semibold text-zen-orange mb-1">
+                      <AlertTriangle size={12} />
+                      <span>
+                        {(t as unknown as { error: ChatError }).error.error_type}
+                        {' at '}
+                        <span className="font-mono">
+                          {(t as unknown as { error: ChatError }).error.stage}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="text-zen-dark-green">
+                      {(t as unknown as { error: ChatError }).error.detail}
+                    </div>
+                    {(t as unknown as { error: ChatError }).error.hint && (
+                      <div className="text-zen-text-gray mt-1 italic">
+                        {(t as unknown as { error: ChatError }).error.hint}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(t.citations || []).length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {(t.citations || []).map((c) => (

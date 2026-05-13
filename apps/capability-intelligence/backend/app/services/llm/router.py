@@ -330,3 +330,80 @@ def reset_state_for_tests() -> None:
     """Clear the module-level cache + cost tracker (test fixture only)."""
     _cache.clear()
     _tracker.clear()
+
+
+def probe() -> dict:
+    """Validate every enabled LLM adapter WITHOUT consuming tokens.
+
+    Returns a dict keyed by adapter name. Each value is one of:
+        {"status": "ok",       "mode": "dev"|"live", ...}
+        {"status": "skipped",  "reason": "..."}      # not enabled
+        {"status": "error",    "error_type": "...", "detail": "..."}
+
+    Surfaced at `/api/ready.llm.adapters` so operators can see at a glance
+    whether the deployed revision will be able to call the model APIs
+    before a user triggers a consultant-loop run.
+
+    Notes on the contract:
+      * Dev mode (`llm_live_mode=False`) returns `{"status": "ok",
+        "mode": "dev"}` for every adapter — the canned-response path is
+        always available.
+      * Anthropic: send a 0-token `count_tokens` call (free, no message).
+      * Vertex: instantiate the GenerativeModel — credential discovery
+        fails fast if ADC + region are misconfigured. We do NOT call
+        `generate_content` so this stays free.
+    """
+    s = get_settings()
+    out: dict[str, dict] = {}
+
+    # Dev mode short-circuits everything.
+    if not s.llm_live_mode:
+        return {
+            "anthropic": {"status": "ok", "mode": "dev"},
+            "vertex":    {"status": "ok", "mode": "dev"},
+            "live_mode": False,
+        }
+
+    # ── Anthropic ──────────────────────────────────────────────────────
+    if not s.anthropic_api_key:
+        out["anthropic"] = {"status": "skipped", "reason": "ANTHROPIC_API_KEY not set"}
+    else:
+        try:
+            import anthropic  # type: ignore[import-not-found]
+            client = anthropic.Anthropic(api_key=s.anthropic_api_key)
+            # count_tokens is free and validates the key + transport.
+            _ = client.messages.count_tokens(
+                model=s.anthropic_model_sonnet,
+                messages=[{"role": "user", "content": "ping"}],
+            )
+            out["anthropic"] = {"status": "ok", "mode": "live",
+                                "model": s.anthropic_model_sonnet}
+        except Exception as exc:  # noqa: BLE001 — health probe must not raise
+            out["anthropic"] = {
+                "status": "error",
+                "error_type": type(exc).__name__,
+                "detail": str(exc)[:300],
+            }
+
+    # ── Vertex (Gemini) ─────────────────────────────────────────────────
+    try:
+        from vertexai import init as vertex_init  # type: ignore[import-not-found]
+        from vertexai.generative_models import GenerativeModel  # type: ignore[import-not-found]
+        vertex_init(project=s.gcp_project_id, location=s.vertex_region)
+        _ = GenerativeModel(s.gemini_model_flash)
+        out["vertex"] = {"status": "ok", "mode": "live",
+                         "project": s.gcp_project_id,
+                         "region": s.vertex_region,
+                         "model": s.gemini_model_flash}
+    except ImportError:
+        out["vertex"] = {"status": "skipped",
+                         "reason": "vertexai sdk not installed"}
+    except Exception as exc:  # noqa: BLE001
+        out["vertex"] = {
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "detail": str(exc)[:300],
+        }
+
+    out["live_mode"] = True
+    return out
