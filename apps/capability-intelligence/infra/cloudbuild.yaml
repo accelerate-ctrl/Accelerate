@@ -73,20 +73,25 @@ steps:
   # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed by
   # Terraform). Tolerates missing jobs so the initial deploy succeeds before
   # Terraform has run.
+  #
+  # Note: every $VAR that should reach bash is escaped $$VAR — Cloud Build
+  # otherwise tries to resolve them as build substitutions and fails the
+  # build with "key in the template ... is not a valid built-in substitution".
   - id: deploy-jobs
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - "-c"
       - |
+        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
         for JOB in news-poll public-filings-poll jira-incremental sow-incremental \
                   sow-full-reindex lifecycle-scoring-daily benchmark-extrapolation-run \
                   benchmark-recompute-quarterly digest-quarterly deep-audit-weekly \
                   eval-run-weekly citation-verify-daily drift-check-daily \
                   evidence-promotion-nightly; do
-          gcloud run jobs update $JOB \
-            --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA} \
-            --region=${_REGION} || echo "skip: job $JOB not provisioned yet"
+          gcloud run jobs update $$JOB \
+            --image=$$IMAGE \
+            --region=${_REGION} || echo "skip: job $$JOB not provisioned yet"
         done
 
   # 7) Smoke test
@@ -96,9 +101,9 @@ steps:
     args:
       - "-c"
       - |
-        URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
         for i in 1 2 3 4 5; do
-          if curl -sf "$URL/api/health"; then exit 0; fi
+          if curl -sf "$$URL/api/health"; then exit 0; fi
           sleep 5
         done
         exit 1
