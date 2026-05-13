@@ -1,11 +1,18 @@
-# Cloud Build pipeline (Batch 9).
+# Cloud Build pipeline.
 #
-# Triggers on push to main + on tag push. Order:
-#   1. backend pytest + ruff
+# Works both ways:
+#   * triggered builds (Cloud Build trigger from GitHub) — uses SHORT_SHA
+#   * manual builds (`gcloud builds submit . --config=infra/cloudbuild.yaml`)
+#     where SHORT_SHA is empty — falls back to BUILD_ID, which is always
+#     populated.
+#
+# Order:
+#   0. resolve image tag → /workspace/.tag (always non-empty)
+#   1. backend pytest
 #   2. frontend npm test + build
 #   3. docker image build (multi-stage Dockerfile bundles SPA into /app/static)
 #   4. push to Artifact Registry
-#   5. deploy to Cloud Run (api service)
+#   5. render service.yaml + deploy to Cloud Run (api service)
 #   6. deploy each Cloud Run Job (image-only update)
 #   7. smoke test the deployed /api/health endpoint
 
@@ -15,6 +22,25 @@ substitutions:
   _SERVICE_NAME: capability-intelligence-api
 
 steps:
+  # 0) Resolve image tag once, write to /workspace/.tag.
+  #
+  # SHORT_SHA is only populated for triggered builds. For manual
+  # `gcloud builds submit` Cloud Build substitutes it to an empty string,
+  # which made the rest of the pipeline emit malformed image references
+  # like `api:`. BUILD_ID is always present (UUID-like) so it's the
+  # universal fallback.
+  - id: resolve-tag
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        set -euo pipefail
+        TAG="${SHORT_SHA}"
+        if [ -z "$$TAG" ]; then TAG="${BUILD_ID}"; fi
+        printf '%s' "$$TAG" > /workspace/.tag
+        echo "image tag = $$TAG"
+
   # 1) Backend tests
   - id: backend-tests
     name: python:3.12
@@ -39,21 +65,27 @@ steps:
         npm test -- --run
         npm run build
 
-  # 3) Build image (Dockerfile copies frontend/dist → /app/static)
+  # 3) Build image — read tag from /workspace/.tag (set by step 0).
   - id: docker-build
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - "build"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
-      - "-t"
-      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
-      - "apps/capability-intelligence"
+      - "-c"
+      - |
+        set -euo pipefail
+        TAG=$$(cat /workspace/.tag)
+        docker build \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG" \
+          -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest" \
+          apps/capability-intelligence
 
-  # 4) Push
+  # 4) Push both tags.
   - id: docker-push
     name: gcr.io/cloud-builders/docker
-    args: ["push", "--all-tags", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api"]
+    args:
+      - push
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api"
 
   # 5) Render manifest with the freshly-built image tag, then replace.
   - id: deploy-api
@@ -63,27 +95,27 @@ steps:
       - "-c"
       - |
         set -euo pipefail
-        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
-        sed -e "s|IMAGE_TAG|$${IMAGE}|g" \
+        TAG=$$(cat /workspace/.tag)
+        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG"
+        sed -e "s|IMAGE_TAG|$$IMAGE|g" \
             apps/capability-intelligence/infra/service.yaml \
             > /workspace/service.rendered.yaml
         gcloud run services replace /workspace/service.rendered.yaml \
           --region=${_REGION} --project=${PROJECT_ID}
 
-  # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed by
-  # Terraform). Tolerates missing jobs so the initial deploy succeeds before
-  # Terraform has run.
-  #
-  # Note: every $VAR that should reach bash is escaped $$VAR — Cloud Build
-  # otherwise tries to resolve them as build substitutions and fails the
-  # build with "key in the template ... is not a valid built-in substitution".
+  # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed
+  # by Terraform). Tolerates missing jobs so the initial deploy succeeds
+  # before Terraform has run. Every $VAR that should reach bash is
+  # escaped $$VAR so Cloud Build doesn't try to resolve it as a build
+  # substitution.
   - id: deploy-jobs
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - "-c"
       - |
-        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
+        TAG=$$(cat /workspace/.tag)
+        IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG"
         for JOB in news-poll public-filings-poll jira-incremental sow-incremental \
                   sow-full-reindex lifecycle-scoring-daily benchmark-extrapolation-run \
                   benchmark-recompute-quarterly digest-quarterly deep-audit-weekly \
@@ -108,8 +140,11 @@ steps:
         done
         exit 1
 
+# `images:` is the list Cloud Build itself pushes at the end of a successful
+# build (it dedupes against what step 4 already pushed). We only list the
+# moving "latest" tag here because the SHA/BUILD_ID tag is already pushed
+# in step 4 with the correctly-resolved name.
 images:
-  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${SHORT_SHA}"
   - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
 
 options:
