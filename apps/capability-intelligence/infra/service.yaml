@@ -106,6 +106,27 @@ spec:
               value: "0.9"
             - name: SEC_EDGAR_EMAIL
               value: ops@zennify.com
+            # ── Drive ingest sources ─────────────────────────────────────
+            # Pillar catalogue folder — auto-discovers the highest-version
+            # Pillar 1..4 .xlsx inside this folder (or its Pillar-* subfolders).
+            - name: DRIVE_PILLARS_FOLDER_ID
+              value: 1rF9zdx1qF7BJ9t21eFdvZQW11Y5dUjy3
+            # SOW shared drive — deep-recursive walk through every
+            # client/project/phase subfolder. Shared drive ID format (starts 0A).
+            - name: DRIVE_SOWS_FOLDER_ID
+              value: 0AFm0q8PCUPy-Uk9PVA
+            # ── Jira (story library) ─────────────────────────────────────
+            # JIRA_BASE_URL + JIRA_EMAIL + JIRA_PROJECT_KEYS must all be set
+            # for stories ingest to run. Token comes from Secret Manager.
+            - name: JIRA_BASE_URL
+              value: https://zennify.atlassian.net
+            - name: JIRA_EMAIL
+              value: ops@zennify.com
+            - name: JIRA_PROJECT_KEYS
+              value: "[]"
+            # ── News feeds — FS industry RSS pulled by news_service ──────
+            - name: NEWS_FEEDS
+              value: '["https://www.americanbanker.com/feed","https://www.federalreserve.gov/feeds/press_all.xml","https://www.fdic.gov/news/news/press/rss.xml","https://www.occ.treas.gov/rss/news-releases.xml","https://www.sec.gov/news/pressreleases.rss","https://www.federalregister.gov/api/v1/documents.rss?conditions[agencies][]=consumer-financial-protection-bureau"]'
             # ── Secrets — mounted from Secret Manager ────────────────────
             - name: ANTHROPIC_API_KEY
               valueFrom:

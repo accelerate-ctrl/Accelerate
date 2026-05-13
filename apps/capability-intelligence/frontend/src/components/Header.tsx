@@ -1,7 +1,39 @@
-import { Bell, Search, User } from 'lucide-react';
+import { Bell, Loader2, Search, User } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { apiPost } from '../lib/api';
 
 export default function Header() {
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<{
+    sources_succeeded: number;
+    sources_total: number;
+    failures: string[];
+  } | null>(null);
+
+  async function pullAll() {
+    setBusy(true);
+    setLast(null);
+    try {
+      const r = await apiPost<{
+        sources_succeeded: number;
+        sources_failed: number;
+        sources_total: number;
+        results: { ok: boolean; source: string; error?: string }[];
+      }>('/ingest/refresh-all', {});
+      setLast({
+        sources_succeeded: r.sources_succeeded,
+        sources_total: r.sources_total,
+        failures: r.results.filter((x) => !x.ok).map((x) => `${x.source}: ${x.error}`),
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setLast({ sources_succeeded: 0, sources_total: 0, failures: [`request: ${msg}`] });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <header
       data-testid="header"
@@ -22,13 +54,27 @@ export default function Header() {
         <span className="bg-zen-light-green/40 rounded-full px-2 py-0.5">All subverticals</span>
       </div>
 
-      <button
-        type="button"
-        aria-label="pull all sources"
-        className="bg-zen-teal hover:bg-zen-dark-teal text-white text-xs font-medium px-3 py-1.5 rounded transition-colors duration-200"
-      >
-        Pull all sources
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={pullAll}
+          disabled={busy}
+          aria-label="pull all sources"
+          className="bg-zen-teal hover:bg-zen-dark-teal text-white text-xs font-medium px-3 py-1.5 rounded transition-colors duration-200 disabled:opacity-60 flex items-center gap-1"
+        >
+          {busy && <Loader2 size={12} className="animate-spin" />}
+          {busy ? 'Pulling…' : 'Pull all sources'}
+        </button>
+        {last && (
+          <span
+            className="text-xs text-zen-dark-teal/70"
+            title={last.failures.join('\n')}
+            aria-live="polite"
+          >
+            {last.sources_succeeded}/{last.sources_total} ok
+          </span>
+        )}
+      </div>
 
       <button type="button" aria-label="notifications" className="text-zen-dark-teal/70 hover:text-zen-dark-teal">
         <Bell size={18} />

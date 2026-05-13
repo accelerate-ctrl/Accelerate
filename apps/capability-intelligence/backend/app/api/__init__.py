@@ -6,6 +6,7 @@ from . import (
     auth,
     benchmarks,
     catalogue,
+    ingest,
     chat,
     client_journeys,
     diffs,
@@ -44,6 +45,7 @@ api_router = APIRouter()
 # Real
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
 
 # Stubs — each batch lights its own routes up
 api_router.include_router(catalogue.router, prefix="/catalogue", tags=["catalogue"])

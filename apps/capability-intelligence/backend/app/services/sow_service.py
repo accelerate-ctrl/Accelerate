@@ -108,29 +108,143 @@ def _discover_local(root: Path) -> list[SowFile]:
     return out
 
 
+_SOW_NAME_HINTS = (
+    "sow", "statement of work", "msa", "engagement letter", "engagement_letter",
+    "order form", "order_form", "proposal", "scope of services",
+)
+_MAX_RECURSE_DEPTH = 8  # client → project → year → phase → … plenty of headroom
+
+
+def _looks_like_sow(name: str) -> bool:
+    """Heuristic — does this filename look like SOW-class content?
+
+    We accept anything matching the hints above (case-insensitive), and we
+    *also* accept everything else with a supported extension because some
+    folders treat any .pdf/.docx in a project folder as the engagement
+    artefact. The classifier downstream (Gemini Flash, Batch 4) refines
+    this. Discovery just casts wide.
+    """
+    low = name.lower()
+    return any(hint in low for hint in _SOW_NAME_HINTS)
+
+
+def _classify_status_from_path(path_parts: list[str]) -> str:
+    """Pick the status from the deepest ancestor whose folder name matches
+    one of {active|prospect|inactive|archived}. Falls back to 'active'."""
+    for part in reversed(path_parts):  # deepest first
+        low = part.lower().strip()
+        if low in SOW_STATUSES:
+            return low
+        # common variants
+        if low in ("client", "clients", "delivery", "deliveries"):
+            return "active"
+        if low in ("opportunity", "opportunities", "pre-sales", "presales"):
+            return "prospect"
+        if low in ("archive", "old", "deprecated", "historic"):
+            return "archived"
+    return "active"
+
+
+def _client_from_path(path_parts: list[str]) -> str | None:
+    """The lowest non-status ancestor is usually the client name."""
+    for part in path_parts:
+        low = part.lower().strip()
+        if low in SOW_STATUSES or low in ("client", "clients", "delivery", "deliveries"):
+            continue
+        return part
+    return None
+
+
 def _discover_drive(folder_id: str) -> list[SowFile]:  # pragma: no cover — wired in cloud
+    """Deep recursive walk of the Drive folder tree.
+
+    Strategy (matches the way Zennify organises the delivery shared drive):
+
+      <root>/
+        <Client A>/
+          <Project 1>/
+            01_Sales/
+              MSA.pdf
+              SOW v1.0.docx       ← discovered
+            02_Delivery/
+              kickoff.pptx
+            ...
+          <Project 2>/
+            ...
+        <Client B>/
+          archive/
+            old_SOW.pdf           ← discovered, status='archived'
+          ...
+
+    Algorithm:
+
+      1. BFS the folder graph from the root, depth-limited to
+         _MAX_RECURSE_DEPTH (defensive against accidental cycles).
+      2. For every *file* whose extension is supported (.pdf/.docx/.txt/...)
+         we treat it as candidate. The downstream chunker + Gemini Flash
+         classifier decides whether it's actually a SOW; discovery casts
+         the net wide so nothing gets missed.
+      3. Status is inferred from the file's ancestor path: deepest folder
+         name matching {active|prospect|inactive|archived} wins. The
+         shallowest non-status, non-delivery folder becomes the client
+         hint (used as a fallback when entity-resolution can't match
+         from file content).
+      4. We tag the path metadata into the SowFile.file_uri so the
+         downstream pipeline can show e.g.
+         "drive:<id> (Client A / Project 1 / 01_Sales / SOW v1.0.docx)".
+    """
     from .drive_service import _drive_client, _drive_list_children, _parse_drive_dt
     drive = _drive_client()
     out: list[SowFile] = []
-    children = _drive_list_children(drive, folder_id)
-    status_folders: list[tuple[str, str]] = []
-    for c in children:
-        if c["mimeType"] == "application/vnd.google-apps.folder" and c["name"].lower() in SOW_STATUSES:
-            status_folders.append((c["name"].lower(), c["id"]))
-    if not status_folders:
-        # All files at root → tag as 'active' by default
-        for f in children:
-            ext = "." + f.get("name", "").rsplit(".", 1)[-1].lower()
-            if ext in SUPPORTED_EXTS:
-                sow_id = _sow_id_for("active", f["name"])
-                out.append(SowFile(sow_id, f["name"], f"drive:{f['id']}", "active", "drive", _parse_drive_dt(f.get("modifiedTime"))))
-    else:
-        for status, fid in status_folders:
-            for f in _drive_list_children(drive, fid):
-                ext = "." + f.get("name", "").rsplit(".", 1)[-1].lower()
-                if ext in SUPPORTED_EXTS:
-                    sow_id = _sow_id_for(status, f["name"])
-                    out.append(SowFile(sow_id, f["name"], f"drive:{f['id']}", status, "drive", _parse_drive_dt(f.get("modifiedTime"))))
+    seen_files: set[str] = set()
+    visited_folders: set[str] = set()
+
+    # BFS queue of (folder_id, path_parts) tuples.
+    queue: list[tuple[str, list[str]]] = [(folder_id, [])]
+
+    while queue:
+        fid, parts = queue.pop(0)
+        if fid in visited_folders or len(parts) > _MAX_RECURSE_DEPTH:
+            continue
+        visited_folders.add(fid)
+
+        try:
+            children = _drive_list_children(drive, fid)
+        except Exception as exc:  # noqa: BLE001 — survive flaky single folder
+            log.warning("drive list failed for folder %s (%s): %s",
+                        fid, " / ".join(parts) or "<root>", exc)
+            continue
+
+        for c in children:
+            mime = c.get("mimeType", "")
+            name = c.get("name", "")
+            if mime == "application/vnd.google-apps.folder":
+                queue.append((c["id"], parts + [name]))
+                continue
+            # File: extension gate.
+            ext = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+            if ext not in SUPPORTED_EXTS:
+                continue
+            if c["id"] in seen_files:
+                continue
+            seen_files.add(c["id"])
+
+            status = _classify_status_from_path(parts)
+            client_hint = _client_from_path(parts) or "unknown-client"
+            sow_id = _sow_id_for(status, f"{client_hint}__{name}")
+            # path-decorated URI lets the UI render "/Client / Project / file"
+            decorated_path = " / ".join(parts + [name]) if parts else name
+            out.append(SowFile(
+                sow_id=sow_id,
+                file_name=name,
+                file_uri=f"drive:{c['id']}|{decorated_path}",
+                status=status,
+                source="drive",
+                modified_at=_parse_drive_dt(c.get("modifiedTime")),
+            ))
+
+    log.info("SOW deep-walk discovered %d files in %d folders (root=%s)",
+             len(out), len(visited_folders), folder_id)
     return out
 
 
@@ -145,10 +259,11 @@ def _sow_id_for(status: str, file_name: str) -> str:
 def _read_bytes(sow: SowFile) -> bytes:
     if sow.source == "local":
         return Path(sow.file_uri.removeprefix("file://")).read_bytes()
-    # Drive
+    # Drive. file_uri = "drive:<file_id>" OR "drive:<file_id>|<decorated path>"
     from .drive_service import _drive_client
     drive = _drive_client()
-    file_id = sow.file_uri.removeprefix("drive:")
+    raw = sow.file_uri.removeprefix("drive:")
+    file_id = raw.split("|", 1)[0]
     request = drive.files().get_media(fileId=file_id, supportsAllDrives=True)
     from io import BytesIO
 

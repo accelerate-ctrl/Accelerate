@@ -175,21 +175,38 @@ if [ $fail -gt 0 ]; then
   exit 1
 fi
 
-cat <<'EOF'
+cat <<EOF
 
 ✓ Bootstrap complete — all resources validated.
 
 Next steps:
   1. Populate secrets:
-       echo -n '<KEY>' | gcloud secrets versions add anthropic-api-key --data-file=-
-       echo -n '<KEY>' | gcloud secrets versions add google-oauth-client-secret --data-file=-
-       echo -n '<KEY>' | gcloud secrets versions add jira-api-token --data-file=-
-  2. Trigger the first deploy:
-       gcloud builds submit \
-         --config=apps/capability-intelligence/infra/cloudbuild.yaml \
-         --project=digital-maturity-assessor apps/capability-intelligence
-  3. Map a custom domain (optional):
-       gcloud beta run domain-mappings create \
-         --service=capability-intelligence-api --domain=capability.zennify.com \
-         --region=us-central1
+       printf %s 'sk-ant-...'   | gcloud secrets versions add anthropic-api-key          --data-file=-
+       printf %s 'GOCSPX-...'   | gcloud secrets versions add google-oauth-client-secret --data-file=-
+       printf %s 'ATATT3xFf...' | gcloud secrets versions add jira-api-token             --data-file=-
+
+  2. SHARE the Drive folders with the runtime service account.
+     The deployed service needs Read access on these folders. Open each
+     folder in Google Drive, click Share, paste the SA email below, and
+     grant Viewer:
+
+       runtime SA email:
+         $RUNTIME_SA_EMAIL
+
+       folders to share:
+         https://drive.google.com/drive/folders/1rF9zdx1qF7BJ9t21eFdvZQW11Y5dUjy3   (catalogue)
+         https://drive.google.com/drive/folders/0AFm0q8PCUPy-Uk9PVA                 (SOWs shared drive)
+
+     For a Shared Drive (the SOWs root), use Manage members → Add member
+     instead — same email, role 'Content manager' or 'Viewer'.
+
+  3. Trigger the first deploy:
+       gcloud builds submit \\
+         --config=apps/capability-intelligence/infra/cloudbuild.yaml \\
+         --project=$PROJECT_ID apps/capability-intelligence
+
+  4. Map a custom domain (optional):
+       gcloud beta run domain-mappings create \\
+         --service=capability-intelligence-api --domain=capability.zennify.com \\
+         --region=$REGION
 EOF
