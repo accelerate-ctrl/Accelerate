@@ -14,31 +14,104 @@ end-to-end on Anthropic + Vertex AI.
 
 For the production target (GCP project **`digital-maturity-assessor`**,
 project number **`306195530103`**, region **`us-central1`**), every step
-below is automated. You only need to run these commands:
+below is automated.
+
+### 1) Open Cloud Shell and clone the repo
+
+In **Cloud Shell** (https://shell.cloud.google.com) with your project set
+to `digital-maturity-assessor`:
 
 ```bash
-# 1) Bootstrap APIs, IAM, Firestore, GCS, BQ, Secret Manager (idempotent).
-cd apps/capability-intelligence
+# Confirm project + region.
+gcloud config set project digital-maturity-assessor
+gcloud config set run/region us-central1
+
+# Clone the deploy branch into ~/Accelerate. Re-runnable: pulls if exists.
+if [ -d ~/Accelerate/.git ]; then
+  git -C ~/Accelerate fetch origin claude/deploy-zennify-cloud-run-AUdu6 \
+    && git -C ~/Accelerate checkout claude/deploy-zennify-cloud-run-AUdu6 \
+    && git -C ~/Accelerate pull --ff-only origin claude/deploy-zennify-cloud-run-AUdu6
+else
+  git clone --branch claude/deploy-zennify-cloud-run-AUdu6 --single-branch \
+    https://github.com/accelerate-ctrl/Accelerate.git ~/Accelerate
+fi
+
+cd ~/Accelerate/apps/capability-intelligence
+chmod +x infra/*.sh
+```
+
+There is also a single-command form that does all of the above in one
+shot — useful for re-bootstrapping a fresh Cloud Shell session:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/accelerate-ctrl/Accelerate/claude/deploy-zennify-cloud-run-AUdu6/apps/capability-intelligence/infra/cloudshell_bootstrap.sh | bash
+```
+
+### 2) Provision the project (idempotent — safe to re-run)
+
+```bash
+cd ~/Accelerate/apps/capability-intelligence
 ./infra/setup.sh
+```
 
-# 2) Populate secrets (see § 4 for full detail).
-echo -n 'sk-ant-…'   | gcloud secrets versions add anthropic-api-key --data-file=-
-echo -n 'GOCSPX-…'   | gcloud secrets versions add google-oauth-client-secret --data-file=-
-echo -n 'ATATT3xFf…' | gcloud secrets versions add jira-api-token --data-file=-
+`setup.sh` enables ~20 APIs, creates Artifact Registry, the runtime SA
+(+ 14 IAM bindings), Firestore `dma-assessor`, 6 GCS buckets, 9 BQ
+datasets, and 3 empty Secret Manager secrets. It self-validates at the
+end and exits non-zero if any resource is missing.
 
-# 3) First deploy — Cloud Build picks up infra/cloudbuild.yaml, which
-#    tests, builds, pushes, deploys, and smoke-tests in one pipeline.
+### 3) Populate the three secrets
+
+Paste keys interactively (so they never land in shell history):
+
+```bash
+read -srp 'Anthropic API key:   ' KEY1 && echo
+read -srp 'OAuth client secret: ' KEY2 && echo
+read -srp 'Jira API token:      ' KEY3 && echo
+echo -n "$KEY1" | gcloud secrets versions add anthropic-api-key          --data-file=-
+echo -n "$KEY2" | gcloud secrets versions add google-oauth-client-secret --data-file=-
+echo -n "$KEY3" | gcloud secrets versions add jira-api-token             --data-file=-
+unset KEY1 KEY2 KEY3
+```
+
+### 4) Deploy
+
+```bash
+cd ~/Accelerate/apps/capability-intelligence
 gcloud builds submit \
-  --config=apps/capability-intelligence/infra/cloudbuild.yaml \
-  --project=digital-maturity-assessor apps/capability-intelligence
+  --config=infra/cloudbuild.yaml \
+  --project=digital-maturity-assessor .
+```
 
-# 4) Verify
+The pipeline runs in order: backend pytest → frontend vitest + build →
+docker build → push → render manifest → deploy → smoke-test
+`/api/health`. Expect ~6–8 minutes.
+
+### 5) Verify
+
+```bash
 URL=$(gcloud run services describe capability-intelligence-api \
         --region=us-central1 --format='value(status.url)')
+echo "service URL: $URL"
+
 curl -fsS "$URL/api/health"
 curl -fsS "$URL/api/ready"        | jq    # echoes project + revision
-curl -fsS "$URL/api/auth/config"  | jq    # echoes OAuth client_id
+curl -fsS "$URL/api/auth/config"  | jq    # echoes OAuth client_id (no secret)
 ```
+
+### 6) Wire the OAuth client to the new URL
+
+Cloud Console → **APIs & Services → Credentials → web client
+`306195530103-…`**:
+
+1. **Authorized JavaScript origins**: add `$URL` from step 5.
+2. **Authorized redirect URIs**: add `$URL/api/auth/google/callback`
+   (n8n's `https://oauth.n8n.cloud/oauth2/callback` is already pre-set).
+3. **OAuth consent screen → Authorized domains**: `zennify.com`.
+
+> **Never commit live secrets to the repo.** Even temporary "test" keys
+> end up in git history, Cloud Build logs, and forks. Always populate
+> Secret Manager interactively as in step 3.
+
 
 ### Pre-configured values
 
