@@ -14,6 +14,10 @@ backend/static/
 .env.local
 .env.*.local
 
+# Dev-mode local JSON repository (written when USE_GCP=false)
+.local-repo.json
+**/.local-repo.json
+
 playwright-report/
 test-results/
 .playwright/
