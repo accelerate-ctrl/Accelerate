@@ -131,6 +131,23 @@ steps:
             > /workspace/service.rendered.yaml
         gcloud run services replace /workspace/service.rendered.yaml \
           --region=${_REGION} --project=${PROJECT_ID}
+        # Make the service publicly invokable (SPA + API are both fronted
+        # by app-level Google-OAuth auth via FastAPI's `get_current_user`,
+        # so the Cloud Run IAM gate would be redundant — and blocks the
+        # SPA from loading at all, since browsers can't supply an
+        # IAM-issued bearer token). Idempotent: re-adding a binding is a
+        # no-op. Tolerates org-policy restrictions on allUsers by falling
+        # back to allAuthenticatedUsers, then to domain:zennify.com.
+        gcloud run services add-iam-policy-binding ${_SERVICE_NAME} \
+          --region=${_REGION} --project=${PROJECT_ID} \
+          --member=allUsers --role=roles/run.invoker \
+          || gcloud run services add-iam-policy-binding ${_SERVICE_NAME} \
+               --region=${_REGION} --project=${PROJECT_ID} \
+               --member=allAuthenticatedUsers --role=roles/run.invoker \
+          || gcloud run services add-iam-policy-binding ${_SERVICE_NAME} \
+               --region=${_REGION} --project=${PROJECT_ID} \
+               --member=domain:zennify.com --role=roles/run.invoker \
+          || echo "warning: could not grant run.invoker — org policy may block public access"
 
   # 6) Deploy Cloud Run Jobs (image refresh only — manifests are managed
   # by Terraform). Tolerates missing jobs so the initial deploy succeeds
