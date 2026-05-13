@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, BookOpenCheck, History } from 'lucide-react';
 import { apiGet, type Overview } from '@/lib/api';
 import PillarRefreshPanel from '@/components/PillarRefreshPanel';
+import horizonBand from '@/assets/illustrations/horizon_minimal_band.jpg';
 
 const PILLAR_ACCENT: Record<string, string> = {
   P1: 'border-zen-dark-green',
@@ -35,10 +36,27 @@ export default function MissionControl() {
         </div>
       )}
       {data && data.totals.pillars_loaded === 0 && (
-        <div className="text-sm bg-zen-light-orange/40 border border-zen-orange/30 text-zen-dark-green rounded p-3">
-          <b>No catalogue ingested yet.</b> Click <b>Pull all sources</b> (top-right) to fetch
-          Pillar 1–4 workbooks from the configured Drive folder. The catalogue auto-picks the
-          highest <code>vX.Y</code> version per pillar; "inactive" files are skipped.
+        <div className="relative overflow-hidden rounded-lg border border-zen-separator bg-white shadow-sm">
+          <img
+            src={horizonBand}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full object-cover opacity-25"
+          />
+          <div className="relative p-6 max-w-xl">
+            <div className="text-[11px] uppercase tracking-wider text-zen-teal font-semibold mb-1">
+              Get started
+            </div>
+            <h2 className="text-lg font-semibold text-zen-dark-green mb-1">
+              No catalogue ingested yet
+            </h2>
+            <p className="text-sm text-zen-text-gray">
+              Click <b>Pull sources</b> (top-right) to fetch Pillar 1–4 workbooks from the
+              configured Drive folder. The ingestor auto-picks the highest{' '}
+              <code className="text-xs">vX.Y</code> version per pillar; files containing{' '}
+              <code className="text-xs">inactive</code> are skipped.
+            </p>
+          </div>
         </div>
       )}
 

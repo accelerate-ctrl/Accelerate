@@ -14,7 +14,6 @@ export default function PlatformCatalog() {
         <h1 className="text-2xl font-semibold text-zen-dark-green">Platform Catalog</h1>
         <p className="text-sm text-zen-dark-teal/80">
           L3 platforms grouped by vendor. Each card shows the number of subcaps that name it.
-          L4 feature drilldown ships with the L4 search panel in Batch 8.
         </p>
       </div>
 

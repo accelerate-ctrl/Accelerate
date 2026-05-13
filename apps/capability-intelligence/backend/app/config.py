@@ -118,6 +118,10 @@ class Settings(BaseSettings):
     # Drive (Batch 1) and Jira (Batch 3)
     drive_pillars_folder_id: str | None = None
     drive_sows_folder_id: str | None = None
+    # gen_stories_export — canonical user-story corpus as a Google Sheet.
+    # When set in cloud mode, stories_service pulls + exports as xlsx and
+    # ingests it as the canonical story stream alongside Jira.
+    gen_stories_spreadsheet_id: str | None = None
     jira_base_url: str | None = None
     jira_email: str | None = None
     jira_api_token: str | None = None

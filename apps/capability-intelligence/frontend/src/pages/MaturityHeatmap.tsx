@@ -24,8 +24,9 @@ export default function MaturityHeatmap() {
       <div>
         <h1 className="text-2xl font-semibold text-zen-dark-green">Maturity Heatmap</h1>
         <p className="text-sm text-zen-dark-teal/80">
-          Each row = subcap; each cell shaded by descriptor depth. Empty cells highlight maturity
-          gaps. Benchmark / peer overlay arrives in Batch 5.
+          Each row is a subcap; each cell is shaded by the deepest descriptor reached. Empty
+          cells highlight maturity opportunities. Colour bands map to the four canonical
+          Zennify maturity tiers — Activating, Building, Competing, Differentiating.
         </p>
       </div>
 
@@ -90,7 +91,7 @@ export default function MaturityHeatmap() {
           </table>
           {data.rows.length > 250 && (
             <div className="text-[10px] text-zen-dark-teal/60 px-2 py-1">
-              Showing first 250 of {data.rows.length} rows. Filter / pagination land in Batch 8.
+              Showing first 250 of {data.rows.length} rows.
             </div>
           )}
         </div>

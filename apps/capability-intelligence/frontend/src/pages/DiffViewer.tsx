@@ -93,8 +93,8 @@ export default function DiffViewer() {
             </div>
           </Card>
           <Card title="Narrative" icon={null}>
-            <div className="text-xs text-zen-dark-teal/70 italic">
-              AI narrative will land in Batch 4 once the LLM router is wired (Gemini 2.5 Pro).
+            <div className="text-xs text-zen-text-gray italic">
+              AI narrative populates once the LLM router is reachable from this revision.
             </div>
           </Card>
         </div>

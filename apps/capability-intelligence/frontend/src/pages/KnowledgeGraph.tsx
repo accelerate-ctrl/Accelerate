@@ -63,13 +63,22 @@ export default function KnowledgeGraph() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-zen-dark-green">Knowledge Graph</h1>
-        <p className="text-sm text-zen-dark-teal/80">
-          14 of the 28 spec node types are populated in Batch 2 (catalogue + cross-cutting). The
-          remaining types (SOWs, projects, vendors, news, filings, benchmarks…) light up in
-          Batches 3-6.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-zen-dark-green">Knowledge Graph</h1>
+          <p className="text-sm text-zen-dark-teal/80 max-w-3xl">
+            Interconnections across the catalogue — Pillars, Categories, L1 Capabilities,
+            Subcaps, Platforms, Use Cases, Themes, plus SOWs, vendors, news, filings, and
+            benchmarks as those streams populate.
+          </p>
+        </div>
+        <a
+          href="/api/graph/export.yaml"
+          className="text-xs bg-zen-teal hover:bg-zen-dark-teal text-white font-medium px-3 py-1.5 rounded transition-colors duration-200 whitespace-nowrap"
+          download="knowledge-graph.yaml"
+        >
+          Download YAML
+        </a>
       </div>
 
       {summary && (
@@ -171,10 +180,9 @@ export default function KnowledgeGraph() {
               ))}
             </ul>
           )}
-          <div className="mt-3 text-[10px] text-zen-dark-teal/60">
+          <div className="mt-3 text-[10px] text-zen-text-gray">
             Communities (Louvain), shortest-path, and impact-analysis are exposed at{' '}
-            <span className="font-mono">/api/graph/*</span>; richer UI ships in Batch 4 alongside
-            the Reasoning Chain Viewer.
+            <span className="font-mono">/api/graph/*</span>.
           </div>
         </div>
       </div>

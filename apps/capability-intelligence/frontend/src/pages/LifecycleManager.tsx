@@ -56,8 +56,9 @@ export default function LifecycleManager() {
         <div>
           <h1 className="text-2xl font-semibold text-zen-dark-green">Lifecycle Manager</h1>
           <p className="text-sm text-zen-dark-teal/80">
-            6-state weighted scoring across every subcap. Inputs: SOW recency (Batch 3) + story
-            velocity + news / trends cadence (Batch 4) + benchmark coverage (Batch 5).
+            Six-state weighted scoring across every subcap. Inputs blend SOW recency,
+            story-delivery velocity, news + trend cadence, and public benchmark coverage to
+            surface decay candidates, breakouts, and steady-state capabilities.
           </p>
         </div>
         <button

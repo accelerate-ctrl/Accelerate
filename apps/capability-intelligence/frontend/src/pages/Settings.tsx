@@ -46,10 +46,11 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="bg-zen-white-green rounded-lg border border-zen-light-green/40 p-4 text-xs text-zen-dark-teal">
-        <div className="font-semibold text-zen-dark-green mb-1">Mutable Settings UI: Batch 8</div>
-        Editable controls for canonical sources, personas, and feature flags ship in Batch 8. For
-        now, change values via <span className="font-mono">.env</span> and restart the service.
+      <div className="bg-zen-ice rounded-lg border border-zen-separator p-4 text-xs text-zen-dark-teal">
+        <div className="font-semibold text-zen-dark-green mb-1">Mutable settings UI — coming soon</div>
+        Editable controls for canonical sources, personas, and feature flags are on the
+        roadmap. For now, change values via <span className="font-mono">infra/service.yaml</span> and
+        redeploy.
       </div>
     </div>
   );

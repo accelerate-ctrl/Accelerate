@@ -40,10 +40,12 @@ export default function VendorIntelligence() {
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zen-dark-green">Vendor Intelligence</h1>
+          <h1 className="text-2xl font-semibold text-zen-dark-green">Partner Intelligence</h1>
           <p className="text-sm text-zen-dark-teal/80">
-            Per-vendor adoption % across peer cohorts (Batch 5 technographics) + recent
-            news / trend mentions (Batch 4). Click a vendor to filter events.
+            Per-partner adoption across peer cohorts and recent platform releases. Click a
+            partner to filter events. Roadmap: scan Salesforce, Databricks, nCino, Twilio,
+            MuleSoft, Agentforce release notes for the last 3 months and map each new
+            feature to an L2 capability so the catalogue can be challenged.
           </p>
         </div>
         <button

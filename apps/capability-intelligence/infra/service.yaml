@@ -120,6 +120,9 @@ spec:
             # client/project/phase subfolder. Shared drive ID format (starts 0A).
             - name: DRIVE_SOWS_FOLDER_ID
               value: 0AFm0q8PCUPy-Uk9PVA
+            # gen_stories_export canonical Google Sheet (Mishley shared link).
+            - name: GEN_STORIES_SPREADSHEET_ID
+              value: 1jwuVB5BK92um-ybNz-ggrS6VjQyL5kWYnLAV2sGisVI
             # ── Jira (story library) ─────────────────────────────────────
             # JIRA_BASE_URL + JIRA_EMAIL + JIRA_PROJECT_KEYS must all be set
             # for stories ingest to run. Token comes from Secret Manager.

@@ -46,17 +46,51 @@ class StoriesIngestResult:
 
 
 def _discover_canonical_file() -> Path | None:
-    """Look for `gen_stories_export.xlsx` next to the Pillar workbooks."""
+    """Look for `gen_stories_export.xlsx` next to the Pillar workbooks.
+
+    Resolution order (first match wins):
+      1. `GEN_STORIES_SPREADSHEET_ID` env var — pulls the Google Sheet by id
+         using the Drive API service account and writes a temp .xlsx.
+      2. `local_catalogue_dir` (recursively scanned for gen_stories_export*.xlsx)
+      3. repo's `test-data/` tree (dev fallback)
+    """
     from ..config import get_settings
     s = get_settings()
+
+    # 1. Drive Google Sheets pull (preferred in cloud).
+    sheet_id = getattr(s, "gen_stories_spreadsheet_id", None)
+    if sheet_id and s.use_gcp:
+        try:
+            import tempfile
+            from io import BytesIO
+
+            from googleapiclient.http import MediaIoBaseDownload
+
+            from .drive_service import _drive_client
+            drive = _drive_client()
+            request = drive.files().export_media(
+                fileId=sheet_id,
+                mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            buf = BytesIO()
+            downloader = MediaIoBaseDownload(buf, request, chunksize=4 * 1024 * 1024)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+            tmp = Path(tempfile.gettempdir()) / f"gen_stories_export-{sheet_id}.xlsx"
+            tmp.write_bytes(buf.getvalue())
+            return tmp
+        except Exception as exc:  # noqa: BLE001 — fall through to local
+            log.warning("could not pull gen_stories from Drive sheet %s: %s",
+                        sheet_id, exc)
+
+    # 2 + 3. Local filesystem fallback.
     candidates: list[Path] = []
     if s.local_catalogue_dir:
         root = Path(s.local_catalogue_dir)
         candidates.extend(root.rglob("gen_stories_export*.xlsx"))
-    # Also try the test-data root
     repo_root = Path(__file__).resolve().parents[3]
     candidates.extend((repo_root / "test-data").rglob("gen_stories_export*.xlsx"))
-    # Pick most-recent
     files = [c for c in candidates if c.is_file()]
     if not files:
         return None

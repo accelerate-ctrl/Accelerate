@@ -223,13 +223,13 @@ export default function SubcapDeepDive() {
         </Section>
       </div>
 
-      <Section title="Pending in later batches">
-        <div className="text-xs text-zen-dark-teal/70 grid grid-cols-1 md:grid-cols-2 gap-1">
-          <div>• Public evidence + ERS (Batch 4)</div>
-          <div>• Benchmarks + adversary verdict (Batch 5)</div>
-          <div>• Lifecycle scoring (Batch 6)</div>
-          <div>• Vendor competitive intel (Batch 6)</div>
-          <div>• Reasoning chain (Batch 4)</div>
+      <Section title="Coming soon">
+        <div className="text-xs text-zen-text-gray grid grid-cols-1 md:grid-cols-2 gap-1">
+          <div>• Public evidence + Evidence Reliability Score</div>
+          <div>• Benchmark distribution + adversary verdict</div>
+          <div>• Lifecycle decay scoring</div>
+          <div>• Vendor competitive intelligence</div>
+          <div>• Reasoning-chain drilldown</div>
         </div>
       </Section>
     </div>
