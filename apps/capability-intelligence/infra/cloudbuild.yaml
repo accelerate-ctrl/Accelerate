@@ -155,18 +155,58 @@ steps:
             --region=${_REGION} || echo "skip: job $$JOB not provisioned yet"
         done
 
-  # 7) Smoke test
+  # 7) Smoke test — long retry budget + diagnostic dump on failure.
+  #
+  # A brand-new Cloud Run revision can take 30-90 s to serve its first
+  # request, especially when secret-volume mounts are cold and the
+  # container has to pull image layers + initialise. The previous 5 ×
+  # 5 s loop wasn't generous enough. We now retry for 2 min and, on
+  # failure, dump the latest revision's state + recent container logs
+  # so the build log shows exactly what went wrong.
   - id: smoke
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - "-c"
       - |
-        URL=$$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --format='value(status.url)')
-        for i in 1 2 3 4 5; do
-          if curl -sf "$$URL/api/health"; then exit 0; fi
+        set +e
+        URL=$$(gcloud run services describe ${_SERVICE_NAME} \
+                --region=${_REGION} --project=${PROJECT_ID} \
+                --format='value(status.url)')
+        echo "service URL: $$URL"
+        if [ -z "$$URL" ]; then
+          echo "FATAL: no URL returned by services describe"
+          gcloud run services describe ${_SERVICE_NAME} \
+            --region=${_REGION} --project=${PROJECT_ID} || true
+          exit 1
+        fi
+        for i in $$(seq 1 24); do
+          BODY=$$(mktemp)
+          HTTP=$$(curl -s -o "$$BODY" -w "%{http_code}" --max-time 10 "$$URL/api/health" || echo "000")
+          echo "  attempt $$i: HTTP $$HTTP"
+          if [ "$$HTTP" = "200" ]; then
+            echo "  body: $$(cat $$BODY)"
+            rm -f "$$BODY"
+            exit 0
+          fi
+          rm -f "$$BODY"
           sleep 5
         done
+        echo
+        echo "✗ smoke failed after 2 min. Diagnostic dump:"
+        echo "----- service summary -----"
+        gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} --project=${PROJECT_ID} \
+          --format='yaml(status.conditions,status.latestReadyRevisionName,status.url)' || true
+        echo "----- revisions list -----"
+        gcloud run revisions list --service=${_SERVICE_NAME} \
+          --region=${_REGION} --project=${PROJECT_ID} \
+          --format='table(metadata.name,status.conditions[0].type,status.conditions[0].status,status.conditions[0].message)' || true
+        echo "----- last 80 log lines for service -----"
+        gcloud logging read \
+          "resource.type=cloud_run_revision AND resource.labels.service_name=${_SERVICE_NAME}" \
+          --limit=80 --project=${PROJECT_ID} \
+          --format='value(textPayload,jsonPayload.message,jsonPayload.event)' || true
         exit 1
 
 # `images:` is the list Cloud Build itself pushes at the end of a successful
