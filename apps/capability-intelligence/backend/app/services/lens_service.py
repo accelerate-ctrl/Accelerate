@@ -104,6 +104,70 @@ def subvertical_compare(sub_cap_id: str) -> dict:
     return {"sub_cap_id": sub_cap_id, "rows": rows}
 
 
+def subvertical_gaps(from_code: str, to_code: str, pillar_id: str | None = None) -> dict:
+    """Surfaces the asymmetric subcap coverage between two subverticals.
+
+    Output:
+      {
+        "from": {"code", "name"},
+        "to":   {"code", "name"},
+        "common":    [sub_cap_id, ...],   # tagged for BOTH
+        "only_in_from": [{sub_cap_id, sub_cap_name, category_id}, ...],
+        "only_in_to":   [{sub_cap_id, sub_cap_name, category_id}, ...],
+      }
+
+    "Only in to" answers the operator's intent — subcaps that the
+    comparison subvertical (`to`) is already practising but `from`
+    hasn't tagged yet. That set is the expansion opportunity.
+    """
+    svs_by_code = {sv["code"]: sv for sv in _load_subverticals()}
+    if from_code not in svs_by_code or to_code not in svs_by_code:
+        return {
+            "from": svs_by_code.get(from_code),
+            "to": svs_by_code.get(to_code),
+            "error": "unknown subvertical code",
+            "common": [],
+            "only_in_from": [],
+            "only_in_to": [],
+        }
+
+    filt: dict = {}
+    if pillar_id:
+        filt["pillar_id"] = pillar_id
+
+    from_mappings = {
+        m["sub_cap_id"]
+        for m in cat.list_vc_mappings({**filt, "subvertical_code": from_code})
+        if m.get("stages")
+    }
+    to_mappings = {
+        m["sub_cap_id"]
+        for m in cat.list_vc_mappings({**filt, "subvertical_code": to_code})
+        if m.get("stages")
+    }
+    subcap_index = {s["sub_cap_id"]: s for s in cat.list_subcaps(pillar_id)}
+
+    def _enrich(sids: set[str]) -> list[dict]:
+        out = []
+        for sid in sorted(sids):
+            sc = subcap_index.get(sid) or {}
+            out.append({
+                "sub_cap_id": sid,
+                "sub_cap_name": sc.get("sub_cap_name") or sc.get("name"),
+                "category_id": sc.get("category_id"),
+                "l1_capability": sc.get("l1_capability"),
+            })
+        return out
+
+    return {
+        "from": {"code": from_code, "name": svs_by_code[from_code]["name"]},
+        "to": {"code": to_code, "name": svs_by_code[to_code]["name"]},
+        "common": sorted(from_mappings & to_mappings),
+        "only_in_from": _enrich(from_mappings - to_mappings),
+        "only_in_to": _enrich(to_mappings - from_mappings),
+    }
+
+
 # ─── Maturity Heatmap ────────────────────────────────────────────────────────
 
 

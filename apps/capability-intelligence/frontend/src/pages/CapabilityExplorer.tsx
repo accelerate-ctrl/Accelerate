@@ -5,9 +5,28 @@ import CatalogueSunburst from '@/components/CatalogueSunburst';
 import CatalogueTree from '@/components/CatalogueTree';
 import { useFilters } from '@/store/filters';
 
+type MaturityDist = {
+  total_with_maturity: number;
+  by_level: Record<string, number>;
+  labels: Record<string, string>;
+};
+
+const MATURITY_BANDS: { key: string; bg: string; accent: string }[] = [
+  { key: 'm1', bg: 'bg-zen-light-orange/60', accent: 'text-zen-orange' },
+  { key: 'm2', bg: 'bg-zen-purple-grey/60', accent: 'text-zen-dark-purple' },
+  { key: 'm3', bg: 'bg-zen-light-blue/40', accent: 'text-zen-blue' },
+  { key: 'm4', bg: 'bg-zen-ice', accent: 'text-zen-light-teal' },
+  { key: 'm5', bg: 'bg-zen-light-green/70', accent: 'text-zen-teal' },
+];
+
 export default function CapabilityExplorer() {
   const { pillarId, categoryId, search, setPillar, setCategory, setSearch, reset } = useFilters();
   const params = pillarId ? `?pillar_id=${encodeURIComponent(pillarId)}` : '';
+
+  const { data: maturityDist } = useQuery<MaturityDist>({
+    queryKey: ['maturity-dist', pillarId],
+    queryFn: () => apiGet<MaturityDist>(`/catalogue/maturity-distribution${params}`),
+  });
 
   const { data, isLoading, error } = useQuery<Tree>({
     queryKey: ['catalogue-tree', pillarId],
@@ -62,7 +81,30 @@ export default function CapabilityExplorer() {
         )}
       </div>
 
-      {isLoading && <div className="text-xs text-zen-dark-teal/60">Loading…</div>}
+      {/* Maturity-distribution band — quick at-a-glance ladder coverage */}
+      {maturityDist && maturityDist.total_with_maturity > 0 && (
+        <div className="bg-white rounded-lg border border-zen-separator p-3">
+          <div className="text-[10px] uppercase tracking-wider text-zen-muted-text mb-2">
+            Maturity ladder coverage · {maturityDist.total_with_maturity} subcaps with descriptors
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {MATURITY_BANDS.map((b) => {
+              const count = maturityDist.by_level[b.key] || 0;
+              const label = maturityDist.labels[b.key] || b.key.toUpperCase();
+              return (
+                <div key={b.key} className={`${b.bg} rounded p-2`}>
+                  <div className={`text-[10px] uppercase tracking-wider font-semibold ${b.accent}`}>
+                    {label}
+                  </div>
+                  <div className="text-xl font-semibold text-zen-dark-green mt-0.5">{count}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {isLoading && <div className="text-xs text-zen-muted-text">Loading…</div>}
       {error && <div className="text-xs text-zen-orange">Failed to load tree.</div>}
 
       {filtered && (

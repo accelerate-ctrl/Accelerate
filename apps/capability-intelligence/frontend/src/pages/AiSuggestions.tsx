@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Sparkles, Trash2, Check, Brain } from 'lucide-react';
+import { Check, CheckCircle2, Sparkles, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiGet, apiPost, type Suggestion, type SuggestionStats } from '@/lib/api';
+import ReasoningChainMini, { type ChainSummary } from '@/components/ReasoningChainMini';
 
 const STATUS_BADGE: Record<string, string> = {
   pending: 'bg-zen-light-orange text-zen-dark-green',
@@ -74,52 +75,121 @@ export default function AiSuggestions() {
         </div>
       )}
 
-      <ul className="space-y-2">
+      <ul className="space-y-3">
         {items?.map((s) => (
-          <li key={s.id} className="bg-white rounded-lg border border-zen-light-green/40 p-3">
-            <div className="flex items-start gap-2">
-              <CheckCircle2 size={14} className="text-zen-teal mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`text-[10px] uppercase rounded px-1.5 py-0.5 ${STATUS_BADGE[s.status]}`}>{s.status}</span>
-                  <span className="font-mono text-[10px] text-zen-dark-teal/60">{s.kind}</span>
-                  {s.target && (
-                    <Link to={`/subcap?id=${encodeURIComponent(s.target)}`} className="font-mono text-[10px] bg-zen-light-green/50 text-zen-dark-teal px-1 rounded hover:text-zen-dark-green">
-                      {s.target}
-                    </Link>
-                  )}
-                  <span className="text-sm font-medium text-zen-dark-green">{s.title}</span>
-                </div>
-                <div className="text-xs text-zen-dark-teal mt-1">{s.rationale}</div>
-                <div className="text-[10px] text-zen-dark-teal/60 mt-1 flex items-center gap-2">
-                  <Link to={`/reasoning-chain?id=${encodeURIComponent(s.chain_id)}`} className="inline-flex items-center gap-0.5 text-zen-teal hover:text-zen-dark-teal">
-                    <Brain size={10} /> chain {s.chain_id.slice(-6)}
-                  </Link>
-                  <span>· gate {s.gate_overall}</span>
-                  <span>· {new Date(s.created_at).toLocaleString()}</span>
-                  {s.decided_by && <span>· by {s.decided_by}</span>}
-                </div>
-              </div>
-              {s.status === 'pending' && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => apply.mutate(s.id)}
-                    className="bg-zen-teal hover:bg-zen-dark-teal text-white text-[10px] px-2 py-1 rounded inline-flex items-center gap-0.5"
-                  >
-                    <Check size={10} /> Apply
-                  </button>
-                  <button
-                    onClick={() => reject.mutate(s.id)}
-                    className="bg-zen-orange/80 hover:bg-zen-orange text-white text-[10px] px-2 py-1 rounded inline-flex items-center gap-0.5"
-                  >
-                    <Trash2 size={10} /> Reject
-                  </button>
-                </div>
-              )}
-            </div>
-          </li>
+          <SuggestionRow
+            key={s.id}
+            s={s}
+            onApply={() => apply.mutate(s.id)}
+            onReject={() => reject.mutate(s.id)}
+          />
         ))}
       </ul>
     </div>
+  );
+}
+
+function SuggestionRow({
+  s,
+  onApply,
+  onReject,
+}: {
+  s: Suggestion;
+  onApply: () => void;
+  onReject: () => void;
+}) {
+  // Fetch the chain on-demand so we can show its compressed widget +
+  // adversarial review inline. Chain endpoint returns the full chain
+  // record including the `steps` array + adversarial step output.
+  const { data: chain } = useQuery<ChainSummary & { steps?: Array<{ name: string; detail?: Record<string, unknown> }> }>({
+    queryKey: ['chain-mini', s.chain_id],
+    queryFn: () => apiGet(`/reasoning-chains/${encodeURIComponent(s.chain_id)}`),
+    enabled: !!s.chain_id,
+  });
+
+  // Pull the adversarial step out of the chain if present so we can render
+  // the AI's self-critique inline — addresses the user's "does the AI
+  // challenge its thinking?" complaint.
+  const adversarialDetail =
+    chain?.steps?.find((st) => st.name === 'adversarial')?.detail || null;
+  const critique =
+    (adversarialDetail as { critique?: string; severity?: string; weaknesses?: string[] } | null) || null;
+
+  return (
+    <li className="bg-white rounded-lg border border-zen-separator p-3">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 size={14} className="text-zen-teal mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className={`text-[10px] uppercase rounded px-1.5 py-0.5 ${STATUS_BADGE[s.status]}`}
+            >
+              {s.status}
+            </span>
+            <span className="font-mono text-[10px] text-zen-muted-text">{s.kind}</span>
+            {s.target && (
+              <Link
+                to={`/subcap?id=${encodeURIComponent(s.target)}`}
+                className="font-mono text-[10px] bg-zen-light-green/60 text-zen-dark-teal px-1 rounded hover:text-zen-dark-green"
+              >
+                {s.target}
+              </Link>
+            )}
+            <span className="text-sm font-medium text-zen-dark-green">{s.title}</span>
+          </div>
+          <div className="text-xs text-zen-text-gray mt-1">{s.rationale}</div>
+          {critique?.critique && (
+            <div className="mt-2 border-l-2 border-zen-orange/60 bg-zen-light-orange/20 pl-2 pr-2 py-1.5 rounded-r">
+              <div className="text-[10px] uppercase font-semibold text-zen-orange tracking-wider mb-0.5">
+                Adversarial self-review
+                {critique.severity && (
+                  <span className="ml-1 normal-case font-normal text-zen-text-gray">
+                    · severity {critique.severity}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-zen-dark-green">{critique.critique}</div>
+              {critique.weaknesses && critique.weaknesses.length > 0 && (
+                <ul className="text-[11px] text-zen-text-gray mt-1 list-disc list-inside">
+                  {critique.weaknesses.slice(0, 4).map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <div className="mt-2">
+            <ReasoningChainMini
+              chain={
+                chain
+                  ? { ...chain, total_cost_usd: chain.total_cost_usd, chain_id: s.chain_id }
+                  : null
+              }
+            />
+          </div>
+          <div className="text-[10px] text-zen-muted-text mt-1.5 flex items-center gap-2">
+            <span>gate {s.gate_overall}</span>
+            <span>· {new Date(s.created_at).toLocaleString()}</span>
+            {s.decided_by && <span>· by {s.decided_by}</span>}
+          </div>
+        </div>
+        {s.status === 'pending' && (
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={onApply}
+              className="bg-zen-teal hover:bg-zen-dark-teal text-white text-[10px] px-2 py-1 rounded inline-flex items-center gap-0.5"
+            >
+              <Check size={10} /> Apply
+            </button>
+            <button
+              onClick={onReject}
+              className="bg-zen-orange/80 hover:bg-zen-orange text-white text-[10px] px-2 py-1 rounded inline-flex items-center gap-0.5"
+            >
+              <Trash2 size={10} /> Reject
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }

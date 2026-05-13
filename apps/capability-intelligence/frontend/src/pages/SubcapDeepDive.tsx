@@ -76,22 +76,53 @@ export default function SubcapDeepDive() {
         </Section>
       )}
 
-      <Section title="Maturity (M1 → M5)">
-        <ul className="space-y-2">
-          {MATURITY_LEVELS.map((lvl) => (
-            <li key={lvl.key} className="border border-zen-light-green/40 rounded p-2">
-              <div className="text-xs font-semibold text-zen-dark-green">{lvl.label}</div>
-              <div className="text-sm text-zen-dark-teal mt-0.5 whitespace-pre-line">
-                {(m as Record<string, string | null>)[lvl.key] || <em className="text-zen-dark-teal/50">(no descriptor)</em>}
-              </div>
-              {(m as Record<string, string | null>)[lvl.features] && (
-                <div className="text-xs text-zen-dark-teal/80 mt-1 whitespace-pre-line">
-                  {(m as Record<string, string | null>)[lvl.features]}
+      <Section title="Maturity ladder">
+        {/* 5-card horizontal strip — ZDS 5-tier maturity bands (Foundational →
+            Transformational). Active card = descriptor populated. */}
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+          {MATURITY_LEVELS.map((lvl, i) => {
+            const desc = (m as Record<string, string | null>)[lvl.key];
+            const feat = (m as Record<string, string | null>)[lvl.features];
+            const active = Boolean(desc);
+            // ZDS canonical bg + circle from color_authority.md.
+            const bands = [
+              { bg: 'bg-zen-light-orange/40', accent: 'bg-zen-orange', label: 'Foundational' },
+              { bg: 'bg-zen-purple-grey/40',  accent: 'bg-zen-dark-purple', label: 'Developing' },
+              { bg: 'bg-zen-light-blue/30',   accent: 'bg-zen-blue', label: 'Established' },
+              { bg: 'bg-zen-ice',             accent: 'bg-zen-light-teal', label: 'Advanced' },
+              { bg: 'bg-zen-light-green/50',  accent: 'bg-zen-teal', label: 'Transformational' },
+            ][i];
+            return (
+              <div
+                key={lvl.key}
+                className={[
+                  'rounded-lg border p-3 min-h-[140px] flex flex-col',
+                  active ? 'border-zen-separator shadow-sm' : 'border-zen-separator/50 opacity-60',
+                  bands.bg,
+                ].join(' ')}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className={`w-6 h-6 rounded-full text-white text-xs font-semibold flex items-center justify-center ${bands.accent}`}>
+                    {i + 1}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider font-semibold text-zen-dark-green">
+                    {bands.label}
+                  </div>
                 </div>
-              )}
-            </li>
-          ))}
-        </ul>
+                {desc ? (
+                  <div className="text-xs text-zen-dark-green whitespace-pre-line">{desc}</div>
+                ) : (
+                  <em className="text-xs text-zen-muted-text">No descriptor captured</em>
+                )}
+                {feat && (
+                  <div className="text-[11px] text-zen-text-gray mt-2 whitespace-pre-line border-t border-zen-separator/40 pt-1.5">
+                    {feat}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

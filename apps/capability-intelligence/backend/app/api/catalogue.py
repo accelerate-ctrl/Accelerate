@@ -91,6 +91,41 @@ def get_l3(_=Depends(auth_dep)) -> list[dict]:
     return svc.list_l3()
 
 
+@router.get("/maturity-distribution")
+def maturity_distribution(
+    pillar_id: str | None = None,
+    _=Depends(auth_dep),
+) -> dict:
+    """How many subcaps reach each of the 5 maturity tiers (deepest
+    non-empty descriptor wins). Powers the at-a-glance band counters on
+    Capability Explorer."""
+    rows = svc.list_maturity()
+    if pillar_id:
+        # subcap_id format is "P1C1.1.1" → first 2 chars = pillar id
+        rows = [r for r in rows if (r.get("sub_cap_id") or "").startswith(pillar_id)]
+    counts = {f"m{i}": 0 for i in range(1, 6)}
+    for r in rows:
+        # Find the deepest M-band with a descriptor.
+        deepest = 0
+        for i in range(1, 6):
+            if r.get(f"m{i}"):
+                deepest = i
+        if deepest:
+            counts[f"m{deepest}"] += 1
+    total = sum(counts.values())
+    return {
+        "total_with_maturity": total,
+        "by_level": counts,
+        "labels": {
+            "m1": "Foundational",
+            "m2": "Developing",
+            "m3": "Established",
+            "m4": "Advanced",
+            "m5": "Transformational",
+        },
+    }
+
+
 @router.get("/tree")
 def get_tree(pillar_id: str | None = None, _=Depends(auth_dep)) -> dict:
     """Hierarchical tree for sunburst / collapsible-tree rendering."""

@@ -37,6 +37,18 @@ def subvertical_compare(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     return ls.subvertical_compare(sub_cap_id=sub_cap_id)
 
 
+@router.get("/subvertical-gaps")
+def subvertical_gaps(
+    from_code: str,
+    to_code: str,
+    pillar_id: str | None = None,
+    _=Depends(auth_dep),
+) -> dict:
+    """Asymmetric subcap coverage: subcaps tagged for `from` but not for
+    `to` (and vice-versa). Drives the Subvertical Compare gap view."""
+    return ls.subvertical_gaps(from_code, to_code, pillar_id)
+
+
 @router.get("/maturity-heatmap")
 def maturity_heatmap(pillar_id: str | None = None, _=Depends(auth_dep)) -> dict:
     return ls.maturity_heatmap(pillar_id=pillar_id)
