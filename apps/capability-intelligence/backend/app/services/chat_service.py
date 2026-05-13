@@ -159,7 +159,10 @@ def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
             hits = sum(1 for t in qtokens if t in blob.lower())
             if hits:
                 ranked_news.append((hits, n))
-        ranked_news.sort(key=lambda r: (-r[0], -(r[1].get("published_at") or "")))
+        # Sort by hits desc, then date desc. Two-pass stable sort: weakest
+        # key first, strongest last (Python's sort is stable).
+        ranked_news.sort(key=lambda r: r[1].get("published_at") or "", reverse=True)
+        ranked_news.sort(key=lambda r: r[0], reverse=True)
         for _h, n in ranked_news[:4]:
             sources.append({
                 "id": n.get("id"),
