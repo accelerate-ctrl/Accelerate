@@ -1,4 +1,14 @@
-"""FastAPI factory + static SPA mount."""
+"""FastAPI factory + static SPA mount.
+
+Cloud Run notes:
+  * ``$PORT`` is injected by the runtime — uvicorn reads it via the launcher
+    in Dockerfile (``uvicorn ... --port ${PORT:-8080}``).
+  * ``K_SERVICE`` / ``K_REVISION`` are injected automatically — they're
+    echoed into every startup log line so Cloud Logging traces are coherent.
+  * Health probes (``/api/health`` liveness, ``/api/ready`` readiness) are
+    public — they're how Cloud Run decides when to send traffic.
+"""
+import os
 from pathlib import Path
 
 import structlog
@@ -49,7 +59,9 @@ def create_app() -> FastAPI:
     # via Dockerfile; in local dev, copy frontend/dist → backend/static).
     static_dir = Path(__file__).resolve().parents[1] / "static"
     if static_dir.exists():
-        app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+        assets_dir = static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
         @app.get("/{full_path:path}", include_in_schema=False)
         async def spa_fallback(full_path: str) -> FileResponse:
@@ -57,7 +69,15 @@ def create_app() -> FastAPI:
             index = static_dir / "index.html"
             return FileResponse(index)
 
-    logger.info("app.created", env=settings.env, auth_mode=settings.auth_mode)
+    logger.info(
+        "app.created",
+        env=settings.env,
+        auth_mode=settings.auth_mode,
+        project=settings.gcp_project_id,
+        region=settings.gcp_region,
+        service=os.getenv("K_SERVICE") or settings.cloud_run_service,
+        revision=os.getenv("K_REVISION") or settings.cloud_run_revision,
+    )
     return app
 
 

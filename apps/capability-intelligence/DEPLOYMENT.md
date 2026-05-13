@@ -3,10 +3,138 @@
 **Audience**: A platform engineer at Zennify standing the system up from
 scratch. Read top-to-bottom; every step is a single command.
 
-**Result after Step 12**: A live Cloud Run service serving the SPA + 14
-Cloud Run Jobs running on Scheduler crons + Pub/Sub event bus + Cloud
-Tasks DLQ + Cloud Monitoring alerts + the full RAG / lifecycle / digest
-pipeline operating end-to-end on Anthropic + Vertex AI.
+**Result**: A live Cloud Run service serving the SPA + 14 Cloud Run Jobs
+running on Scheduler crons + Pub/Sub event bus + Cloud Tasks DLQ + Cloud
+Monitoring alerts + the full RAG / lifecycle / digest pipeline operating
+end-to-end on Anthropic + Vertex AI.
+
+---
+
+## Quick start — `digital-maturity-assessor`
+
+For the production target (GCP project **`digital-maturity-assessor`**,
+project number **`306195530103`**, region **`us-central1`**), every step
+below is automated. You only need to run these commands:
+
+```bash
+# 1) Bootstrap APIs, IAM, Firestore, GCS, BQ, Secret Manager (idempotent).
+cd apps/capability-intelligence
+./infra/setup.sh
+
+# 2) Populate secrets (see § 4 for full detail).
+echo -n 'sk-ant-…'   | gcloud secrets versions add anthropic-api-key --data-file=-
+echo -n 'GOCSPX-…'   | gcloud secrets versions add google-oauth-client-secret --data-file=-
+echo -n 'ATATT3xFf…' | gcloud secrets versions add jira-api-token --data-file=-
+
+# 3) First deploy — Cloud Build picks up infra/cloudbuild.yaml, which
+#    tests, builds, pushes, deploys, and smoke-tests in one pipeline.
+gcloud builds submit \
+  --config=apps/capability-intelligence/infra/cloudbuild.yaml \
+  --project=digital-maturity-assessor apps/capability-intelligence
+
+# 4) Verify
+URL=$(gcloud run services describe capability-intelligence-api \
+        --region=us-central1 --format='value(status.url)')
+curl -fsS "$URL/api/health"
+curl -fsS "$URL/api/ready"        | jq    # echoes project + revision
+curl -fsS "$URL/api/auth/config"  | jq    # echoes OAuth client_id
+```
+
+### Pre-configured values
+
+| What | Value | Where |
+|------|-------|-------|
+| GCP project | `digital-maturity-assessor` | `config.py`, `service.yaml`, `setup.sh` |
+| Project number | `306195530103` | `service.yaml` |
+| Region | `us-central1` | everywhere |
+| Cloud Run service | `capability-intelligence-api` | `service.yaml`, `cloudbuild.yaml` |
+| Runtime SA | `capability-intelligence@…iam.gserviceaccount.com` | `service.yaml` |
+| OAuth web client_id | `306195530103-ub6t46i8sd9q1eatpt6dgo0i9811mnrp.apps.googleusercontent.com` | `service.yaml`, `auth.py` |
+| OAuth redirect URI | `https://oauth.n8n.cloud/oauth2/callback` | `service.yaml` |
+| Firestore database | `dma-assessor` (native mode, `us-central1`) | `setup.sh` |
+| GCS bucket prefix | `digital-maturity-assessor-*` | `setup.sh`, `service.yaml` |
+| BQ datasets | 9 (`capability_catalogue`, …, `cost_tracking`) | `setup.sh` |
+| Secret Manager | `anthropic-api-key`, `google-oauth-client-secret`, `jira-api-token` | `setup.sh` |
+
+### OAuth setup (one-time, after first deploy)
+
+In Cloud Console → APIs & Services → Credentials → the web client
+`306195530103-…`:
+
+1. **Authorized JavaScript origins**:
+   - `https://capability-intelligence-api-<hash>-uc.a.run.app` (after first deploy)
+   - `https://capability.zennify.com` (after custom domain mapping)
+   - `https://oauth.n8n.cloud`
+2. **Authorized redirect URIs**:
+   - `https://oauth.n8n.cloud/oauth2/callback` (already pre-set)
+   - `https://capability-intelligence-api-<hash>-uc.a.run.app/api/auth/google/callback`
+3. OAuth consent screen → "Authorized domains": `zennify.com`.
+
+### n8n integration
+
+In n8n cloud, when creating a **Google OAuth2** credential:
+
+| Field | Value |
+|-------|-------|
+| Authorization URL | `https://accounts.google.com/o/oauth2/auth` |
+| Access Token URL  | `https://oauth2.googleapis.com/token` |
+| Client ID         | `306195530103-ub6t46i8sd9q1eatpt6dgo0i9811mnrp.apps.googleusercontent.com` |
+| Client Secret     | from Secret Manager (`google-oauth-client-secret`) |
+| Scope             | `openid email profile` |
+
+n8n will redirect through `https://oauth.n8n.cloud/oauth2/callback` —
+already in the allowed redirect list. The ID token it returns can be
+POSTed to `$URL/api/auth/google/callback` to obtain a verified user
+identity (the SPA backend verifies it against Google JWKS with
+`aud == client_id`).
+
+### Smoke + stress test the live service
+
+```bash
+URL=$(gcloud run services describe capability-intelligence-api \
+        --region=us-central1 --format='value(status.url)')
+
+# Health (no auth)
+curl -fsS "$URL/api/health"
+curl -fsS "$URL/api/ready" | jq
+curl -fsS "$URL/api/auth/config" | jq
+
+# Authenticated /me (using a Google ID token from the SPA login)
+TOKEN="…id-token…"
+curl -fsS "$URL/api/auth/me" -H "Authorization: Bearer $TOKEN"
+
+# Stress: 200 RPS for 30s against /api/health (install `hey` first)
+hey -z 30s -q 200 -c 50 "$URL/api/health"   # p95 should be < 300ms
+```
+
+Pre-merge stress test (local uvicorn, same Dockerfile, current commit):
+
+| Endpoint | Load | Result |
+|---|---|---|
+| `/api/health` | 1000 req @ 50 conc | 596 RPS, p95 9.6 ms, p99 14.6 ms, 0 fails |
+| `/api/auth/google/callback` (bogus) | 500 req @ 25 conc | all 400 in < 50 ms p99 |
+| `/api/graph/sigma?limit=200` | 100 @ 20 conc | p95 39 ms, 100% 200s |
+| Backend pytest | 192 tests | 192/192 pass in 76 s |
+| Frontend vitest + build | 42 tests | 42/42 pass, 257 KB gzip JS |
+
+### Rollback
+
+```bash
+gcloud run revisions list --service=capability-intelligence-api \
+  --region=us-central1
+
+gcloud run services update-traffic capability-intelligence-api \
+  --to-revisions=<prev-revision>=100 \
+  --region=us-central1
+```
+
+---
+
+## Detailed walkthrough
+
+The rest of this document describes the same steps in detail for
+operators who want to understand each piece or adapt to a different
+project.
 
 ---
 
@@ -62,7 +190,7 @@ python -m app.jobs.runner digest_quarterly --arg period=2026-Q2
 ## 2. GCP project bootstrap
 
 ```bash
-export PROJECT_ID=zennify-cap-intel
+export PROJECT_ID=digital-maturity-assessor
 export REGION=us-central1
 
 gcloud projects create $PROJECT_ID --name="Zennify Capability Intelligence"

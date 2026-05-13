@@ -19,15 +19,27 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173", "http://localhost:8080"])
 
     # Auth
-    auth_mode: Literal["dev", "firebase"] = "dev"
+    auth_mode: Literal["dev", "firebase", "google_oauth"] = "dev"
     auth_allowed_domain: str = "zennify.com"
     firebase_project_id: str | None = None
 
-    # GCP — all optional in dev, required in prod
+    # Google OAuth — the n8n / web client. Verification uses Google's public
+    # JWKS; client_id is enforced as the `aud` claim. Set in Cloud Run via
+    # env (client_id is public) and Secret Manager (client_secret).
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uris: list[str] = Field(default_factory=list)
+
+    # GCP — defaults to the production project so the runtime + tests echo
+    # the right values even before .env is sourced.
     use_gcp: bool = False
-    gcp_project_id: str | None = None
+    gcp_project_id: str = "digital-maturity-assessor"
+    gcp_project_number: str | None = None
     gcp_region: str = "us-central1"
     google_application_credentials: str | None = None  # path to SA JSON
+    # Cloud Run injects K_SERVICE / K_REVISION; we surface them for logs.
+    cloud_run_service: str | None = None
+    cloud_run_revision: str | None = None
 
     # Firestore (MongoDB compatibility mode)
     firestore_database_id: str = "dma-assessor"
