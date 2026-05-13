@@ -13,104 +13,147 @@ end-to-end on Anthropic + Vertex AI.
 ## Quick start — `digital-maturity-assessor`
 
 For the production target (GCP project **`digital-maturity-assessor`**,
-project number **`306195530103`**, region **`us-central1`**), every step
-below is automated.
+project number **`306195530103`**, region **`us-central1`**).
 
-### 1) Open Cloud Shell and clone the repo
+Every block below is self-contained: each one sets its own working
+directory absolutely, so it doesn't matter where Cloud Shell drops you.
+Run them in order from a fresh Cloud Shell session.
 
-In **Cloud Shell** (https://shell.cloud.google.com) with your project set
-to `digital-maturity-assessor`:
+### 1) Clone or update the repo (idempotent)
+
+Open **Cloud Shell** (https://shell.cloud.google.com) and paste this
+block verbatim. It works whether `~/Accelerate` already exists or not,
+and whether you've been recycled by Cloud Shell's idle timeout:
 
 ```bash
-# Confirm project + region.
 gcloud config set project digital-maturity-assessor
 gcloud config set run/region us-central1
 
-# Clone the deploy branch into ~/Accelerate. Re-runnable: pulls if exists.
-if [ -d ~/Accelerate/.git ]; then
-  git -C ~/Accelerate fetch origin claude/deploy-zennify-cloud-run-AUdu6 \
-    && git -C ~/Accelerate checkout claude/deploy-zennify-cloud-run-AUdu6 \
-    && git -C ~/Accelerate pull --ff-only origin claude/deploy-zennify-cloud-run-AUdu6
+BRANCH=claude/deploy-zennify-cloud-run-AUdu6
+REPO_URL=https://github.com/accelerate-ctrl/Accelerate.git
+WORKDIR="$HOME/Accelerate"
+
+if [ -d "$WORKDIR/.git" ]; then
+  git -C "$WORKDIR" fetch origin "$BRANCH"
+  git -C "$WORKDIR" checkout "$BRANCH"
+  git -C "$WORKDIR" reset --hard "origin/$BRANCH"
 else
-  git clone --branch claude/deploy-zennify-cloud-run-AUdu6 --single-branch \
-    https://github.com/accelerate-ctrl/Accelerate.git ~/Accelerate
+  rm -rf "$WORKDIR"
+  git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$WORKDIR"
 fi
 
-cd ~/Accelerate/apps/capability-intelligence
+cd "$WORKDIR/apps/capability-intelligence"
 chmod +x infra/*.sh
+echo "▶ now in $(pwd)"
+ls infra/
 ```
 
-There is also a single-command form that does all of the above in one
-shot — useful for re-bootstrapping a fresh Cloud Shell session:
+You should see at minimum `setup.sh`, `cloudbuild.yaml`, `service.yaml`,
+`lint_cloudbuild.py`, `cloudshell_bootstrap.sh`.
+
+> One-liner alternative (downloads + runs the bootstrap script): `curl
+> -sSL https://raw.githubusercontent.com/accelerate-ctrl/Accelerate/claude/deploy-zennify-cloud-run-AUdu6/apps/capability-intelligence/infra/cloudshell_bootstrap.sh | bash`
+
+### 2) Lint the build pipeline locally (catches the common bugs)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/accelerate-ctrl/Accelerate/claude/deploy-zennify-cloud-run-AUdu6/apps/capability-intelligence/infra/cloudshell_bootstrap.sh | bash
+cd "$HOME/Accelerate/apps/capability-intelligence"
+python3 infra/lint_cloudbuild.py infra/cloudbuild.yaml
+# expected: ✓ infra/cloudbuild.yaml — clean for both manual + triggered builds
 ```
 
-### 2) Provision the project (idempotent — safe to re-run)
+If you ever modify `cloudbuild.yaml`, run this first — it simulates
+Cloud Build's substitution engine + `bash -n`s every rendered script,
+and flags unescaped `$VAR`s, malformed image tags from empty
+`SHORT_SHA`, missing substitution declarations, etc.
+
+### 3) Provision the project (idempotent — safe to re-run)
 
 ```bash
-cd ~/Accelerate/apps/capability-intelligence
+cd "$HOME/Accelerate/apps/capability-intelligence"
 ./infra/setup.sh
 ```
 
-`setup.sh` enables ~20 APIs, creates Artifact Registry, the runtime SA
-(+ 14 IAM bindings), Firestore `dma-assessor`, 6 GCS buckets, 9 BQ
-datasets, and 3 empty Secret Manager secrets. It self-validates at the
-end and exits non-zero if any resource is missing.
+`setup.sh` enables 21 APIs (in two ≤20-API batches per Google's limit),
+creates Artifact Registry, the runtime SA (+ 14 IAM bindings), Firestore
+`dma-assessor`, 6 GCS buckets, 9 BQ datasets, and 3 empty Secret Manager
+secrets. It self-validates at the end and exits non-zero if any
+resource is missing.
 
-### 3) Populate the three secrets
+### 4) Populate the three secrets
 
-Paste keys interactively (so they never land in shell history):
+Paste keys interactively (the leading space makes bash skip history):
 
 ```bash
-read -srp 'Anthropic API key:   ' KEY1 && echo
-read -srp 'OAuth client secret: ' KEY2 && echo
-read -srp 'Jira API token:      ' KEY3 && echo
-echo -n "$KEY1" | gcloud secrets versions add anthropic-api-key          --data-file=-
-echo -n "$KEY2" | gcloud secrets versions add google-oauth-client-secret --data-file=-
-echo -n "$KEY3" | gcloud secrets versions add jira-api-token             --data-file=-
-unset KEY1 KEY2 KEY3
+ read -srp 'Anthropic API key:   ' KEY1 && echo
+ read -srp 'OAuth client secret: ' KEY2 && echo
+ read -srp 'Jira API token:      ' KEY3 && echo
+ printf %s "$KEY1" | gcloud secrets versions add anthropic-api-key          --data-file=-
+ printf %s "$KEY2" | gcloud secrets versions add google-oauth-client-secret --data-file=-
+ printf %s "$KEY3" | gcloud secrets versions add jira-api-token             --data-file=-
+ unset KEY1 KEY2 KEY3
 ```
 
-### 4) Deploy
+### 5) Deploy
 
 ```bash
-cd ~/Accelerate/apps/capability-intelligence
+cd "$HOME/Accelerate/apps/capability-intelligence"
 gcloud builds submit \
   --config=infra/cloudbuild.yaml \
   --project=digital-maturity-assessor .
 ```
 
-The pipeline runs in order: backend pytest → frontend vitest + build →
-docker build → push → render manifest → deploy → smoke-test
-`/api/health`. Expect ~6–8 minutes.
+The pipeline (~6–8 minutes):
 
-### 5) Verify
+1. `resolve-tag` — write the image tag (`$SHORT_SHA` or `$BUILD_ID`) to `/workspace/.tag`
+2. `backend-tests` — pytest + ruff
+3. `frontend-tests` — vitest + Vite build
+4. `docker-build` — multi-stage build, both SHA-tag and `:latest`
+5. `docker-push` — push both tags to Artifact Registry
+6. `deploy-api` — sed `IMAGE_TAG` into `service.yaml`, `gcloud run services replace`
+7. `deploy-jobs` — refresh image on each Cloud Run Job (tolerates missing jobs on first deploy)
+8. `smoke` — curl `/api/health` 5× with backoff; build fails if no 200
+
+### 6) Verify the live service
 
 ```bash
 URL=$(gcloud run services describe capability-intelligence-api \
         --region=us-central1 --format='value(status.url)')
 echo "service URL: $URL"
 
-curl -fsS "$URL/api/health"
-curl -fsS "$URL/api/ready"        | jq    # echoes project + revision
-curl -fsS "$URL/api/auth/config"  | jq    # echoes OAuth client_id (no secret)
+curl -fsS "$URL/api/health"             # → {"status":"ok",...}
+curl -fsI "$URL/"                       # SPA root, HEAD-200 (HEAD probes work)
+curl -fsS "$URL/api/ready"        | jq  # echoes project, region, revision
+curl -fsS "$URL/api/auth/config"  | jq  # echoes the OAuth client_id (no secret)
+curl -sI  "$URL/api/docs"               # Swagger UI is reachable
 ```
 
-### 6) Wire the OAuth client to the new URL
+### 7) Wire the OAuth client to the new URL
 
 Cloud Console → **APIs & Services → Credentials → web client
 `306195530103-…`**:
 
-1. **Authorized JavaScript origins**: add `$URL` from step 5.
+1. **Authorized JavaScript origins**: add `$URL` from step 6.
 2. **Authorized redirect URIs**: add `$URL/api/auth/google/callback`
    (n8n's `https://oauth.n8n.cloud/oauth2/callback` is already pre-set).
 3. **OAuth consent screen → Authorized domains**: `zennify.com`.
 
 > **Never commit live secrets to the repo.** Even temporary "test" keys
 > end up in git history, Cloud Build logs, and forks. Always populate
-> Secret Manager interactively as in step 3.
+> Secret Manager interactively as in step 4.
+
+### Troubleshooting — what each past failure mode looked like
+
+| Symptom | Root cause | Fixed in |
+|---|---|---|
+| `-bash: cd: ~/Accelerate: No such file or directory` | Cloud Shell idle-recycled the home dir | step 1 above creates it idempotently |
+| `Permission denied` on `./infra/setup.sh` | git checkout dropped +x | step 1's `chmod +x infra/*.sh` |
+| `Number of services must not exceed the maximum batch size (20)` | `setup.sh` enabled 21 APIs at once | `3a63fd8` split into 11 + 10 |
+| `key in the template "JOB" is not a valid built-in substitution` | unescaped `$VAR` in step args | `77daad8` escaped `$$JOB`, `$$URL`, `$$IMAGE` |
+| `invalid image name "…/api:"` | `${SHORT_SHA}` empty on manual builds | `f55520e` resolves tag via `$SHORT_SHA`/`$BUILD_ID` fallback |
+| `gcloud run services replace … --image=…` rejected | `replace` doesn't take `--image` | `0cdd428` switched to sed-render then replace |
+| `Secret NOT_FOUND` | setup.sh hadn't run yet so secrets didn't exist | `setup.sh` now creates + self-validates |
+| `HEAD /` returned 405 | SPA fallback was GET-only | this commit — `api_route(methods=["GET","HEAD"])` |
 
 
 ### Pre-configured values

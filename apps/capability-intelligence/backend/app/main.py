@@ -63,9 +63,12 @@ def create_app() -> FastAPI:
         if assets_dir.exists():
             app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-        @app.get("/{full_path:path}", include_in_schema=False)
+        @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
         async def spa_fallback(full_path: str) -> FileResponse:
-            # Anything not matched by /api falls through to index.html (SPA routing)
+            # Anything not matched by /api falls through to index.html (SPA
+            # routing). HEAD is included because Cloud Run's HTTP/2 frontend,
+            # GCLB health probes, and many uptime monitors issue HEAD requests
+            # against the root path.
             index = static_dir / "index.html"
             return FileResponse(index)
 
