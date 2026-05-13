@@ -116,6 +116,40 @@ def lint(path: Path) -> int:
                 f"step references ${{{name}}} but it's not declared in `substitutions:`"
             )
 
+    # 1b) Path-existence: any `cd <path>` or path-arg referenced inside a bash
+    # block must resolve relative to either the repo root OR the
+    # apps/capability-intelligence subdir (those are the two valid submit
+    # roots). This catches the exit-127 class of failure where Cloud Build's
+    # /workspace doesn't contain the path the script tries to cd into.
+    repo_root = path.resolve()
+    while repo_root.parent != repo_root and not (repo_root / "apps").is_dir():
+        repo_root = repo_root.parent
+    app_dir = repo_root / "apps" / "capability-intelligence"
+    if app_dir.is_dir():
+        # Detect bare `cd <literal-path>` (no $VAR) — those are the brittle ones.
+        cd_re = re.compile(r"^\s*cd\s+([^\s$\"'`]+)", re.MULTILINE)
+        for step in doc.get("steps") or []:
+            sid = step.get("id") or "<step>"
+            for arg in step.get("args") or []:
+                if not isinstance(arg, str) or "\n" not in arg:
+                    continue
+                for m in cd_re.finditer(arg):
+                    target = m.group(1)
+                    if target.startswith("/workspace") or target.startswith("/"):
+                        continue
+                    found_at_root = (repo_root / target).is_dir()
+                    found_at_app = (app_dir / target).is_dir()
+                    if not (found_at_root and found_at_app):
+                        findings.append(
+                            f"[{sid}] bash block has `cd {target}` — exists at "
+                            f"repo-root={found_at_root}, exists at app-dir={found_at_app}. "
+                            f"Either path will be /workspace for one of the two submit "
+                            f"modes (manual from app-dir vs from repo root), so the cd "
+                            f"will fail and downstream commands like `pip install` or "
+                            f"`ruff check` will exit 127. Use a runtime-resolved $$APP "
+                            f"variable instead."
+                        )
+
     # 2) Validate each `entrypoint: bash` step under both trigger modes.
     steps = doc.get("steps") or []
     for step in steps:

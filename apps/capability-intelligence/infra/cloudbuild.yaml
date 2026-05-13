@@ -1,10 +1,14 @@
 # Cloud Build pipeline.
 #
-# Works both ways:
+# Works in three independent dimensions:
 #   * triggered builds (Cloud Build trigger from GitHub) — uses SHORT_SHA
-#   * manual builds (`gcloud builds submit . --config=infra/cloudbuild.yaml`)
-#     where SHORT_SHA is empty — falls back to BUILD_ID, which is always
-#     populated.
+#   * manual builds (`gcloud builds submit . --config=...`) — SHORT_SHA is
+#     empty so we fall back to BUILD_ID (always populated)
+#   * any submit cwd — every step starts by sourcing `_LOCATE.sh`, which
+#     detects whether the upload tarball is the repo root or the
+#     `apps/capability-intelligence/` subdir and `cd`s accordingly. So
+#     both `gcloud builds submit . --config=...` from
+#     apps/capability-intelligence/ AND from the repo root work.
 #
 # Order:
 #   0. resolve image tag → /workspace/.tag (always non-empty)
@@ -22,24 +26,43 @@ substitutions:
   _SERVICE_NAME: capability-intelligence-api
 
 steps:
-  # 0) Resolve image tag once, write to /workspace/.tag.
+  # 0) Resolve image tag + locate the app dir. Writes:
+  #    /workspace/.tag      — the image tag
+  #    /workspace/.appdir   — absolute path to apps/capability-intelligence
   #
   # SHORT_SHA is only populated for triggered builds. For manual
-  # `gcloud builds submit` Cloud Build substitutes it to an empty string,
-  # which made the rest of the pipeline emit malformed image references
-  # like `api:`. BUILD_ID is always present (UUID-like) so it's the
-  # universal fallback.
-  - id: resolve-tag
+  # `gcloud builds submit` Cloud Build substitutes it to an empty string;
+  # BUILD_ID is always present so it's the universal fallback.
+  #
+  # App-dir auto-detection: when the user submits from inside
+  # apps/capability-intelligence/, /workspace IS that dir. When they
+  # submit from the repo root, /workspace/apps/capability-intelligence
+  # exists. Either way, every later step reads /workspace/.appdir.
+  - id: bootstrap
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - "-c"
       - |
         set -euo pipefail
+        # tag
         TAG="${SHORT_SHA}"
         if [ -z "$$TAG" ]; then TAG="${BUILD_ID}"; fi
         printf '%s' "$$TAG" > /workspace/.tag
-        echo "image tag = $$TAG"
+        echo "image tag    = $$TAG"
+        # app dir
+        if [ -d /workspace/apps/capability-intelligence ]; then
+          APP=/workspace/apps/capability-intelligence
+        elif [ -d /workspace/backend ] && [ -d /workspace/frontend ]; then
+          APP=/workspace
+        else
+          echo "FATAL: cannot find apps/capability-intelligence in /workspace"
+          ls -la /workspace
+          exit 2
+        fi
+        printf '%s' "$$APP" > /workspace/.appdir
+        echo "app dir      = $$APP"
+        ls "$$APP"
 
   # 1) Backend tests
   - id: backend-tests
@@ -48,7 +71,9 @@ steps:
     args:
       - "-c"
       - |
-        cd apps/capability-intelligence/backend
+        set -euo pipefail
+        APP=$$(cat /workspace/.appdir)
+        cd "$$APP/backend"
         pip install -q -r requirements.txt
         ruff check .
         pytest -q
@@ -60,12 +85,14 @@ steps:
     args:
       - "-c"
       - |
-        cd apps/capability-intelligence/frontend
+        set -euo pipefail
+        APP=$$(cat /workspace/.appdir)
+        cd "$$APP/frontend"
         npm ci --no-audit --no-fund
         npm test -- --run
         npm run build
 
-  # 3) Build image — read tag from /workspace/.tag (set by step 0).
+  # 3) Build image — Dockerfile lives at $APP/Dockerfile.
   - id: docker-build
     name: gcr.io/cloud-builders/docker
     entrypoint: bash
@@ -74,10 +101,11 @@ steps:
       - |
         set -euo pipefail
         TAG=$$(cat /workspace/.tag)
+        APP=$$(cat /workspace/.appdir)
         docker build \
           -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG" \
           -t "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest" \
-          apps/capability-intelligence
+          "$$APP"
 
   # 4) Push both tags.
   - id: docker-push
@@ -96,9 +124,10 @@ steps:
       - |
         set -euo pipefail
         TAG=$$(cat /workspace/.tag)
+        APP=$$(cat /workspace/.appdir)
         IMAGE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:$$TAG"
         sed -e "s|IMAGE_TAG|$$IMAGE|g" \
-            apps/capability-intelligence/infra/service.yaml \
+            "$$APP/infra/service.yaml" \
             > /workspace/service.rendered.yaml
         gcloud run services replace /workspace/service.rendered.yaml \
           --region=${_REGION} --project=${PROJECT_ID}
