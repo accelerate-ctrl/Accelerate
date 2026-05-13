@@ -61,7 +61,12 @@ spec:
             - name: FIRESTORE_DATABASE_ID
               value: dma-assessor
             - name: AUTH_MODE
-              value: google_oauth
+              # NOTE: 'dev' for the test phase. The SPA currently sends a
+              # dev-mode bearer (`dev-mishley.otiende@zennify.com`) which is
+              # accepted only when AUTH_MODE=dev + AUTH_ALLOWED_DOMAIN
+              # matches. Switch to 'google_oauth' once Google Identity
+              # Services is wired into the SPA login flow.
+              value: dev
             - name: AUTH_ALLOWED_DOMAIN
               value: zennify.com
             - name: FIREBASE_PROJECT_ID

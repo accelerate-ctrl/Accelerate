@@ -27,7 +27,20 @@ export default function MissionControl() {
       </div>
 
       {isLoading && <div className="text-xs text-zen-dark-teal/60">Loading…</div>}
-      {error && <div className="text-xs text-zen-orange">Failed to load overview.</div>}
+      {error && (
+        <div className="text-xs text-zen-orange">
+          Failed to load overview: {error instanceof Error ? error.message : 'unknown error'}.
+          If this is a fresh deploy, click <b>Pull all sources</b> (top-right) once to ingest from
+          Drive; this page populates after the catalogue ingest finishes.
+        </div>
+      )}
+      {data && data.totals.pillars_loaded === 0 && (
+        <div className="text-sm bg-zen-light-orange/40 border border-zen-orange/30 text-zen-dark-green rounded p-3">
+          <b>No catalogue ingested yet.</b> Click <b>Pull all sources</b> (top-right) to fetch
+          Pillar 1–4 workbooks from the configured Drive folder. The catalogue auto-picks the
+          highest <code>vX.Y</code> version per pillar; "inactive" files are skipped.
+        </div>
+      )}
 
       {data && (
         <>
