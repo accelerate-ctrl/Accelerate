@@ -1,6 +1,7 @@
-import { Loader2, Menu, Search } from 'lucide-react';
+import { Loader2, LogOut, Menu, Search } from 'lucide-react';
 import { useState } from 'react';
 import { apiPost } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { SUBVERTICALS, useFilters } from '../store/filters';
 import iconTeal from '../assets/zennify/icon_teal.png';
 
@@ -10,6 +11,7 @@ type Props = {
 
 export default function Header({ onOpenMobileMenu }: Props) {
   const { subverticalCode, setSubvertical, search, setSearch } = useFilters();
+  const { email, token, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<{
     sources_succeeded: number;
@@ -103,6 +105,21 @@ export default function Header({ onOpenMobileMenu }: Props) {
         >
           {last.sources_succeeded}/{last.sources_total} ok
         </span>
+      )}
+
+      {/* Sign-out — only shown when an actual Google ID-token session is
+          active. Dev-mode users don't see a sign-out button (no session
+          to end). */}
+      {token && email && (
+        <button
+          type="button"
+          onClick={signOut}
+          className="hidden md:inline-flex items-center gap-1 text-xs text-zen-text-gray hover:text-zen-dark-green border border-transparent hover:border-zen-separator rounded px-2 py-1"
+          title={`Signed in as ${email}`}
+        >
+          <LogOut size={12} />
+          <span className="max-w-[120px] truncate">{email}</span>
+        </button>
       )}
     </header>
   );

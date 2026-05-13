@@ -61,12 +61,13 @@ spec:
             - name: FIRESTORE_DATABASE_ID
               value: dma-assessor
             - name: AUTH_MODE
-              # NOTE: 'dev' for the test phase. The SPA currently sends a
-              # dev-mode bearer (`dev-mishley.otiende@zennify.com`) which is
-              # accepted only when AUTH_MODE=dev + AUTH_ALLOWED_DOMAIN
-              # matches. Switch to 'google_oauth' once Google Identity
-              # Services is wired into the SPA login flow.
-              value: dev
+              # Google Identity Services is now wired into the SPA via the
+              # SignInGate component (Batch 8). Every request from a
+              # signed-in user carries a Google ID token verified against
+              # GOOGLE_OAUTH_CLIENT_ID + AUTH_ALLOWED_DOMAIN. Dev mode is
+              # only used in local development (where SignInGate's
+              # auth_mode=dev short-circuits the gate).
+              value: google_oauth
             - name: AUTH_ALLOWED_DOMAIN
               value: zennify.com
             - name: FIREBASE_PROJECT_ID

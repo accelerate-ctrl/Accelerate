@@ -159,13 +159,33 @@ curl -sI  "$URL/api/docs"               # Swagger UI is reachable
 
 ### 7) Wire the OAuth client to the new URL
 
+The deployed service runs with `AUTH_MODE=google_oauth`. The SPA loads
+`https://accounts.google.com/gsi/client` and renders a sign-in gate
+that posts the user's Google ID token to every `/api/*` request; the
+backend verifies it against `GOOGLE_OAUTH_CLIENT_ID` and rejects
+emails outside `AUTH_ALLOWED_DOMAIN`.
+
 Cloud Console → **APIs & Services → Credentials → web client
 `306195530103-…`**:
 
-1. **Authorized JavaScript origins**: add `$URL` from step 6.
+1. **Authorized JavaScript origins**: add the Cloud Run URL from
+   step 6 — this is mandatory for Google Identity Services to issue
+   ID tokens to the SPA. Example:
+   `https://capability-intelligence-api-…uc.a.run.app`.
 2. **Authorized redirect URIs**: add `$URL/api/auth/google/callback`
    (n8n's `https://oauth.n8n.cloud/oauth2/callback` is already pre-set).
 3. **OAuth consent screen → Authorized domains**: `zennify.com`.
+4. **OAuth consent screen → Test users**: add operator emails until
+   the consent screen is published.
+
+Verify after these are saved (allow ~5 min for Google to propagate):
+
+```bash
+# Open $URL in a browser. The SignInGate appears.
+# Click "Continue with Google" → pick a @zennify.com account.
+# After consent the SPA loads and all /api/* requests carry a real
+# ID token (no more dev fallback).
+```
 
 ### 8) Pull all sources (first ingest)
 

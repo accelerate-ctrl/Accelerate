@@ -85,7 +85,17 @@ def _extract_subcap(text: str) -> str | None:
 
 
 def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
-    """Pull semantic + structured evidence rows the chat LLM can cite."""
+    """Pull semantic + structured evidence rows the chat LLM can cite.
+
+    Grounding sources (in priority order):
+      * Vector store (subcaps, SOWs, stories, news, trends)
+      * SOW mentions for the named subcap
+      * Lifecycle row for the named subcap
+      * Recent news_items with `impact` (Batch 2)
+      * Recent trend_clusters labels + summaries (Batch 2)
+      * Pending suggestions (Batch 6) — what the AI has already proposed
+      * Partner releases (Batch 3) — what partners are shipping
+    """
     from .llm.vector_store import VectorStore
 
     sources: list[dict] = []
@@ -101,10 +111,11 @@ def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
                 "url": hit.metadata.get("url"),
             })
 
-    # If the user mentioned a specific subcap, surface its lifecycle + sow_signals
     repo = get_repository()
     sub_cap_id = _extract_subcap(query)
+
     if sub_cap_id:
+        # Per-subcap evidence: SOW mentions + lifecycle row.
         for sow_mention in repo.list("sow_mentions"):
             if sow_mention.get("sub_cap_id") != sub_cap_id:
                 continue
@@ -126,6 +137,81 @@ def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
                     f"{lifecycle.get('signals')}"
                 ),
             })
+        # News items whose impact synthesis named this subcap.
+        for n in repo.list("news_items"):
+            impact = n.get("impact") or {}
+            if sub_cap_id in (impact.get("affects_subcaps") or []):
+                sources.append({
+                    "id": n.get("id"),
+                    "kind": "news_impact",
+                    "title": n.get("title"),
+                    "text": (impact.get("summary") or n.get("text") or "")[:600],
+                    "url": n.get("url"),
+                })
+
+    # Recent news_items + trend_clusters (cap to 4 each so the prompt
+    # stays bounded; matched by keyword overlap with the query).
+    qtokens = {t.lower() for t in query.replace(",", " ").split() if len(t) > 3}
+    if qtokens:
+        ranked_news = []
+        for n in repo.list("news_items"):
+            blob = (n.get("title") or "") + " " + (n.get("text") or "")
+            hits = sum(1 for t in qtokens if t in blob.lower())
+            if hits:
+                ranked_news.append((hits, n))
+        ranked_news.sort(key=lambda r: (-r[0], -(r[1].get("published_at") or "")))
+        for _h, n in ranked_news[:4]:
+            sources.append({
+                "id": n.get("id"),
+                "kind": "news",
+                "title": n.get("title"),
+                "text": (n.get("text") or "")[:600],
+                "url": n.get("url"),
+            })
+        ranked_trends = []
+        for c in repo.list("trend_clusters"):
+            blob = (c.get("label") or "") + " " + (c.get("summary") or "")
+            hits = sum(1 for t in qtokens if t in blob.lower())
+            if hits:
+                ranked_trends.append((hits, c))
+        ranked_trends.sort(key=lambda r: -r[0])
+        for _h, c in ranked_trends[:3]:
+            sources.append({
+                "id": c.get("cluster_id"),
+                "kind": "trend",
+                "title": c.get("label"),
+                "text": c.get("summary"),
+            })
+
+    # Pending suggestions that target the named subcap or its L1.
+    if sub_cap_id:
+        for s in repo.list("suggestions"):
+            if s.get("status") != "pending":
+                continue
+            if s.get("target") == sub_cap_id:
+                sources.append({
+                    "id": s.get("id"),
+                    "kind": "suggestion",
+                    "title": s.get("title"),
+                    "text": s.get("rationale") or "",
+                })
+
+    # Partner releases that map to the named subcap's L1.
+    if sub_cap_id:
+        sc = repo.get("subcaps", sub_cap_id) or {}
+        l1 = sc.get("l1_capability")
+        if l1:
+            for rel in repo.list("partner_releases"):
+                hits = [f for f in (rel.get("features") or []) if f.get("mapped_l1") == l1]
+                if hits:
+                    sources.append({
+                        "id": rel.get("release_id"),
+                        "kind": "partner_release",
+                        "title": f"{rel.get('partner_name')}: {rel.get('title')}",
+                        "text": "; ".join(f.get("feature") for f in hits)[:600],
+                        "url": rel.get("url"),
+                    })
+
     return sources
 
 

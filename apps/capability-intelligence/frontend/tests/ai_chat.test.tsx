@@ -12,6 +12,18 @@ type Conv = {
 };
 
 const mockResponses: Record<string, unknown> = {
+  '/api/reasoning-chains/chain-xyz789': {
+    chain_id: 'chain-xyz789',
+    overall: 'pass',
+    total_cost_usd: 0,
+    started_at: '2026-05-10T11:00:00+00:00',
+    steps: [
+      { name: 'clarify' },
+      { name: 'retrieve_internal' },
+      { name: 'synthesize', model: 'gemini-flash' },
+      { name: 'finalize' },
+    ],
+  },
   '/api/chat?limit=50': [
     {
       conversation_id: 'chat-abc12345',
@@ -74,10 +86,20 @@ describe('AiChat', () => {
         expect(
           screen.getAllByText('Wells Fargo has an active SOW touching this subcap.').length,
         ).toBeGreaterThanOrEqual(1);
-        expect(screen.getByText('sow-x')).toBeInTheDocument();
+        // Citation chip renders as `[sow-x]`; source card renders the
+        // source title. We accept either as evidence the citation surfaced.
+        expect(
+          screen.queryByText('[sow-x]') ||
+            screen.queryByText('SOW Wells Fargo'),
+        ).not.toBeNull();
       },
       { timeout: 3000 },
     );
-    expect(screen.getByText(/chain xyz789/)).toBeInTheDocument();
+    // ReasoningChainMini renders `chain.chain_id.slice(-8)` = `n-xyz789`
+    // (last 8 chars of `chain-xyz789`). Wait for the chain fetch.
+    await waitFor(
+      () => expect(screen.queryByText(/xyz789/)).not.toBeNull(),
+      { timeout: 3000 },
+    );
   });
 });

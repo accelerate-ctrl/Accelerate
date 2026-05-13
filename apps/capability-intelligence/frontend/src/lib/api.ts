@@ -1,5 +1,12 @@
-// Typed API client. Real auth wired in Batch 1; user is the dev-mode email
-// for now and switches to Firebase ID token in production (Batch 9).
+// Typed API client. Pulls the bearer from:
+//   1. Google Identity Services session token (when AUTH_MODE=google_oauth
+//      + user has signed in via the SignInGate)
+//   2. Dev-mode fallback — `dev-mishley.otiende@zennify.com` — which the
+//      backend's `dev` AUTH_MODE accepts.
+// The fallback keeps local development frictionless; production-mode
+// service.yaml flips AUTH_MODE=google_oauth and the fallback is rejected.
+
+import { currentToken } from './auth';
 
 const DEV_TOKEN = 'dev-mishley.otiende@zennify.com';
 
@@ -7,9 +14,14 @@ function url(path: string): string {
   return `/api${path}`;
 }
 
+function bearer(): string {
+  const t = currentToken();
+  return t ? `Bearer ${t}` : `Bearer ${DEV_TOKEN}`;
+}
+
 function headers(extra?: HeadersInit): HeadersInit {
   return {
-    Authorization: `Bearer ${DEV_TOKEN}`,
+    Authorization: bearer(),
     'Content-Type': 'application/json',
     ...(extra || {}),
   };
@@ -29,6 +41,51 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   });
   if (!res.ok) throw new Error(`POST ${path} → ${res.status}`);
   return (await res.json()) as T;
+}
+
+/** Stream a POST as SSE — yields { event, data } for each event. The
+ * server formats events as `event: <name>\ndata: <json>\n\n`. Used by
+ * the AI Chat redesign to render the consultant-loop phases live. */
+export async function* apiPostStream(
+  path: string,
+  body: unknown,
+): AsyncGenerator<{ event: string; data: unknown }, void, void> {
+  const res = await fetch(url(path), {
+    method: 'POST',
+    headers: { ...headers(), Accept: 'text/event-stream' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`POST ${path} → ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // Events end with a blank line. Split on \n\n.
+    let idx = buf.indexOf('\n\n');
+    while (idx !== -1) {
+      const raw = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      idx = buf.indexOf('\n\n');
+      let event = 'message';
+      const dataLines: string[] = [];
+      for (const line of raw.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+      }
+      if (dataLines.length === 0) continue;
+      try {
+        const data = JSON.parse(dataLines.join('\n'));
+        yield { event, data };
+      } catch {
+        yield { event, data: dataLines.join('\n') };
+      }
+    }
+  }
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
