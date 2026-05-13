@@ -25,7 +25,9 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 gcloud config set run/region "$REGION"  >/dev/null
 
 # ─── 1. Enable APIs ────────────────────────────────────────────────────────
-echo "▶ enabling APIs"
+# Two batches because Google caps `services enable` at 20 per call and we
+# need 21. Both batches stay well under the limit.
+echo "▶ enabling APIs (batch 1/2)"
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
@@ -38,6 +40,10 @@ gcloud services enable \
   cloudtasks.googleapis.com \
   pubsub.googleapis.com \
   aiplatform.googleapis.com \
+  --project="$PROJECT_ID"
+
+echo "▶ enabling APIs (batch 2/2)"
+gcloud services enable \
   documentai.googleapis.com \
   dlp.googleapis.com \
   drive.googleapis.com \
