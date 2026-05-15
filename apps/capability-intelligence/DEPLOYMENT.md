@@ -187,26 +187,45 @@ Verify after these are saved (allow ~5 min for Google to propagate):
 # ID token (no more dev fallback).
 ```
 
-#### Troubleshooting: `Error 401: invalid_client`
+#### Troubleshooting: `Error 401: invalid_client` or `Error 400: origin_mismatch`
 
-If the Continue-with-Google popup shows `Error 401: invalid_client` and
-`flowName=GeneralOAuthFlow`, Google is rejecting the client. Walk
-through these in order — the cause is always one of these four:
+Both errors are caused by the same misconfiguration class — the Cloud
+Run URL the SPA is loaded from doesn't match what's registered on the
+OAuth client. Difference:
+
+* **`invalid_client`** — Google can't find a client with this ID at all
+  (typo, wrong client type, or client deleted).
+* **`origin_mismatch`** — Google found the client but the calling
+  origin isn't in the **Authorized JavaScript origins** list. This is
+  the more specific (and more common) variant; the error message even
+  includes the rejected origin, e.g.
+  `origin=https://capability-intelligence-api-306195530103.us-central1.run.app`.
+
+If the Continue-with-Google popup shows either error, walk through
+these in order:
 
 1. **Cloud Run origin not on the allowlist** (the most common cause —
-   ~95% of `invalid_client` reports).
+   accounts for ~95% of these reports, *especially* the
+   `origin_mismatch` variant whose error message names the rejected
+   origin verbatim).
    * Cloud Console → APIs & Services → Credentials → click the web
      client `306195530103-…`.
    * Confirm **Authorized JavaScript origins** contains the exact
-     Cloud Run URL printed by step 6, with `https://` and no trailing
-     slash. Example:
+     Cloud Run URL printed by step 6, with `https://`, **no trailing
+     slash**, and **no trailing whitespace**. Both common forms below;
+     adding both is harmless and avoids surprises:
      ```
      https://capability-intelligence-api-306195530103.us-central1.run.app
+     https://capability-intelligence-api-<hash>-uc.a.run.app
      ```
+     For `origin_mismatch`, the error message itself names the exact
+     origin Google rejected — copy-paste it from the error page.
    * Also add the custom domain if one is mapped:
      `https://capability.zennify.com`.
-   * Click **Save**. Google takes 5–10 minutes to propagate; force-
-     reload the SPA in an incognito tab to bypass the GIS cache.
+   * Click **Save**. Google takes **5–10 minutes** to propagate; then
+     force-reload the SPA **in an incognito / private window** to
+     bypass the GIS client cache (a normal tab will keep showing the
+     old rejection).
 
 2. **Wrong client type**. The credential must be type **Web
    application**. iOS / Desktop / Android client types are rejected by
