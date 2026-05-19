@@ -52,7 +52,20 @@ def adoption(
 
 @router.get("/heatmap")
 def heatmap(_=Depends(auth_dep)) -> dict:
+    """Legacy vendor × cohort technographic adoption heatmap."""
     return vendor_intel_service.heatmap()
+
+
+@router.get("/subcap-evidence")
+def subcap_evidence(_=Depends(auth_dep)) -> dict:
+    """Evidence-driven vendor × subcap heatmap (Phase 2.3).
+
+    Derived from vendor_events joined to news_items.impact
+    .affected_subcaps. Each cell carries the highest magnitude seen
+    across all matching events, total event count, and latest event
+    timestamp.
+    """
+    return vendor_intel_service.subcap_evidence_heatmap()
 
 
 @router.get("/events")

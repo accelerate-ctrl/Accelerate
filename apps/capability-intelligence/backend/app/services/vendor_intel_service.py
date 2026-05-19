@@ -340,6 +340,124 @@ def list_events(vendor_id: str | None = None, limit: int = 200) -> list[dict]:
     return items[:limit]
 
 
+# ─── Phase 2.3 — evidence-driven vendor × subcap heatmap ───────────────────
+#
+# Per TRD §11 / Schema §5.5: the operator-facing vendor heatmap must be
+# derived from real signals (vendor_events joined to news_items.impact
+# .affected_subcaps), not the fixture-based vendor×cohort technographic
+# join. The legacy adoption heatmap is kept; this new function returns
+# a (vendor × subcap) matrix scored by the highest magnitude seen.
+
+
+_MAG_SCORE = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
+
+
+def _news_item_by_event_id(eid: str, news_index: dict[str, dict]) -> dict | None:
+    """Resolve the source news_item for a vendor_event.
+
+    Vendor events are stored with id pattern ``evt-{vendor_id}-{news_id}``;
+    extracting the news_id is enough to look up the underlying news item
+    in O(1) when we have an index built from a single repo.list().
+    """
+    if not eid or not eid.startswith("evt-"):
+        return None
+    # Vendor id can contain dashes (e.g. ``salesforce-data-cloud``);
+    # find the last segment that matches a known news_id by trial.
+    # We try each ``-`` split; first hit wins.
+    remainder = eid[4:]  # strip ``evt-``
+    parts = remainder.split("-")
+    for i in range(1, len(parts)):
+        candidate = "-".join(parts[i:])
+        if candidate in news_index:
+            return news_index[candidate]
+    return None
+
+
+def subcap_evidence_heatmap() -> dict:
+    """Return a vendor × subcap matrix derived from vendor_events
+    joined to news_items.impact.affected_subcaps.
+
+    Each cell carries the highest magnitude seen across all matching
+    events plus the event count and the most recent published_at, so
+    the UI can render both severity colour and recency.
+
+    Returns ``{vendors: [...], subcaps: [...], cells: [{vendor_id,
+    sub_cap_id, magnitude, event_count, latest_event}]}``.
+    """
+    repo = get_repository()
+    events = repo.list(EVENTS_COLLECTION)
+    news = repo.list("news_items")
+    news_index = {n["id"]: n for n in news if n.get("id")}
+
+    # (vendor_id, sub_cap_id) → {magnitude_score, event_count, latest_event,
+    #                            vendor_name}
+    cells: dict[tuple[str, str], dict] = {}
+    for evt in events:
+        vid = evt.get("vendor_id")
+        if not vid:
+            continue
+        item = _news_item_by_event_id(evt.get("id", ""), news_index)
+        # Fallback: also try the legacy direct ``news_id`` field if the
+        # event recorded one explicitly.
+        if item is None:
+            direct = evt.get("news_id")
+            if direct and direct in news_index:
+                item = news_index[direct]
+        if item is None:
+            continue
+        impact = item.get("impact") or {}
+        affected = impact.get("affected_subcaps") or []
+        # Legacy flat list — synthesise LOW magnitude entries when the
+        # structured payload isn't there yet (Phase 2.1 back-compat).
+        if not affected and impact.get("affects_subcaps"):
+            affected = [
+                {"sub_cap_id": s, "magnitude": "LOW", "rationale": ""}
+                for s in impact["affects_subcaps"]
+            ]
+        for entry in affected:
+            sid = entry.get("sub_cap_id")
+            mag = (entry.get("magnitude") or "LOW").upper()
+            if not sid:
+                continue
+            score = _MAG_SCORE.get(mag, 1)
+            key = (vid, sid)
+            cell = cells.setdefault(key, {
+                "vendor_id": vid,
+                "sub_cap_id": sid,
+                "vendor_name": evt.get("vendor_name"),
+                "magnitude_score": 0,
+                "event_count": 0,
+                "latest_event": None,
+            })
+            cell["event_count"] += 1
+            if score > cell["magnitude_score"]:
+                cell["magnitude_score"] = score
+            published = evt.get("published_at") or evt.get("indexed_at")
+            if published and (cell["latest_event"] is None or published > cell["latest_event"]):
+                cell["latest_event"] = published
+
+    score_to_mag = {3: "HIGH", 2: "MEDIUM", 1: "LOW"}
+    out_cells = []
+    for cell in cells.values():
+        out_cells.append({
+            "vendor_id": cell["vendor_id"],
+            "sub_cap_id": cell["sub_cap_id"],
+            "vendor_name": cell.get("vendor_name"),
+            "magnitude": score_to_mag.get(cell["magnitude_score"], "LOW"),
+            "event_count": cell["event_count"],
+            "latest_event": cell["latest_event"],
+        })
+
+    vendors = sorted({c["vendor_id"] for c in out_cells})
+    subcaps = sorted({c["sub_cap_id"] for c in out_cells})
+    return {
+        "vendors": vendors,
+        "subcaps": subcaps,
+        "cells": out_cells,
+        "total_events_joined": sum(c["event_count"] for c in out_cells),
+    }
+
+
 def latest_run() -> dict | None:
     runs = list(get_repository().list(RUN_COLLECTION))
     if not runs:

@@ -67,11 +67,34 @@ type CatalogueGap = {
 };
 
 const TABS = [
+  { key: 'evidence', label: 'Subcap evidence' },
   { key: 'adoption', label: 'Adoption' },
   { key: 'releases', label: 'Releases' },
   { key: 'gaps', label: 'Catalogue gaps' },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
+
+type SubcapEvidenceCell = {
+  vendor_id: string;
+  vendor_name?: string;
+  sub_cap_id: string;
+  magnitude: 'HIGH' | 'MEDIUM' | 'LOW';
+  event_count: number;
+  latest_event?: string | null;
+};
+
+type SubcapEvidenceHeatmap = {
+  vendors: string[];
+  subcaps: string[];
+  cells: SubcapEvidenceCell[];
+  total_events_joined: number;
+};
+
+const EVIDENCE_MAG_BG: Record<SubcapEvidenceCell['magnitude'], string> = {
+  HIGH: 'bg-zen-orange text-white',
+  MEDIUM: 'bg-zen-light-orange text-zen-dark-green',
+  LOW: 'bg-zen-light-green/60 text-zen-dark-green',
+};
 
 const IMPACT_BADGE: Record<ReleaseFeature['impact_class'], string> = {
   new_feature: 'bg-zen-light-green/70 text-zen-dark-teal',
@@ -82,7 +105,7 @@ const IMPACT_BADGE: Record<ReleaseFeature['impact_class'], string> = {
 
 export default function VendorIntelligence() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<TabKey>('releases');
+  const [tab, setTab] = useState<TabKey>('evidence');
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
 
@@ -140,6 +163,13 @@ export default function VendorIntelligence() {
           : '/vendor-intel/events',
       ),
     enabled: tab === 'adoption',
+  });
+
+  // Phase 2.3 — evidence-driven vendor × subcap heatmap.
+  const { data: evidence } = useQuery<SubcapEvidenceHeatmap>({
+    queryKey: ['vendor-subcap-evidence'],
+    queryFn: () => apiGet<SubcapEvidenceHeatmap>('/vendor-intel/subcap-evidence'),
+    enabled: tab === 'evidence',
   });
 
   const refresh = useMutation({
@@ -227,6 +257,103 @@ export default function VendorIntelligence() {
           </button>
         ))}
       </div>
+
+      {/* TAB: SUBCAP EVIDENCE (Phase 2.3) — vendor × subcap matrix
+          derived from real signals (vendor_events joined to
+          news_items.impact.affected_subcaps), not technographic
+          adoption percentages. Cell color = highest magnitude across
+          all matching events. */}
+      {tab === 'evidence' && (
+        <div className="space-y-3">
+          <div className="bg-white rounded-lg border border-zen-separator p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs uppercase font-semibold tracking-wider text-zen-dark-green">
+                Vendor × Subcap evidence
+              </h2>
+              {evidence && (
+                <span className="text-[10px] text-zen-muted-text">
+                  {evidence.cells.length} cells from {evidence.total_events_joined} events
+                </span>
+              )}
+            </div>
+            {!evidence || evidence.cells.length === 0 ? (
+              <div className="text-xs text-zen-muted-text italic">
+                No vendor events joined to news impact yet. Run a news refresh,
+                synthesise impact (in News Watch), and refresh vendor adoption to
+                populate this view.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-[640px]">
+                <table className="text-xs min-w-full">
+                  <thead className="text-zen-text-gray sticky top-0 bg-white">
+                    <tr>
+                      <th className="text-left px-2 py-1 border-b border-zen-separator">
+                        Vendor
+                      </th>
+                      <th className="text-left px-2 py-1 border-b border-zen-separator">
+                        Subcap
+                      </th>
+                      <th className="text-left px-2 py-1 border-b border-zen-separator">
+                        Magnitude
+                      </th>
+                      <th className="text-right px-2 py-1 border-b border-zen-separator">
+                        Events
+                      </th>
+                      <th className="text-left px-2 py-1 border-b border-zen-separator">
+                        Latest
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evidence.cells
+                      .slice()
+                      .sort((a, b) => {
+                        const order = { HIGH: 0, MEDIUM: 1, LOW: 2 } as const;
+                        return (
+                          order[a.magnitude] - order[b.magnitude] ||
+                          b.event_count - a.event_count
+                        );
+                      })
+                      .map((c) => (
+                        <tr
+                          key={`${c.vendor_id}::${c.sub_cap_id}`}
+                          className="border-b border-zen-separator/60"
+                        >
+                          <td className="px-2 py-1 text-zen-dark-green">
+                            {c.vendor_name || c.vendor_id}
+                          </td>
+                          <td className="px-2 py-1">
+                            <a
+                              href={`/subcap?id=${encodeURIComponent(c.sub_cap_id)}`}
+                              className="font-mono text-zen-teal hover:text-zen-dark-teal"
+                            >
+                              {c.sub_cap_id}
+                            </a>
+                          </td>
+                          <td className="px-2 py-1">
+                            <span
+                              className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 ${EVIDENCE_MAG_BG[c.magnitude]}`}
+                            >
+                              {c.magnitude}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1 text-right text-zen-text-gray">
+                            {c.event_count}
+                          </td>
+                          <td className="px-2 py-1 text-zen-text-gray">
+                            {c.latest_event
+                              ? new Date(c.latest_event).toLocaleDateString()
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TAB: RELEASES */}
       {tab === 'releases' && (
