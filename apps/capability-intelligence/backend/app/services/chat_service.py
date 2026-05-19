@@ -87,21 +87,42 @@ def _extract_subcap(text: str) -> str | None:
 def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
     """Pull semantic + structured evidence rows the chat LLM can cite.
 
-    Grounding sources (in priority order):
-      * Vector store (subcaps, SOWs, stories, news, trends)
-      * SOW mentions for the named subcap
-      * Lifecycle row for the named subcap
-      * Recent news_items with `impact` (Batch 2)
-      * Recent trend_clusters labels + summaries (Batch 2)
-      * Pending suggestions (Batch 6) — what the AI has already proposed
-      * Partner releases (Batch 3) — what partners are shipping
+    Phase 2.5 (FR-16): primary retrieval now flows through the hybrid
+    retriever (structured filter + dense + BM25 with reciprocal-rank
+    fusion) over the catalogue_ontology corpus. The legacy vector
+    store, SOW mention join, news+trend join, suggestion + partner
+    release joins remain as supplementary signals so chat answers
+    still surface evidence that hasn't been indexed yet.
     """
     from .llm.vector_store import VectorStore
+    from .rag.hybrid_retriever import retrieve as hybrid_retrieve
 
     sources: list[dict] = []
+    seen_ids: set[str] = set()
+
+    # Catalogue-grounded hybrid retrieval (FR-16). Run this first so the
+    # most authoritative chunks land at the top of the sources list.
+    for hit in hybrid_retrieve(query, top_k=top_k):
+        sources.append({
+            "id": hit.doc_id,
+            "kind": hit.metadata.get("kind", "catalogue"),
+            "title": hit.metadata.get("title", hit.doc_id),
+            "text": hit.text[:1200],
+            "score": round(hit.score, 4),
+            "signals": hit.signals,
+            "url": hit.metadata.get("url"),
+            "sub_cap_id": hit.metadata.get("sub_cap_id"),
+        })
+        seen_ids.add(hit.doc_id)
+
+    # Legacy VectorStore search — supplementary signal for documents
+    # the hybrid retriever doesn't index yet (SOW chunks, raw news
+    # embeddings). Skip rows the hybrid path already pulled.
     vs = VectorStore()
     if vs.size() > 0:
         for hit in vs.search(query, k=top_k):
+            if hit.doc_id in seen_ids:
+                continue
             sources.append({
                 "id": hit.doc_id,
                 "kind": hit.metadata.get("kind", "vector"),
@@ -110,6 +131,7 @@ def _retrieve(query: str, *, top_k: int = DEFAULT_TOP_K) -> list[dict]:
                 "score": round(hit.score, 4),
                 "url": hit.metadata.get("url"),
             })
+            seen_ids.add(hit.doc_id)
 
     repo = get_repository()
     sub_cap_id = _extract_subcap(query)

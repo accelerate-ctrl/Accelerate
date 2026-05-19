@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -265,6 +266,24 @@ def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
             canonical_entity_service.rebuild_canonical_entities()
         except Exception:
             log.exception("canonical-entity rebuild failed; ingest succeeded")
+
+    # Rebuild the catalogue_ontology RAG corpus (Phase 2.5 / FR-16) so
+    # chat retrieval stays in sync with the workbook. Same guard —
+    # corpus emission must not fail an ingest. Test suites opt out by
+    # setting ``SKIP_CORPUS_REBUILD=1`` so 300+ tests don't each take
+    # the embedding cost; production deploys always rebuild.
+    if loaded and os.environ.get("SKIP_CORPUS_REBUILD") not in ("1", "true", "True"):
+        try:
+            from .rag.catalogue_corpus_builder import rebuild_corpus
+            # When the ingest touched only one pillar, rebuild just
+            # that pillar's slice. ``loaded`` is a list of pillar ids
+            # the run successfully ingested.
+            if len(loaded) == 1:
+                rebuild_corpus(pillar_id=loaded[0])
+            else:
+                rebuild_corpus()
+        except Exception:
+            log.exception("catalogue corpus rebuild failed; ingest succeeded")
 
     completed = datetime.utcnow()
     run_id = f"ingest-{int(started.timestamp())}"
