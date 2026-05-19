@@ -168,7 +168,7 @@ steps:
                   sow-full-reindex lifecycle-scoring-daily benchmark-extrapolation-run \
                   benchmark-recompute-quarterly digest-quarterly deep-audit-weekly \
                   eval-run-weekly citation-verify-daily drift-check-daily \
-                  evidence-promotion-nightly; do
+                  evidence-promotion-nightly source-health-digest-daily; do
           gcloud run jobs update $$JOB \
             --image=$$IMAGE \
             --region=${_REGION} || echo "skip: job $$JOB not provisioned yet"

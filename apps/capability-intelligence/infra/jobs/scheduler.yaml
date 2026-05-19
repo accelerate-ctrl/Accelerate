@@ -77,3 +77,8 @@ jobs:
     runs: evidence_promotion_nightly
     cron: "0 2 * * *"        # daily 02:00 UTC
     description: "Promote raw rows into evidence_index"
+
+  - id: source-health-digest-daily
+    runs: source_health_digest_daily
+    cron: "0 8 * * *"        # daily 08:00 UTC (per IMP-13)
+    description: "Per-source ingest health digest"

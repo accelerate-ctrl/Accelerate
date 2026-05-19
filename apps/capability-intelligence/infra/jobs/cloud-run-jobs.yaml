@@ -104,6 +104,21 @@ items:
 
   - apiVersion: run.googleapis.com/v1
     kind: Job
+    metadata: { name: source-health-digest-daily, labels: { batch: "5" } }
+    spec:
+      template:
+        spec:
+          template:
+            spec:
+              timeoutSeconds: 600
+              maxRetries: 1
+              containers:
+                - image: PLACEHOLDER
+                  args: ["python", "-m", "app.jobs.runner", "source_health_digest_daily"]
+                  resources: { limits: { cpu: "1", memory: "512Mi" } }
+
+  - apiVersion: run.googleapis.com/v1
+    kind: Job
     metadata: { name: drift-check-daily, labels: { batch: "9" } }
     spec:
       template:
