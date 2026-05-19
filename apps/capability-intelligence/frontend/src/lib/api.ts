@@ -982,6 +982,8 @@ export type PlatformCatalog = {
   }>;
 };
 
+export type FlagDisposition = 'approved' | 'rejected' | 'deferred';
+
 export type ChangeFlag = {
   flag_id: string;
   kind: string;
@@ -994,4 +996,16 @@ export type ChangeFlag = {
   resolved_at?: string | null;
   resolved_by?: string | null;
   resolution_note?: string | null;
+  // J5 disposition fields (Phase 1.5).
+  disposition?: FlagDisposition | null;
+  disposition_at?: string | null;
+  disposition_by?: string | null;
+  disposition_note?: string | null;
+  deferred_until?: string | null;
+};
+
+export type FlagKindsSummary = {
+  kinds: Record<string, number>;
+  severities: Record<string, number>;
+  total: number;
 };

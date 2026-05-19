@@ -1,6 +1,13 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, BookOpenCheck, History } from 'lucide-react';
+import {
+  AlertTriangle,
+  BookOpenCheck,
+  History,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { apiGet, type Overview } from '@/lib/api';
 import PillarBreakdown, { type Structure } from '@/components/PillarBreakdown';
 import PillarRefreshPanel from '@/components/PillarRefreshPanel';
@@ -64,6 +71,14 @@ export default function MissionControl() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* IMP-14 — catalogue changelog tile. Shows when a new catalogue
+          version was ingested in the last 7 days and surfaces the run
+          metadata + a link to the version timeline. Dismissible per
+          run_id via localStorage so users only see each update once. */}
+      {overview?.last_ingest && (
+        <CatalogueChangelogTile lastIngest={overview.last_ingest} />
       )}
 
       {/* Top KPI strip — four compact tiles on desktop, two-column on small */}
@@ -172,5 +187,90 @@ function QuickLink({
       <span className="text-zen-teal">{icon}</span>
       <span className="truncate">{label}</span>
     </Link>
+  );
+}
+
+
+/**
+ * IMP-14 — catalogue changelog tile.
+ *
+ * Renders a dismissible notice when the most recent ingest is within
+ * the last 7 days. The dismissal is keyed on the specific run_id so
+ * future ingests will re-surface a fresh tile. Falls back gracefully
+ * when started_at is missing or unparseable.
+ */
+function CatalogueChangelogTile({
+  lastIngest,
+}: {
+  lastIngest: NonNullable<Overview['last_ingest']>;
+}) {
+  const storageKey = `mc-changelog-dismissed:${lastIngest.run_id}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return window.localStorage.getItem(storageKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // 7-day visibility window per IMP-14 spec.
+  const started = new Date(lastIngest.started_at);
+  if (Number.isNaN(started.getTime())) return null;
+  const ageDays = (Date.now() - started.getTime()) / 86400000;
+  if (ageDays > 7) return null;
+  if (dismissed) return null;
+
+  const pillars = lastIngest.pillars_loaded?.join(', ') || '—';
+  const relative = ageDays < 1
+    ? 'today'
+    : ageDays < 2
+    ? 'yesterday'
+    : `${Math.floor(ageDays)} days ago`;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="bg-surface-overlay border border-zen-teal/40 rounded-lg p-3 flex items-start gap-2"
+    >
+      <Sparkles size={16} className="text-zen-teal shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-fg">Catalogue updated {relative}</div>
+        <div className="text-xs text-fg-soft mt-0.5">
+          Pillars loaded: {pillars} ·{' '}
+          <span className="font-mono">{lastIngest.run_id}</span>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <Link
+            to="/versions"
+            className="text-zen-teal hover:text-zen-dark-teal underline"
+          >
+            View version timeline
+          </Link>
+          <span className="text-fg-muted">·</span>
+          <Link
+            to="/diff"
+            className="text-zen-teal hover:text-zen-dark-teal underline"
+          >
+            Open diff viewer
+          </Link>
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="dismiss catalogue update"
+        onClick={() => {
+          try {
+            window.localStorage.setItem(storageKey, '1');
+          } catch {
+            /* ignore storage failures */
+          }
+          setDismissed(true);
+        }}
+        className="text-fg-soft hover:text-fg shrink-0"
+      >
+        <X size={14} />
+      </button>
+    </div>
   );
 }

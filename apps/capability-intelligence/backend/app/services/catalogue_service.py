@@ -501,13 +501,54 @@ def list_flags(open_only: bool = True) -> list[dict]:
 
 
 def resolve_flag(flag_id: str, by: str, note: str | None = None) -> dict | None:
+    """Backwards-compatible flag resolution.
+
+    Defaults to 'approved' disposition; the J5 inbox uses
+    :func:`disposition_flag` directly when the user picks reject or
+    defer instead.
+    """
+    return disposition_flag(flag_id, by=by, disposition="approved", note=note)
+
+
+def disposition_flag(
+    flag_id: str,
+    *,
+    by: str,
+    disposition: str,
+    note: str | None = None,
+) -> dict | None:
+    """Apply an App Flow J5 disposition (approve / reject / defer).
+
+    - **approved**: the flag is resolved as accepted; the suggested
+      change should be applied by whichever workflow owns it
+      (catalogue edit, KG edge commit, etc.).
+    - **rejected**: the flag is resolved as declined. App Flow J5
+      mandates a reason — the caller is expected to enforce non-empty
+      ``note`` before invoking this.
+    - **deferred**: the flag stays open but is marked with a cooldown
+      so the nightly proposer doesn't re-flood the inbox with it.
+    """
+    if disposition not in {"approved", "rejected", "deferred"}:
+        raise ValueError(f"unknown disposition: {disposition!r}")
+
     repo = get_repository()
     flag = repo.get(COLLECTIONS["flags"], flag_id)
     if not flag:
         return None
-    flag["resolved_at"] = datetime.utcnow().isoformat()
-    flag["resolved_by"] = by
-    flag["resolution_note"] = note
+    now = datetime.utcnow().isoformat()
+    flag["disposition"] = disposition
+    flag["disposition_by"] = by
+    flag["disposition_note"] = note
+    flag["disposition_at"] = now
+    if disposition == "deferred":
+        # Deferred flags stay open but get a recheck timestamp so the
+        # nightly proposer can skip them until the cooldown elapses.
+        flag["deferred_until"] = now
+        flag.pop("resolved_at", None)
+    else:
+        flag["resolved_at"] = now
+        flag["resolved_by"] = by
+        flag["resolution_note"] = note
     repo.upsert(COLLECTIONS["flags"], flag_id, flag)
     return flag
 
