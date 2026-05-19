@@ -85,6 +85,17 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     # and finally to the ingest-time fuzzy ``sub_cap_hits``.
     affected_news = _news_for_subcap(sub_cap_id)
 
+    # Phase 3.4 — additional Subcap Deep Dive sections so the page
+    # reaches the 17-section target from the plan:
+    # - Lifecycle history (transitions ordered DESC).
+    # - Recent reasoning chains across every operation (news_impact,
+    #   partner_release_extract, consultant_loop, …).
+    # - Vendor activity (vendor_events whose AFFECTS this subcap via
+    #   the news join we already produced).
+    lifecycle_history = _lifecycle_history_for(sub_cap_id)
+    recent_chains = _recent_chains_for(sub_cap_id)
+    vendor_activity = _vendor_activity_for(sub_cap_id, affected_news)
+
     return {
         "subcap": sub,
         "maturity": svc.get_maturity(sub_cap_id),
@@ -111,7 +122,81 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
         "cascade_simulation": cascade_sim,
         # Phase 2.1 — news impact section
         "affected_news": affected_news,
+        # Phase 3.4 — additional deep-dive sections
+        "lifecycle_history": lifecycle_history,
+        "recent_chains": recent_chains,
+        "vendor_activity": vendor_activity,
     }
+
+
+def _lifecycle_history_for(sub_cap_id: str, *, limit: int = 30) -> list[dict]:
+    """Lifecycle transitions for this subcap, newest first."""
+    from ..services.repository import get_repository
+    repo = get_repository()
+    rows = [
+        r for r in repo.list("lifecycle_transitions")
+        if r.get("sub_cap_id") == sub_cap_id
+    ]
+    rows.sort(key=lambda r: r.get("transitioned_at") or r.get("recorded_at") or "", reverse=True)
+    return rows[:limit]
+
+
+def _recent_chains_for(sub_cap_id: str, *, limit: int = 10) -> list[dict]:
+    """Reasoning chains that ran against this subcap, newest first.
+
+    Pulls a compact projection (chain_id, operation, started_at,
+    overall, total_cost_usd) so the FE deep-dive's recent-chains
+    widget can render without a second roundtrip.
+    """
+    from ..services import consultant_loop
+    chains = consultant_loop.list_chains(sub_cap_id=sub_cap_id, limit=limit)
+    return [
+        {
+            "chain_id": c.get("chain_id"),
+            "operation": c.get("operation") or "consultant_loop",
+            "started_at": c.get("started_at"),
+            "overall": c.get("overall"),
+            "total_cost_usd": c.get("total_cost_usd", 0),
+            "leverage_tier": c.get("leverage_tier"),
+        }
+        for c in chains
+    ]
+
+
+def _vendor_activity_for(sub_cap_id: str, affected_news: list[dict]) -> list[dict]:
+    """Vendor events touching this subcap (via the news-affected join).
+
+    For each affected_news row we already know the source vendor; look
+    up the corresponding vendor_event so the FE deep dive can show
+    "Salesforce shipped X" inline next to the news impact.
+    """
+    from ..services.repository import get_repository
+    if not affected_news:
+        return []
+    news_ids = {n.get("news_id") for n in affected_news if n.get("news_id")}
+    repo = get_repository()
+    events = []
+    for e in repo.list("vendor_events"):
+        # vendor_event ids follow the pattern ``evt-{vendor_id}-{news_id}``
+        eid = e.get("id") or ""
+        if not eid.startswith("evt-"):
+            continue
+        # Test each news id by trying the suffix match — handles
+        # hyphenated vendor ids correctly.
+        for nid in news_ids:
+            if eid.endswith(f"-{nid}"):
+                events.append({
+                    "event_id": eid,
+                    "vendor_id": e.get("vendor_id"),
+                    "vendor_name": e.get("vendor_name"),
+                    "title": e.get("title"),
+                    "kind": e.get("kind"),
+                    "published_at": e.get("published_at"),
+                    "url": e.get("url"),
+                })
+                break
+    events.sort(key=lambda r: r.get("published_at") or "", reverse=True)
+    return events[:20]
 
 
 def _news_for_subcap(sub_cap_id: str, *, limit: int = 12) -> list[dict]:

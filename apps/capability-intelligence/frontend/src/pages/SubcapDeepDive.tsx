@@ -443,14 +443,145 @@ export default function SubcapDeepDive() {
         </Section>
       </div>
 
-      <Section title="Coming soon">
-        <div className="text-xs text-zen-text-gray grid grid-cols-1 md:grid-cols-2 gap-1">
-          <div>• Public evidence + Evidence Reliability Score</div>
-          <div>• Benchmark distribution + adversary verdict</div>
-          <div>• Lifecycle decay scoring</div>
-          <div>• Vendor competitive intelligence</div>
-          <div>• Reasoning-chain drilldown</div>
+      {/* Phase 3.4 — Personas section. The persona refs are parsed
+          from v7.0 cells with paren-aware tokenization (Phase 1.1) so
+          each chip can show the canonical name + family + role. */}
+      {((s.persona_refs && s.persona_refs.length > 0) || (s.personas && s.personas.length > 0)) && (
+        <Section title={`Personas (${(s.persona_refs?.length || s.personas?.length || 0)})`}>
+          <div className="flex flex-wrap gap-1.5">
+            {s.persona_refs && s.persona_refs.length > 0
+              ? s.persona_refs.map((p, i) => (
+                  <div
+                    key={`${p.canonical_name}-${i}`}
+                    className="text-xs bg-zen-ice text-zen-dark-green rounded px-2 py-1"
+                    title={p.role_description || p.canonical_name}
+                  >
+                    <span className="font-medium">{p.canonical_name}</span>
+                    {p.family && (
+                      <span className="ml-1 text-[10px] text-zen-text-gray uppercase">{p.family}</span>
+                    )}
+                  </div>
+                ))
+              : (s.personas || []).map((name, i) => (
+                  <span
+                    key={`${name}-${i}`}
+                    className="text-xs bg-zen-ice text-zen-dark-green rounded px-2 py-1"
+                  >
+                    {name}
+                  </span>
+                ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Phase 3.4 — Lifecycle history. Newest transitions first.
+          Uses the lifecycle_transitions append-only log (Phase 1.1
+          F11 vocabulary fix). */}
+      {data.lifecycle_history && data.lifecycle_history.length > 0 && (
+        <Section title={`Lifecycle history (${data.lifecycle_history.length})`}>
+          <ul className="space-y-1.5">
+            {data.lifecycle_history.slice(0, 8).map((t, i) => (
+              <li
+                key={t.transition_id || i}
+                className="text-xs text-zen-dark-teal flex items-center gap-2"
+              >
+                <span className="font-mono text-[10px] text-zen-text-gray min-w-[8ch]">
+                  {t.transitioned_at?.slice(0, 10) || t.recorded_at?.slice(0, 10) || '—'}
+                </span>
+                <span className="text-zen-text-gray">
+                  {t.from_state || '—'}
+                </span>
+                <span className="text-zen-teal">→</span>
+                <span className="font-medium text-zen-dark-green">{t.to_state || '—'}</span>
+                {t.reason && <span className="text-[11px] text-zen-text-gray ml-2 italic">"{t.reason}"</span>}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* Phase 3.4 — Vendor activity. vendor_events whose source news
+          item AFFECTS this subcap. */}
+      {data.vendor_activity && data.vendor_activity.length > 0 && (
+        <Section title={`Vendor activity (${data.vendor_activity.length})`}>
+          <ul className="space-y-1.5">
+            {data.vendor_activity.slice(0, 8).map((e) => (
+              <li key={e.event_id} className="text-xs text-zen-dark-teal flex items-start gap-2">
+                <span className="font-mono text-[10px] text-zen-text-gray min-w-[8ch]">
+                  {e.published_at?.slice(0, 10) || '—'}
+                </span>
+                <span className="bg-zen-light-green/40 text-zen-dark-teal rounded px-1.5 py-0.5 text-[10px]">
+                  {e.vendor_name || e.vendor_id}
+                </span>
+                <span className="flex-1">
+                  {e.url ? (
+                    <a href={e.url} target="_blank" rel="noopener noreferrer" className="hover:underline text-zen-dark-green">
+                      {e.title}
+                    </a>
+                  ) : (
+                    e.title
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* Phase 3.4 — Recent reasoning chains. Threaded across the
+          trust surface so the user can see what AI work has run
+          against this subcap. */}
+      {data.recent_chains && data.recent_chains.length > 0 && (
+        <Section title={`Recent reasoning (${data.recent_chains.length})`}>
+          <ul className="space-y-1">
+            {data.recent_chains.slice(0, 8).map((c) => (
+              <li key={c.chain_id} className="text-xs flex items-center gap-2">
+                <span
+                  className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 ${
+                    c.overall === 'pass'
+                      ? 'bg-zen-light-green/60 text-zen-dark-green'
+                      : c.overall === 'fail'
+                      ? 'bg-zen-orange text-white'
+                      : 'bg-zen-light-orange text-zen-dark-green'
+                  }`}
+                >
+                  {c.overall || 'n/a'}
+                </span>
+                <span className="font-mono text-[10px] text-zen-text-gray">{c.operation}</span>
+                <Link
+                  to={`/reasoning?id=${encodeURIComponent(c.chain_id)}`}
+                  className="text-zen-teal hover:text-zen-dark-teal underline truncate"
+                >
+                  {c.chain_id}
+                </Link>
+                {typeof c.total_cost_usd === 'number' && c.total_cost_usd > 0 && (
+                  <span className="text-[10px] text-zen-text-gray ml-auto">
+                    ${c.total_cost_usd.toFixed(4)}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* Phase 3.4 — AI Audit button (HIGH-tier ad-hoc run).
+          Surfaces the cost disclosure inline per J3 / J6 contract. */}
+      <Section title="Run AI audit">
+        <div className="text-xs text-zen-text-gray mb-2">
+          Triggers a HIGH-tier consultant-loop pass over this subcap (~$0.05–0.20).
+          Produces a fresh reasoning chain you can review on the Reasoning
+          Chain Viewer.
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = `/reasoning?run=true&sub_cap_id=${encodeURIComponent(id || '')}`;
+          }}
+          className="text-xs bg-zen-teal text-white rounded px-3 py-1.5 hover:bg-zen-dark-teal"
+        >
+          Run HIGH-tier audit →
+        </button>
       </Section>
     </div>
   );

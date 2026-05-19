@@ -139,7 +139,7 @@ export default function LifecycleManager() {
           </h2>
           <ul className="space-y-1 text-xs">
             {transitions.map((t) => (
-              <li key={t.id} className="flex items-center gap-2 text-zen-dark-teal">
+              <li key={t.id || t.transition_id || `${t.sub_cap_id}-${t.transitioned_at}`} className="flex items-center gap-2 text-zen-dark-teal">
                 <Link
                   to={`/subcap?id=${encodeURIComponent(t.sub_cap_id)}`}
                   className="font-mono text-[10px] text-zen-teal hover:text-zen-dark-teal"
@@ -147,16 +147,16 @@ export default function LifecycleManager() {
                   {t.sub_cap_id}
                 </Link>
                 <span className="text-[10px] uppercase rounded px-1 bg-zen-light-green/40 text-zen-dark-teal">
-                  {t.from_state}
+                  {t.from_state ?? '—'}
                 </span>
                 <ArrowRight size={10} className="text-zen-dark-teal/60" />
                 <span
-                  className={`text-[10px] uppercase rounded px-1 ${STATE_HEADER[t.to_state]?.tone || ''}`}
+                  className={`text-[10px] uppercase rounded px-1 ${(t.to_state && STATE_HEADER[t.to_state as LifecycleState]?.tone) || ''}`}
                 >
-                  {t.to_state}
+                  {t.to_state ?? '—'}
                 </span>
                 <span className="ml-auto text-[10px] text-zen-dark-teal/60">
-                  {new Date(t.transitioned_at).toLocaleString()}
+                  {t.transitioned_at ? new Date(t.transitioned_at).toLocaleString() : '—'}
                 </span>
               </li>
             ))}

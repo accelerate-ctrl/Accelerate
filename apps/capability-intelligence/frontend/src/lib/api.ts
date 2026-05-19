@@ -124,6 +124,13 @@ export type Pillar = {
   source_version?: string;
 };
 
+export type PersonaRef = {
+  canonical_name: string;
+  role_description?: string | null;
+  family?: string;
+  raw?: string;
+};
+
 export type Subcap = {
   sub_cap_id: string;
   sub_cap_name: string;
@@ -134,6 +141,9 @@ export type Subcap = {
   solution_type?: string;
   tier?: string;
   personas?: string[];
+  // Phase 1.1 — structured personas parsed from v7.0 cells with
+  // paren-aware tokenization.
+  persona_refs?: PersonaRef[];
   l3_platforms?: string[];
   l4_features?: string[];
   use_cases?: string[];
@@ -214,6 +224,25 @@ export type AffectedNewsItem = {
   summary?: string;
 };
 
+export type RecentChain = {
+  chain_id: string;
+  operation: string;
+  started_at?: string;
+  overall?: string;
+  total_cost_usd?: number;
+  leverage_tier?: string;
+};
+
+export type VendorActivity = {
+  event_id: string;
+  vendor_id?: string;
+  vendor_name?: string;
+  title?: string;
+  kind?: string;
+  published_at?: string;
+  url?: string;
+};
+
 export type SubcapDetail = {
   subcap: Subcap;
   maturity: Record<string, unknown> | null;
@@ -229,6 +258,10 @@ export type SubcapDetail = {
   cascade_simulation?: Record<string, unknown> | null;
   // Phase 2.1 — news items touching this subcap with per-subcap magnitude.
   affected_news?: AffectedNewsItem[];
+  // Phase 3.4 — additional Subcap Deep Dive sections.
+  lifecycle_history?: LifecycleTransition[];
+  recent_chains?: RecentChain[];
+  vendor_activity?: VendorActivity[];
 };
 
 export type Tree = {
@@ -501,12 +534,17 @@ export type LifecycleScore = {
 };
 
 export type LifecycleTransition = {
-  id: string;
+  // Two id variants in the wild; the lifecycle service writes ``id``,
+  // the subcap deep dive's history join may emit ``transition_id``.
+  id?: string;
+  transition_id?: string;
   sub_cap_id: string;
-  from_state: LifecycleState;
-  to_state: LifecycleState;
-  score: number;
-  transitioned_at: string;
+  from_state?: LifecycleState | string;
+  to_state?: LifecycleState | string;
+  score?: number;
+  transitioned_at?: string;
+  recorded_at?: string;
+  reason?: string;
 };
 
 export type LifecycleRunSummary = {
