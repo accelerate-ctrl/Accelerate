@@ -294,6 +294,192 @@ def _build_cached(snapshot_id: str) -> nx.MultiDiGraph:
                    summary=r.get("summary"),
                    findings_count=len(r.get("findings") or []))
 
+    # ─── Phase 3.1 — v7.0 entity kinds ────────────────────────────────────
+    #
+    # Adds 6 more node kinds + their edges so the KG reaches the
+    # plan's "≥22 node kinds" target. Each loop is best-effort: empty
+    # source collections are silently no-op.
+
+    # Offering nodes (deduped cross-pillar via canonical_entities). Each
+    # Offering points back to every subcap it addresses via the
+    # offering_subcap_matrix.
+    seen_offerings: set[str] = set()
+    for row in repo.list("offerings"):
+        oid = row.get("offering_id")
+        if not oid or oid in seen_offerings:
+            continue
+        seen_offerings.add(oid)
+        g.add_node(_nid("Offering", oid), kind="Offering",
+                   offering_id=oid,
+                   name=row.get("offering_name"),
+                   category=row.get("category"),
+                   status=row.get("status"))
+    for mr in repo.list("offering_subcap_matrix"):
+        oid = mr.get("offering_id")
+        sid = mr.get("sub_cap_id")
+        if not oid or not sid:
+            continue
+        o_nid = _nid("Offering", oid)
+        sc_nid = _nid("Subcap", sid)
+        if o_nid in g and sc_nid in g:
+            g.add_edge(sc_nid, o_nid,
+                       key=f"REALIZED_IN:{oid}",
+                       kind="REALIZED_IN",
+                       maturity_lift=mr.get("maturity_lift"))
+
+    # DataProduct nodes — same dedup + matrix-edge pattern.
+    seen_data_products: set[str] = set()
+    for row in repo.list("data_products"):
+        mid = row.get("module_id")
+        if not mid or mid in seen_data_products:
+            continue
+        seen_data_products.add(mid)
+        g.add_node(_nid("DataProduct", mid), kind="DataProduct",
+                   module_id=mid,
+                   name=row.get("module_name"),
+                   category=row.get("category"))
+    for mr in repo.list("dataproduct_subcap_matrix"):
+        mid = mr.get("module_id")
+        sid = mr.get("sub_cap_id")
+        if not mid or not sid:
+            continue
+        dp_nid = _nid("DataProduct", mid)
+        sc_nid = _nid("Subcap", sid)
+        if dp_nid in g and sc_nid in g:
+            g.add_edge(sc_nid, dp_nid,
+                       key=f"GROUNDED_BY:{mid}",
+                       kind="GROUNDED_BY",
+                       maturity_lift=mr.get("maturity_lift"))
+
+    # AgentforceAgent nodes — link back to their Parent_L3 platform.
+    for row in repo.list("agentforce_agents"):
+        aid = row.get("agent_id")
+        if not aid:
+            continue
+        a_nid = _nid("AgentforceAgent", aid)
+        g.add_node(a_nid, kind="AgentforceAgent",
+                   agent_id=aid,
+                   name=row.get("agent_name"),
+                   lob=row.get("lob"),
+                   workflow=row.get("workflow"))
+        # Parent_L3 is stored as a human-readable name in v7.0 workbooks
+        # (e.g., "Agentforce 360 Platform"); we link by l3_id when we
+        # find one, otherwise skip without erroring.
+        parent_l3 = row.get("parent_l3") or ""
+        m = re.search(r"\bL3-[A-Za-z0-9_-]+\b", parent_l3)
+        if m:
+            l3_nid = _nid("L3_Platform", m.group(0))
+            if l3_nid in g:
+                g.add_edge(a_nid, l3_nid,
+                           key="RUNS_ON", kind="RUNS_ON")
+
+    # Story nodes (canonical stories collection). Linked to subcaps.
+    # Capped at 4000 to keep the in-memory graph bounded — full v7.0
+    # has 15,377 stories which would dominate the node count.
+    story_cap = 4000
+    story_count = 0
+    for row in repo.list("stories"):
+        if story_count >= story_cap:
+            break
+        key = row.get("story_key")
+        if not key:
+            continue
+        s_nid = _nid("Story", key)
+        g.add_node(s_nid, kind="Story",
+                   story_key=key,
+                   summary=(row.get("summary") or "")[:200])
+        sid = row.get("sub_cap_id")
+        if sid:
+            sc_nid = _nid("Subcap", sid)
+            if sc_nid in g:
+                g.add_edge(sc_nid, s_nid,
+                           key=f"HAS_STORY:{key}", kind="HAS_STORY")
+        story_count += 1
+
+    # Client nodes — from clients collection (Batch 7).
+    for row in repo.list("clients"):
+        cid = row.get("client_id") or row.get("canonical_name") or row.get("name")
+        if not cid:
+            continue
+        g.add_node(_nid("Client", cid), kind="Client",
+                   client_id=cid,
+                   name=row.get("name") or cid,
+                   subvertical=row.get("subvertical"))
+
+    # SOW nodes — link clients to subcaps via mentions.
+    for sow in repo.list("sows"):
+        sid = sow.get("sow_id") or sow.get("id")
+        if not sid:
+            continue
+        sw_nid = _nid("SOW", sid)
+        g.add_node(sw_nid, kind="SOW",
+                   sow_id=sid,
+                   status=sow.get("status"),
+                   client_name=sow.get("client_name"))
+        client_name = sow.get("client_name")
+        if client_name:
+            c_nid = _nid("Client", client_name)
+            if c_nid in g:
+                g.add_edge(sw_nid, c_nid,
+                           key="OWNED_BY", kind="OWNED_BY")
+    for m in repo.list("sow_mentions"):
+        sow_id = m.get("sow_id")
+        sc_id = m.get("sub_cap_id")
+        if not sow_id or not sc_id:
+            continue
+        sw_nid = _nid("SOW", sow_id)
+        sc_nid = _nid("Subcap", sc_id)
+        if sw_nid in g and sc_nid in g:
+            g.add_edge(sw_nid, sc_nid,
+                       key=f"MENTIONS:{sc_id}", kind="MENTIONS",
+                       method=m.get("method"),
+                       confidence=m.get("confidence"))
+
+    # NewsItem nodes — only items whose impact synthesis affected at
+    # least one subcap (so the graph doesn't fill with no_impact noise).
+    # Each AFFECTS edge carries the per-subcap magnitude from Phase 2.1.
+    for n in repo.list("news_items"):
+        nid_news = n.get("id")
+        if not nid_news:
+            continue
+        impact = n.get("impact") or {}
+        affected = impact.get("affected_subcaps") or []
+        # Back-compat with the legacy flat list shape.
+        legacy_affects = impact.get("affects_subcaps") or []
+        if not affected and not legacy_affects:
+            continue
+        n_nid = _nid("NewsItem", nid_news)
+        g.add_node(n_nid, kind="NewsItem",
+                   news_id=nid_news,
+                   title=n.get("title"),
+                   source=n.get("source"),
+                   url=n.get("url"),
+                   impact_class=impact.get("impact_class"))
+        for entry in affected:
+            if not isinstance(entry, dict):
+                continue
+            sid = entry.get("sub_cap_id")
+            if not sid:
+                continue
+            sc_nid = _nid("Subcap", sid)
+            if sc_nid in g:
+                g.add_edge(n_nid, sc_nid,
+                           key=f"AFFECTS:{sid}",
+                           kind="AFFECTS",
+                           magnitude=entry.get("magnitude", "LOW"),
+                           rationale=(entry.get("rationale") or "")[:200])
+        # Surface legacy flat-list entries we haven't already covered.
+        emitted = {e.get("sub_cap_id") for e in affected if isinstance(e, dict)}
+        for sid in legacy_affects:
+            if sid in emitted:
+                continue
+            sc_nid = _nid("Subcap", sid)
+            if sc_nid in g:
+                g.add_edge(n_nid, sc_nid,
+                           key=f"AFFECTS:{sid}",
+                           kind="AFFECTS",
+                           magnitude="LOW")
+
     log.info("kg built snapshot=%s nodes=%d edges=%d kinds=%d/%d",
              snapshot_id, g.number_of_nodes(), g.number_of_edges(),
              len({d.get('kind') for _, d in g.nodes(data=True)}),

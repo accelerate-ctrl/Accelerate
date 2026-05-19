@@ -206,3 +206,39 @@ def test_completeness_row_keyed_on_sub_cap_id(refreshed):
     doc = repo.get(COLLECTIONS["completeness"], sample["sub_cap_id"])
     assert doc is not None
     assert doc["sub_cap_id"] == sample["sub_cap_id"]
+
+
+def test_full_kg_emits_22_or_more_node_kinds(refreshed):
+    """Phase 3 done criterion: ``KG has ≥22 node kinds across 4 pillars``.
+
+    P1 ingest alone produces 18 catalogue-driven kinds; we seed one
+    representative row each from the 4 operational collections
+    (vendor / news / suggestion / SOW) to reach the production target
+    of ≥22 distinct kinds.
+    """
+    from app.services import graph_service
+    repo = get_repository()
+    # 4 synthetic operational rows so the graph builder lights up those
+    # downstream node kinds without requiring full ingest pipelines.
+    repo.upsert("vendor_profiles", "v-synth", {
+        "vendor_id": "v-synth", "name": "Synthetic Vendor",
+    })
+    repo.upsert("news_items", "news-synth", {
+        "id": "news-synth", "title": "Synth", "source": "x.com",
+        "impact": {"affects_subcaps": ["P1C1.1.1"]},
+    })
+    repo.upsert("suggestions", "sug-synth", {
+        "id": "sug-synth", "status": "pending", "sub_cap_id": "P1C1.1.1",
+    })
+    repo.upsert("sows", "sow-synth", {
+        "sow_id": "sow-synth", "status": "active", "client_name": "synth",
+    })
+    repo.upsert("clients", "synth", {"client_id": "synth", "name": "Synth"})
+
+    graph_service.invalidate_cache()
+    g = graph_service.build_graph()
+    kinds = {d.get("kind") for _, d in g.nodes(data=True)}
+    assert len(kinds) >= 22, (
+        f"only {len(kinds)} node kinds present after P1 refresh: "
+        f"{sorted(kinds)}"
+    )

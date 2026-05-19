@@ -285,6 +285,19 @@ def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
         except Exception:
             log.exception("catalogue corpus rebuild failed; ingest succeeded")
 
+    # Persist a sharded KG snapshot (Phase 3.2 / F05) so the in-process
+    # NetworkX graph isn't the only copy. Same opt-out semantics as
+    # the corpus rebuild — tests can skip via SKIP_KG_SNAPSHOT, prod
+    # always writes.
+    if loaded and os.environ.get("SKIP_KG_SNAPSHOT") not in ("1", "true", "True"):
+        try:
+            from . import graph_service, graph_storage
+            graph_service.invalidate_cache()
+            g = graph_service.build_graph()
+            graph_storage.save_snapshot(g)
+        except Exception:
+            log.exception("kg snapshot persistence failed; ingest succeeded")
+
     completed = datetime.utcnow()
     run_id = f"ingest-{int(started.timestamp())}"
     run_doc = {

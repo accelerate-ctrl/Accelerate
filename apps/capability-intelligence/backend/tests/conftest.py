@@ -19,6 +19,9 @@ def _env() -> None:
     # embedding overhead per refresh. RAG tests opt back in via the
     # ``with_corpus_rebuild`` fixture below.
     os.environ.setdefault("SKIP_CORPUS_REBUILD", "1")
+    # Same opt-out for the sharded KG snapshot persister; refresh_pillar
+    # otherwise spends ~5s persisting nodes/edges per test.
+    os.environ.setdefault("SKIP_KG_SNAPSHOT", "1")
 
 
 @pytest.fixture

@@ -1,9 +1,12 @@
 """Knowledge Graph — nodes, edges, queries, path, centrality, communities, impact."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
 
 from ..deps import auth_dep
+from ..services import graph_layer_b_proposer as layer_b
 from ..services import graph_service as gs
+from ..services import graph_storage
 
 router = APIRouter()
 
@@ -187,3 +190,111 @@ def _fallback_insights(gs_mod) -> dict:
             "by_kind": {k: len(v) for k, v in by_kind.items()},
         },
     }
+
+
+# ─── Phase 3.3 — Layer B AI-proposed edges (PRD FR-3) ───────────────────────
+
+
+class _DispositionPayload(BaseModel):
+    note: str | None = None
+
+
+class _RejectPayload(BaseModel):
+    """Reject requires a non-empty rationale (App Flow J5)."""
+    reason: str = Field(..., min_length=1)
+
+
+class _ProposePayload(BaseModel):
+    cosine_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    min_cross_pillar_stories: int = Field(default=2, ge=1, le=100)
+    max_similar_per_subcap: int = Field(default=3, ge=1, le=20)
+
+
+@router.get("/layer-b/pending")
+def layer_b_pending(
+    kind: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+    _=Depends(auth_dep),
+) -> list[dict]:
+    """List pending KG edge proposals for the J5 inbox."""
+    return layer_b.list_pending(kind=kind, limit=limit)
+
+
+@router.get("/layer-b/runs")
+def layer_b_runs(_=Depends(auth_dep)) -> list[dict]:
+    """Proposer run history (audit dashboard)."""
+    return layer_b.list_runs()
+
+
+@router.post("/layer-b/propose")
+def layer_b_propose(body: _ProposePayload, _=Depends(auth_dep)) -> dict:
+    """On-demand Layer B proposer run.
+
+    Production schedules this nightly via Cloud Scheduler; the endpoint
+    exists for operators to kick off an ad-hoc run after a major
+    catalogue change.
+    """
+    run = layer_b.propose_edges(
+        cosine_threshold=body.cosine_threshold,
+        min_cross_pillar_stories=body.min_cross_pillar_stories,
+        max_similar_per_subcap=body.max_similar_per_subcap,
+    )
+    from dataclasses import asdict
+    return asdict(run)
+
+
+@router.post("/layer-b/{edge_id}/approve")
+def layer_b_approve(
+    edge_id: str,
+    body: _DispositionPayload,
+    user=Depends(auth_dep),
+) -> dict:
+    out = layer_b.disposition(
+        edge_id, by=user.email, status="approved", note=body.note,
+    )
+    if not out:
+        raise HTTPException(404, f"pending edge not found: {edge_id}")
+    return out
+
+
+@router.post("/layer-b/{edge_id}/reject")
+def layer_b_reject(
+    edge_id: str,
+    body: _RejectPayload,
+    user=Depends(auth_dep),
+) -> dict:
+    out = layer_b.disposition(
+        edge_id, by=user.email, status="rejected", note=body.reason,
+    )
+    if not out:
+        raise HTTPException(404, f"pending edge not found: {edge_id}")
+    return out
+
+
+@router.post("/layer-b/{edge_id}/defer")
+def layer_b_defer(
+    edge_id: str,
+    body: _DispositionPayload,
+    user=Depends(auth_dep),
+) -> dict:
+    out = layer_b.disposition(
+        edge_id, by=user.email, status="deferred", note=body.note,
+    )
+    if not out:
+        raise HTTPException(404, f"pending edge not found: {edge_id}")
+    return out
+
+
+# ─── Phase 3.2 — sharded snapshot state (QA_AUDIT F05) ──────────────────────
+
+
+@router.get("/snapshot/state")
+def snapshot_state(_=Depends(auth_dep)) -> dict:
+    """Current sharded-snapshot pointer (counts, n_shards, last write).
+
+    Returns ``{snapshot_id, n_shards, node_count, edge_count,
+    written_at}`` or ``{snapshot_id: null}`` if no snapshot has been
+    written yet.
+    """
+    s = graph_storage.state()
+    return s or {"snapshot_id": None}
