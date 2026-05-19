@@ -22,10 +22,37 @@ def stub(_=Depends(auth_dep)) -> dict:
 @router.get("")
 def list_chains(
     sub_cap_id: str | None = Query(default=None),
+    operation: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=500),
     _=Depends(auth_dep),
 ) -> list[dict]:
-    return consultant_loop.list_chains(sub_cap_id=sub_cap_id, limit=limit)
+    """List reasoning chains across every emitter.
+
+    Surfaces both the full 7-step consultant_loop chains and the
+    lightweight ChainEmitter chains (news_impact, partner_release_
+    extract, etc.). Filter by ``operation`` to narrow to a specific
+    service; ``sub_cap_id`` filters across both shapes.
+    """
+    # Pull a wider window so the operation filter still leaves the
+    # caller a useful page after filtering.
+    rows = consultant_loop.list_chains(sub_cap_id=sub_cap_id, limit=limit * 4)
+    if operation:
+        rows = [r for r in rows if r.get("operation") == operation]
+    return rows[:limit]
+
+
+@router.get("/operations")
+def list_operations(_=Depends(auth_dep)) -> dict:
+    """Distinct ``operation`` values currently present in the chain
+    collection plus a count per operation. Drives the filter chips on
+    the Reasoning Chain Viewer.
+    """
+    rows = consultant_loop.list_chains(limit=10000)
+    counts: dict[str, int] = {}
+    for r in rows:
+        op = r.get("operation") or "consultant_loop"
+        counts[op] = counts.get(op, 0) + 1
+    return {"operations": counts, "total": len(rows)}
 
 
 @router.get("/{chain_id}")

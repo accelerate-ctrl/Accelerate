@@ -183,6 +183,90 @@ def test_llm_failure_returns_safe_defaults(settings_for_tests):
     assert out["confidence"] == 0.0
 
 
+# ─── Phase 2.4 / F02 — reasoning-chain emission ────────────────────────────
+
+
+def test_synthesise_emits_reasoning_chain(settings_for_tests):
+    """Every call to synthesise_impact must persist a reasoning chain
+    so the trust surface has a uniform audit row (QA_AUDIT F02)."""
+    from app.services.reasoning_chain_emitter import list_chains
+
+    payload = {
+        "summary": "x",
+        "impact_class": "reinforcement",
+        "affected_subcaps": [
+            {"sub_cap_id": "P1C1.1.1", "magnitude": "HIGH", "rationale": "x"},
+        ],
+        "confidence": 0.7,
+    }
+    with _stub_llm(payload):
+        out = news_service.synthesise_impact(BASE_ITEM, subcaps=VALID_SUBCAPS)
+    chains = list_chains(operation="news_impact")
+    assert len(chains) == 1
+    chain = chains[0]
+    # The returned impact carries the chain id for FE deep-linking.
+    assert out["chain_id"] == chain["chain_id"]
+    # Three canonical steps were recorded.
+    step_names = [s["name"] for s in chain["steps"]]
+    assert step_names == ["retrieve", "llm", "validate"]
+    # The source list captures the news item itself.
+    assert any(s.get("id") == "news-001" for s in chain["sources"])
+
+
+def test_chain_records_dropped_subcap_ids(settings_for_tests):
+    """When the LLM hallucinates a subcap id, the validate step must
+    record what was dropped so reviewers can see why an item is
+    'almost' flagged but didn't make the cut.
+    """
+    from app.services.reasoning_chain_emitter import list_chains
+
+    payload = {
+        "summary": "x",
+        "impact_class": "reinforcement",
+        "affected_subcaps": [
+            {"sub_cap_id": "P1C1.1.1", "magnitude": "HIGH", "rationale": "ok"},
+            {"sub_cap_id": "P9C99.9.9", "magnitude": "HIGH", "rationale": "fake"},
+        ],
+        "confidence": 0.7,
+    }
+    with _stub_llm(payload):
+        news_service.synthesise_impact(BASE_ITEM, subcaps=VALID_SUBCAPS)
+    chain = list_chains(operation="news_impact")[0]
+    validate_step = next(s for s in chain["steps"] if s["name"] == "validate")
+    assert "P9C99.9.9" in validate_step["detail"]["dropped_subcap_ids"]
+
+
+def test_chain_records_overall_pass_on_success(settings_for_tests):
+    from app.services.reasoning_chain_emitter import list_chains
+
+    payload = {
+        "summary": "ok",
+        "impact_class": "reinforcement",
+        "affected_subcaps": [],
+        "confidence": 0.3,
+    }
+    with _stub_llm(payload):
+        news_service.synthesise_impact(BASE_ITEM, subcaps=VALID_SUBCAPS)
+    chain = list_chains(operation="news_impact")[0]
+    assert chain["overall"] == "pass"
+    assert chain["failure"] is None
+
+
+def test_chain_records_failure_when_llm_raises(settings_for_tests):
+    from app.services.reasoning_chain_emitter import list_chains
+
+    def raising(_req):
+        raise RuntimeError("boom")
+
+    with patch("app.services.llm.router.call", new=raising):
+        news_service.synthesise_impact(BASE_ITEM, subcaps=VALID_SUBCAPS)
+    chain = list_chains(operation="news_impact")[0]
+    # The chain is persisted with overall=fail so the audit dashboard
+    # can surface it; the function itself still returned a safe envelope.
+    assert chain["overall"] == "fail"
+    assert chain["failure"]["error_type"] == "RuntimeError"
+
+
 # ─── helpers ───────────────────────────────────────────────────────────────
 
 

@@ -36,6 +36,8 @@ type Impact = {
   } | null;
   confidence?: number;
   synthesised_at?: string;
+  // Phase 2.4 / F02 — reasoning chain id for trust-surface deep-link.
+  chain_id?: string;
 };
 
 const MAGNITUDE_BAND: Record<AffectedSubcap['magnitude'], string> = {
@@ -241,6 +243,18 @@ export default function NewsWatch() {
                   </p>
                 ) : (
                   <p className="text-xs text-zen-text-gray mt-1 line-clamp-3">{n.text}</p>
+                )}
+
+                {/* Phase 2.4 / F02 — link to the reasoning chain that
+                    produced this magnitude scoring. The trust surface
+                    (Reasoning Chain Viewer) opens directly to the run. */}
+                {impact.chain_id && (
+                  <Link
+                    to={`/reasoning?id=${encodeURIComponent(impact.chain_id)}`}
+                    className="text-[10px] text-zen-teal hover:text-zen-dark-teal underline mt-1 inline-block"
+                  >
+                    Show reasoning →
+                  </Link>
                 )}
 
                 {/* Affected subcaps with per-subcap magnitude (Phase 2.1).

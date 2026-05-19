@@ -215,49 +215,95 @@ def _ensure_list(obj: object) -> list:
 
 
 def extract_features(entry: RawEntry, partner: Partner) -> list[dict]:
-    """LLM call. Returns 0–N feature dicts, with safe defaults on failure."""
+    """LLM call. Returns 0–N feature dicts, with safe defaults on failure.
+
+    Emits a ``reasoning_chains`` row per call (QA_AUDIT F02) so the
+    trust surface can render the same audit footprint that
+    consultant_loop produces — every AI output gets a chain.
+    """
     from .llm.router import LlmRequest, ModelKind
     from .llm.router import call as llm_call
+    from .reasoning_chain_emitter import emit_chain
 
-    prompt = _EXTRACT_PROMPT.format(
-        partner_name=partner.name,
-        title=entry.title,
-        published_at=entry.published_at,
-        url=entry.url or "?",
-        body=entry.summary,
-    )
-    try:
-        resp = llm_call(LlmRequest(
-            model=ModelKind.GEMINI_FLASH,
-            prompt=prompt,
-            system=_EXTRACT_SYSTEM,
-            max_tokens=512,
-            metadata={
-                "operation_type": "partner_release_extract",
-                "partner_code": partner.code,
-            },
-        ))
-        raw = _ensure_list(resp.text)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("feature extract failed for %s/%s: %s",
-                    partner.code, entry.title[:40], exc)
-        raw = []
+    with emit_chain(
+        operation="partner_release_extract",
+        leverage_tier="LOW",
+    ) as chain:
+        chain.step(
+            "retrieve",
+            input_summary=f"{partner.code}: {entry.title[:80]}",
+            output_summary="prompt prepared",
+        )
+        prompt = _EXTRACT_PROMPT.format(
+            partner_name=partner.name,
+            title=entry.title,
+            published_at=entry.published_at,
+            url=entry.url or "?",
+            body=entry.summary,
+        )
+        try:
+            resp = llm_call(LlmRequest(
+                model=ModelKind.GEMINI_FLASH,
+                prompt=prompt,
+                system=_EXTRACT_SYSTEM,
+                max_tokens=512,
+                metadata={
+                    "operation_type": "partner_release_extract",
+                    "partner_code": partner.code,
+                },
+            ))
+            raw = _ensure_list(resp.text)
+            chain.step(
+                "llm",
+                model="gemini-flash",
+                output_summary=f"{len(raw)} candidate features",
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("feature extract failed for %s/%s: %s",
+                        partner.code, entry.title[:40], exc)
+            raw = []
+            chain.step(
+                "llm",
+                model="gemini-flash",
+                output_summary=f"failed: {type(exc).__name__}",
+                detail={"error": str(exc)[:200]},
+            )
+            chain.record_failure(exc)
 
-    out: list[dict] = []
-    for item in raw[:8]:
-        if not isinstance(item, dict):
-            continue
-        feature = (item.get("feature") or "").strip()
-        if not feature:
-            continue
-        impact = item.get("impact_class") or "new_feature"
-        if impact not in ("new_feature", "enhancement", "deprecation", "bug_fix"):
-            impact = "new_feature"
-        out.append({
-            "feature": feature[:120],
-            "summary": (item.get("summary") or "")[:280],
-            "impact_class": impact,
-            "category_hint": (item.get("category_hint") or "")[:40],
+        # Source: the entry itself + the partner registry row.
+        chain.attach_sources([{
+            "id": entry.url or entry.title,
+            "url": entry.url,
+            "tier": "T5",  # vendor self-promotion
+            "source": partner.code,
+            "title": entry.title,
+        }])
+
+        out: list[dict] = []
+        for item in raw[:8]:
+            if not isinstance(item, dict):
+                continue
+            feature = (item.get("feature") or "").strip()
+            if not feature:
+                continue
+            impact = item.get("impact_class") or "new_feature"
+            if impact not in ("new_feature", "enhancement", "deprecation", "bug_fix"):
+                impact = "new_feature"
+            out.append({
+                "feature": feature[:120],
+                "summary": (item.get("summary") or "")[:280],
+                "impact_class": impact,
+                "category_hint": (item.get("category_hint") or "")[:40],
+            })
+
+        chain.step(
+            "validate",
+            output_summary=f"kept {len(out)} of {len(raw)} candidates",
+        )
+        chain.attach_output({
+            "partner_code": partner.code,
+            "entry_title": entry.title[:80],
+            "feature_count": len(out),
         })
     return out
 

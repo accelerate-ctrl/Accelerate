@@ -356,108 +356,163 @@ def synthesise_impact(item: dict, *, subcaps: list[dict] | None = None) -> dict:
     Returns the impact dict (always with all five fields, with safe defaults
     if the LLM call fails). Caller is responsible for persisting it back to
     the news item.
+
+    Side effect: writes a ``reasoning_chains`` row capturing the inputs,
+    LLM call, validation result, sources, and output. Required by
+    QA_AUDIT F02 (every AI-output service emits a chain so the trust
+    surface has a uniform audit row to render).
     """
     from .llm.router import LlmRequest, ModelKind
     from .llm.router import call as llm_call
+    from .reasoning_chain_emitter import emit_chain
+
     subcaps = subcaps if subcaps is not None else _load_subcaps()
-    prompt = _IMPACT_PROMPT_TPL.format(
-        subcaps_blob=_subcap_inventory_blob(subcaps),
-        title=(item.get("title") or "")[:200],
-        source=item.get("source") or item.get("source_domain") or "?",
-        published_at=item.get("published_at") or "?",
-        url=item.get("url") or "?",
-        body=(item.get("text") or item.get("body") or item.get("summary") or "")[:2400],
-    )
-    try:
-        resp = llm_call(LlmRequest(
-            model=ModelKind.GEMINI_FLASH,
-            prompt=prompt,
-            system=_IMPACT_SYSTEM,
-            max_tokens=512,
-            metadata={"operation_type": "news_impact_synthesis"},
-        ))
-        payload = _ensure_dict(resp.text)
-    except Exception as exc:  # noqa: BLE001 — surface, don't propagate
-        logger.warning("impact synth failed for %s: %s", item.get("id"), exc)
-        payload = {}
-    # Coerce + validate.
-    klass = payload.get("impact_class") or "no_impact"
-    if klass not in IMPACT_CLASSES:
-        klass = "no_impact"
 
-    valid_subcap_ids = {s.get("sub_cap_id") for s in (subcaps or []) if s.get("sub_cap_id")}
+    chain_id: str | None = None
+    with emit_chain(
+        operation="news_impact",
+        sub_cap_id=item.get("id"),
+        leverage_tier="LOW",
+    ) as chain:
+        chain_id = chain.chain_id
+        chain.step(
+            "retrieve",
+            input_summary=f"news item {str(item.get('id', '?'))[:24]}",
+            output_summary=f"{len(subcaps)} subcaps in scope",
+        )
+        prompt = _IMPACT_PROMPT_TPL.format(
+            subcaps_blob=_subcap_inventory_blob(subcaps),
+            title=(item.get("title") or "")[:200],
+            source=item.get("source") or item.get("source_domain") or "?",
+            published_at=item.get("published_at") or "?",
+            url=item.get("url") or "?",
+            body=(item.get("text") or item.get("body") or item.get("summary") or "")[:2400],
+        )
+        try:
+            resp = llm_call(LlmRequest(
+                model=ModelKind.GEMINI_FLASH,
+                prompt=prompt,
+                system=_IMPACT_SYSTEM,
+                max_tokens=512,
+                metadata={"operation_type": "news_impact_synthesis"},
+            ))
+            payload = _ensure_dict(resp.text)
+            chain.step(
+                "llm",
+                model="gemini-flash",
+                input_summary="impact-classifier prompt",
+                output_summary=f"impact_class={payload.get('impact_class', '?')}",
+            )
+        except Exception as exc:  # noqa: BLE001 — surface, don't propagate
+            logger.warning("impact synth failed for %s: %s", item.get("id"), exc)
+            payload = {}
+            chain.step(
+                "llm",
+                model="gemini-flash",
+                output_summary=f"failed: {type(exc).__name__}",
+                detail={"error": str(exc)[:200]},
+            )
+            chain.record_failure(exc)
 
-    # Per-subcap magnitude scoring (Phase 2.1 — PRD FR-17). The LLM is
-    # asked to emit a structured list of {sub_cap_id, magnitude,
-    # rationale}; we also accept the legacy flat list shape (``affects_
-    # subcaps: ["P1C…"]``) for backward compatibility with cached calls
-    # and tests that fixture the older response shape.
-    raw_affected = payload.get("affected_subcaps") or payload.get("affects_subcaps") or []
-    affected_with_magnitude: list[dict] = []
-    if isinstance(raw_affected, list):
-        for entry in raw_affected[:8]:  # hard cap to bound cost downstream
-            if isinstance(entry, dict):
-                sid = entry.get("sub_cap_id")
-                if not sid or sid not in valid_subcap_ids:
-                    continue
-                mag = (entry.get("magnitude") or "").upper()
-                if mag not in IMPACT_MAGNITUDES:
-                    mag = "LOW"
-                affected_with_magnitude.append({
-                    "sub_cap_id": sid,
-                    "magnitude": mag,
-                    "rationale": (entry.get("rationale") or "")[:200],
-                })
-            elif isinstance(entry, str):
-                # Legacy shape — accept the id, default magnitude to LOW
-                # since we have no rationale.
-                if entry in valid_subcap_ids:
+        # Source row for the news item itself (single source, LOW tier).
+        chain.attach_sources([{
+            "id": item.get("id"),
+            "url": item.get("url"),
+            "tier": "T3",
+            "source": item.get("source"),
+            "title": item.get("title"),
+        }])
+
+        # Coerce + validate (server-side authority over the LLM's
+        # output schema). The chain records every transform so the
+        # Reasoning Chain Viewer can show the operator what dropped.
+        klass = payload.get("impact_class") or "no_impact"
+        if klass not in IMPACT_CLASSES:
+            klass = "no_impact"
+
+        valid_subcap_ids = {s.get("sub_cap_id") for s in (subcaps or []) if s.get("sub_cap_id")}
+
+        raw_affected = payload.get("affected_subcaps") or payload.get("affects_subcaps") or []
+        affected_with_magnitude: list[dict] = []
+        dropped_ids: list[str] = []
+        if isinstance(raw_affected, list):
+            for entry in raw_affected[:8]:  # hard cap to bound cost downstream
+                if isinstance(entry, dict):
+                    sid = entry.get("sub_cap_id")
+                    if not sid or sid not in valid_subcap_ids:
+                        if sid:
+                            dropped_ids.append(sid)
+                        continue
+                    mag = (entry.get("magnitude") or "").upper()
+                    if mag not in IMPACT_MAGNITUDES:
+                        mag = "LOW"
                     affected_with_magnitude.append({
-                        "sub_cap_id": entry,
-                        "magnitude": "LOW",
-                        "rationale": "",
+                        "sub_cap_id": sid,
+                        "magnitude": mag,
+                        "rationale": (entry.get("rationale") or "")[:200],
                     })
+                elif isinstance(entry, str):
+                    if entry in valid_subcap_ids:
+                        affected_with_magnitude.append({
+                            "sub_cap_id": entry,
+                            "magnitude": "LOW",
+                            "rationale": "",
+                        })
+                    else:
+                        dropped_ids.append(entry)
 
-    # When the article is no_impact the magnitude list MUST be empty
-    # per the prompt rules; enforce it server-side so a sloppy LLM
-    # response can't leak misleading magnitudes through.
-    if klass == "no_impact":
-        affected_with_magnitude = []
+        if klass == "no_impact":
+            affected_with_magnitude = []
 
-    # Cap to top-4 by magnitude (HIGH > MEDIUM > LOW) for the UI; the
-    # raw list above already capped at 8 to bound the cost on downstream
-    # per-subcap loops.
-    _mag_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
-    affected_with_magnitude.sort(
-        key=lambda e: (_mag_order.get(e["magnitude"], 9), e["sub_cap_id"]),
-    )
-    affected_with_magnitude = affected_with_magnitude[:4]
+        _mag_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+        affected_with_magnitude.sort(
+            key=lambda e: (_mag_order.get(e["magnitude"], 9), e["sub_cap_id"]),
+        )
+        affected_with_magnitude = affected_with_magnitude[:4]
+        affects = [e["sub_cap_id"] for e in affected_with_magnitude]
 
-    # Back-compat flat list — keeps existing consumers (chat retrieval,
-    # Subcap Deep Dive news join) working without code change.
-    affects = [e["sub_cap_id"] for e in affected_with_magnitude]
+        suggested = payload.get("suggests_new_subcap")
+        if klass != "catalogue_extension":
+            suggested = None
+        elif not isinstance(suggested, dict):
+            suggested = None
+        try:
+            conf = float(payload.get("confidence") or 0.0)
+            conf = max(0.0, min(1.0, conf))
+        except (TypeError, ValueError):
+            conf = 0.0
 
-    suggested = payload.get("suggests_new_subcap")
-    if klass != "catalogue_extension":
-        suggested = None
-    elif not isinstance(suggested, dict):
-        suggested = None
-    try:
-        conf = float(payload.get("confidence") or 0.0)
-        conf = max(0.0, min(1.0, conf))
-    except (TypeError, ValueError):
-        conf = 0.0
-    return {
-        "summary": (payload.get("summary") or "")[:400],
-        "impact_class": klass,
-        # Legacy flat list (back-compat).
-        "affects_subcaps": affects,
-        # Structured per-subcap impact (new in Phase 2.1).
-        "affected_subcaps": affected_with_magnitude,
-        "suggests_new_subcap": suggested,
-        "confidence": round(conf, 3),
-        "synthesised_at": datetime.now(timezone.utc).isoformat(),
-    }
+        chain.step(
+            "validate",
+            input_summary=f"{len(raw_affected) if isinstance(raw_affected, list) else 0} candidate subcaps",
+            output_summary=(
+                f"impact_class={klass} kept={len(affected_with_magnitude)} "
+                f"dropped={len(dropped_ids)}"
+            ),
+            detail={"dropped_subcap_ids": dropped_ids[:10]},
+        )
+
+        result = {
+            "summary": (payload.get("summary") or "")[:400],
+            "impact_class": klass,
+            "affects_subcaps": affects,
+            "affected_subcaps": affected_with_magnitude,
+            "suggests_new_subcap": suggested,
+            "confidence": round(conf, 3),
+            "synthesised_at": datetime.now(timezone.utc).isoformat(),
+            # Phase 2.4 (F02) — chain id surfaced on every news.impact
+            # row so the UI can deep-link to the reasoning chain that
+            # produced the magnitude scores.
+            "chain_id": chain_id,
+        }
+        chain.attach_output({
+            "impact_class": klass,
+            "affected_count": len(affected_with_magnitude),
+            "confidence": round(conf, 3),
+            "summary": result["summary"],
+        })
+
+    return result
 
 
 def synthesise_impact_batch(*, limit: int = 50, force: bool = False) -> dict:
