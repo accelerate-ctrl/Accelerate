@@ -180,6 +180,45 @@ def get_completeness(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     return row
 
 
+# ─── Canonical-entity surface (Phase 1.4) ───────────────────────────────────
+
+
+@router.get("/canonical-entities")
+def list_canonical_entities(
+    kind: str | None = None,
+    _=Depends(auth_dep),
+) -> dict:
+    """List cross-pillar deduped entities.
+
+    Use ``?kind=Offering`` (or DataProduct / L3Platform / AgentforceAgent)
+    to filter by entity kind. Returns the supported kinds in the
+    response so the FE can render tab labels without a second roundtrip.
+    """
+    from ..services import canonical_entity_service
+    rows = canonical_entity_service.list_canonical(kind)
+    return {
+        "kinds": canonical_entity_service.supported_kinds(),
+        "entities": rows,
+        "count": len(rows),
+    }
+
+
+@router.get("/canonical-entities/{entity_kind}/{canonical_id}")
+def get_canonical_entity(
+    entity_kind: str,
+    canonical_id: str,
+    _=Depends(auth_dep),
+) -> dict:
+    """Fetch a single canonical entity by kind + id."""
+    from ..services import canonical_entity_service
+    row = canonical_entity_service.get_canonical(entity_kind, canonical_id)
+    if row is None:
+        raise HTTPException(
+            404, f"no canonical entity {entity_kind}:{canonical_id}",
+        )
+    return row
+
+
 @router.get("/l3-platforms")
 def get_l3(_=Depends(auth_dep)) -> list[dict]:
     return svc.list_l3()

@@ -255,6 +255,17 @@ def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
     except Exception:  # graph_service depends on networkx; absent in some test paths
         pass
 
+    # Rebuild the cross-pillar canonical entities (Phase 1.4) so the
+    # Offering / DataProduct / L3 dedup view stays consistent with the
+    # per-pillar ingest. Wrapped in try/except so an ingest never fails
+    # solely because canonicalisation hit an edge case.
+    if loaded:
+        try:
+            from . import canonical_entity_service
+            canonical_entity_service.rebuild_canonical_entities()
+        except Exception:
+            log.exception("canonical-entity rebuild failed; ingest succeeded")
+
     completed = datetime.utcnow()
     run_id = f"ingest-{int(started.timestamp())}"
     run_doc = {

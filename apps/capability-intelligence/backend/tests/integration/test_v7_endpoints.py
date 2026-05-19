@@ -128,3 +128,57 @@ def test_subcap_detail_completeness_populated(seeded, auth_headers):
     assert comp is not None
     assert comp["sub_cap_id"] == "P1C1.1.1"
     assert comp.get("total_score") is not None
+
+
+# ─── Phase 1.4 — canonical-entity API ──────────────────────────────────────
+
+
+def test_canonical_entities_list(seeded, auth_headers):
+    """After refresh_pillar runs, the canonical entities collection is
+    populated automatically; the API surfaces it."""
+    r = seeded.get("/api/catalogue/canonical-entities", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert "kinds" in body
+    assert "entities" in body
+    assert body["count"] > 0
+    # All four supported kinds should be advertised
+    assert set(body["kinds"]) >= {"L3Platform", "Offering", "DataProduct", "AgentforceAgent"}
+
+
+def test_canonical_entities_filter_by_kind(seeded, auth_headers):
+    r = seeded.get(
+        "/api/catalogue/canonical-entities?kind=Offering",
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] > 0
+    for ent in body["entities"]:
+        assert ent["entity_kind"] == "Offering"
+
+
+def test_canonical_entity_by_id(seeded, auth_headers):
+    """Pick a real offering id from the canonical list and round-trip."""
+    listing = seeded.get(
+        "/api/catalogue/canonical-entities?kind=Offering",
+        headers=auth_headers,
+    ).json()
+    target = listing["entities"][0]
+    r = seeded.get(
+        f"/api/catalogue/canonical-entities/Offering/{target['canonical_id']}",
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["canonical_id"] == target["canonical_id"]
+    assert body["entity_kind"] == "Offering"
+    assert "source_pillars" in body
+
+
+def test_canonical_entity_404_for_unknown(seeded, auth_headers):
+    r = seeded.get(
+        "/api/catalogue/canonical-entities/Offering/DOES-NOT-EXIST",
+        headers=auth_headers,
+    )
+    assert r.status_code == 404

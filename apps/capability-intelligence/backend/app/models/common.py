@@ -144,6 +144,7 @@ SCHEMA_VERSIONS: dict[str, str] = {
     "graph_snapshot_shard": "graph-shard-v1",
     # Phase 1 — v7.0 schema alignment
     "persona_ref": "persona-ref-v1",
+    "canonical_entity": "canonical-entity-v1",
 }
 
 
