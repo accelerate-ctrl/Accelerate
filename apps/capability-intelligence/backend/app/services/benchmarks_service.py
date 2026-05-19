@@ -356,24 +356,43 @@ def hierarchical_bootstrap_ci(
     ci: float = 0.90,
     seed: int = 42,
 ) -> dict:
-    """Per QA_AUDIT.md §2.7 — cluster-bootstrap by ``primary_source_id``.
+    """Per QA_AUDIT.md §2.7 / F06 — cluster-bootstrap by ``primary_source_id``.
 
     Naive bootstrap on N observations from M distinct primary sources
     (M < N) gives anti-conservative CIs.  This routine resamples the
     *primary sources* with replacement and pools the observations within
     each chosen primary, yielding effective_n = M (the unique-primary
     count) and CI width that respects clustering.
+
+    Returns CI on the *median* (the population statistic), plus
+    cluster-aware mean and stdev computed from one representative
+    value per cluster (the cluster median). The cluster-aware mean +
+    stdev are what F06 calls for instead of the naive ``pstdev`` over
+    all observations.
     """
     import random
 
     if not observations:
-        return {"median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
-                "effective_n": 0, "method": "hierarchical-bootstrap"}
+        return {
+            "median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
+            "effective_n": 0,
+            "cluster_aware_mean": 0.0, "cluster_aware_stdev": 0.0,
+            "method": "hierarchical-bootstrap",
+        }
     by_primary: dict[str, list[float]] = {}
     for o in observations:
         key = o.get("primary_source_id") or o.get("id")
         by_primary.setdefault(key, []).append(float(o["value"]))
     primaries = list(by_primary.keys())
+
+    # One representative value per cluster — median of the cluster's
+    # observations. This is the input to the cluster-aware mean/stdev.
+    cluster_reps = [statistics.median(by_primary[p]) for p in primaries]
+    cluster_mean = statistics.mean(cluster_reps) if cluster_reps else 0.0
+    cluster_stdev = (
+        statistics.pstdev(cluster_reps) if len(cluster_reps) > 1 else 0.0
+    )
+
     rng = random.Random(seed)
     sample_medians: list[float] = []
     for _ in range(B):
@@ -383,9 +402,13 @@ def hierarchical_bootstrap_ci(
             sample_medians.append(statistics.median(flat))
     sample_medians.sort()
     if not sample_medians:
-        return {"median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
-                "effective_n": len(by_primary),
-                "method": "hierarchical-bootstrap"}
+        return {
+            "median": 0.0, "ci_low": 0.0, "ci_high": 0.0,
+            "effective_n": len(by_primary),
+            "cluster_aware_mean": cluster_mean,
+            "cluster_aware_stdev": cluster_stdev,
+            "method": "hierarchical-bootstrap",
+        }
     lo_idx = max(0, int(B * (1 - ci) / 2))
     hi_idx = min(B - 1, int(B * (1 + ci) / 2))
     return {
@@ -394,6 +417,11 @@ def hierarchical_bootstrap_ci(
         "ci_high": sample_medians[hi_idx],
         "effective_n": len(by_primary),
         "ci_level": ci,
+        # Cluster-aware mean + stdev (F06): computed from one
+        # representative observation per primary source, so a single
+        # report with 50 metrics doesn't dominate.
+        "cluster_aware_mean": cluster_mean,
+        "cluster_aware_stdev": cluster_stdev,
         "method": "hierarchical-bootstrap",
     }
 
@@ -420,6 +448,9 @@ def _compute_distribution(
         "min": values[0] if values else None,
         "max": values[-1] if values else None,
         "mean": statistics.mean(values) if values else None,
+        # Naive stdev/mean kept for back-compat; reviewers should
+        # prefer the cluster-aware variants below when interpreting
+        # spread under within-source correlation.
         "stdev": statistics.pstdev(values) if len(values) > 1 else 0.0,
         "p25": _percentile(values, 0.25),
         "p50": _percentile(values, 0.50),
@@ -430,6 +461,12 @@ def _compute_distribution(
         "ci_high": round(boot["ci_high"], 4),
         "ci_method": boot["method"],
         "ci_level": boot.get("ci_level"),
+        # F06 cluster-aware mean + stdev so the naive pstdev field above
+        # never gets used in inference. Each cluster (primary_source_id)
+        # contributes a single representative value before the stat is
+        # computed.
+        "cluster_aware_mean": round(boot.get("cluster_aware_mean", 0.0), 4),
+        "cluster_aware_stdev": round(boot.get("cluster_aware_stdev", 0.0), 4),
         "verdict": _verdict(len(values), source_kinds, cv, has_extra),
         "source_kinds": sorted(source_kinds),
         "observation_ids": [o["id"] for o in obs],
