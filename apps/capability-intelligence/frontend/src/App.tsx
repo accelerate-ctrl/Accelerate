@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import CommandPalette from './components/CommandPalette';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SignInGate from './components/SignInGate';
@@ -17,6 +18,10 @@ export default function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-surface text-fg">
       <SignInGate />
+      {/* IMP-1 — Cmd/Ctrl+K palette. Mounted at the App root so the
+          shortcut works from every page. The component renders null
+          when closed; the keyboard listener is always active. */}
+      <CommandPalette />
       <Sidebar mobileOpen={drawerOpen} onCloseMobile={() => setDrawerOpen(false)} />
       {drawerOpen && (
         <button

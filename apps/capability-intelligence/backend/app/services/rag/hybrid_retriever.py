@@ -218,6 +218,9 @@ def retrieve(
     *,
     top_k: int = 12,
     candidates_per_signal: int = 20,
+    operation: str = "chat",
+    user_email: str | None = None,
+    record_telemetry: bool = True,
 ) -> list[RetrievalHit]:
     """Retrieve catalogue chunks matching the query via three signals
     merged with reciprocal-rank fusion.
@@ -227,6 +230,11 @@ def retrieve(
       before the fusion. Larger values trade compute for recall; 20 is
       a good default that keeps each query under 50ms on the in-memory
       repository at full v7.0 catalogue scale.
+    - ``operation`` / ``user_email`` are forwarded to the retrieval
+      telemetry logger (IMP-8) so the QA dashboard can surface
+      retrieval-hit rates per surface and per user.
+    - ``record_telemetry=False`` lets tests + internal callers opt out
+      of persisting a telemetry row.
     """
     fused: dict[str, dict] = {}
 
@@ -277,7 +285,35 @@ def retrieve(
         for v in fused.values()
     ]
     hits.sort(key=lambda h: h.score, reverse=True)
-    return hits[:top_k]
+    top_hits = hits[:top_k]
+
+    # IMP-8 — record telemetry so the QA dashboard can surface
+    # retrieval-hit rates by signal + kind, structured-filter rate,
+    # and zero-hit queries. Wrapped in try/except so a telemetry
+    # write failure never breaks the chat path.
+    if record_telemetry:
+        try:
+            from .. import retrieval_telemetry
+            sub_cap_id = None
+            for hit in top_hits:
+                meta = hit.metadata or {}
+                if meta.get("sub_cap_id") and "structured" in (hit.signals or []):
+                    sub_cap_id = meta["sub_cap_id"]
+                    break
+            retrieval_telemetry.record(
+                query=query,
+                operation=operation,
+                hits=top_hits,
+                user_email=user_email,
+                sub_cap_id=sub_cap_id,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "retrieval telemetry record failed; continuing",
+            )
+
+    return top_hits
 
 
 __all__ = ["RetrievalHit", "retrieve"]

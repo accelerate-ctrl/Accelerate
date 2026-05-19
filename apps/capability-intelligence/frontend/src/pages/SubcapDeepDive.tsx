@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { Star } from 'lucide-react';
 import { apiGet, type SubcapDetail } from '@/lib/api';
 import CascadePreviewModal from '@/components/CascadePreviewModal';
+import { useFavorites, toggleFavorite } from '@/lib/favorites';
 
 type SubcapDetailV3 = SubcapDetail & {
   sow_signals?: {
@@ -71,6 +73,9 @@ export default function SubcapDeepDive() {
           {s.zennify_status && (
             <span className="bg-zen-teal/30 text-zen-dark-green rounded px-1.5 py-0.5">{s.zennify_status}</span>
           )}
+          {/* IMP-2 — favorite toggle. Persists in localStorage; the
+              sidebar Favorites section subscribes via useFavorites. */}
+          <FavoriteToggle subCapId={s.sub_cap_id} />
           {/* Toggle action — opens the cascade preview modal (J4). */}
           <button
             type="button"
@@ -609,5 +614,27 @@ function Stat({ n, label, sub }: { n: number; label: string; sub?: string }) {
       <div className="text-[10px] uppercase tracking-wider text-zen-text-gray">{label}</div>
       {sub && <div className="text-[9px] text-zen-muted-text">{sub}</div>}
     </div>
+  );
+}
+
+
+function FavoriteToggle({ subCapId }: { subCapId: string }) {
+  const favorites = useFavorites();
+  const fav = favorites.includes(subCapId);
+  const label = fav ? 'Remove from favorites' : 'Add to favorites';
+  return (
+    <button
+      type="button"
+      onClick={() => toggleFavorite(subCapId)}
+      aria-label={label}
+      title={label}
+      className={`inline-flex items-center justify-center rounded px-1.5 py-0.5 transition-colors ${
+        fav
+          ? 'text-zen-teal hover:text-zen-dark-teal'
+          : 'text-zen-text-gray hover:text-zen-dark-green'
+      }`}
+    >
+      <Star size={14} className={fav ? 'fill-current' : ''} />
+    </button>
   );
 }

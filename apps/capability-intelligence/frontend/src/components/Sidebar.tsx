@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Star, X } from 'lucide-react';
 import { navigation } from '../lib/sidebar-config';
+import { useFavorites, useFavoritesSync, removeFavorite } from '../lib/favorites';
 import fullLight from '../assets/zennify/full_light.png';
 
 type Props = {
@@ -9,6 +10,10 @@ type Props = {
 };
 
 export default function Sidebar({ mobileOpen = false, onCloseMobile }: Props) {
+  // IMP-2 — sync favorites across tabs.
+  useFavoritesSync();
+  const favorites = useFavorites();
+
   return (
     <aside
       data-testid="sidebar"
@@ -39,6 +44,43 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile }: Props) {
       </div>
       <div className="px-5 pt-3 text-white/60 text-xs">Capability Intelligence</div>
       <nav className="flex-1 p-3 space-y-5">
+        {/* IMP-2 — Favorites section. Renders only when at least one
+            subcap is bookmarked so an empty list doesn't take chrome
+            from the rest of the nav. */}
+        {favorites.length > 0 && (
+          <div data-testid="sidebar-favorites">
+            <div className="text-[10px] font-semibold tracking-widest uppercase text-zen-light-teal/70 px-2 mb-1 inline-flex items-center gap-1">
+              <Star size={10} className="fill-current" /> Favorites
+            </div>
+            <ul className="space-y-0.5">
+              {favorites.map((subCapId) => (
+                <li key={subCapId} className="flex items-center group">
+                  <NavLink
+                    to={`/subcap?id=${encodeURIComponent(subCapId)}`}
+                    onClick={onCloseMobile}
+                    className={({ isActive }) =>
+                      `flex-1 truncate font-mono rounded px-2 py-1 text-[11px] transition-colors duration-200 ${
+                        isActive
+                          ? 'bg-zen-teal/25 text-white'
+                          : 'text-white/80 hover:bg-white/5 hover:text-white'
+                      }`
+                    }
+                  >
+                    {subCapId}
+                  </NavLink>
+                  <button
+                    type="button"
+                    onClick={() => removeFavorite(subCapId)}
+                    aria-label={`remove ${subCapId} from favorites`}
+                    className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-zen-orange p-1"
+                  >
+                    <X size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {navigation.map((group) => (
           <div key={group.label}>
             <div className="text-[10px] font-semibold tracking-widest uppercase text-zen-light-teal/70 px-2 mb-1">
