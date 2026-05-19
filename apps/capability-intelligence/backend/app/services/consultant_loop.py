@@ -53,12 +53,22 @@ class LeverageTier(str, Enum):
 
 
 def _dedup_by_primary(sources: list[dict]) -> list[dict]:
-    """Per QA_AUDIT.md §2.2 step 4: deduplicate by ``primary_source_id``
-    so 3 secondary citations of one underlying study don't look like n=3.
-    Falls back to ``id`` when no primary is set."""
+    """Deduplicate by canonical publisher organisation.
+
+    Closes QA_AUDIT F07. The previous implementation deduped by
+    ``primary_source_id`` (typically a URL hash) which let two pages
+    from the same publisher count as two distinct sources. We now route
+    through :func:`validation_gates_service.source_org_id` so dedup
+    collapses every URL from one registrable domain (or registry key)
+    into a single bucket. Rows without any usable organisation hint
+    fall back to their own ``id`` so the dedup never collapses two
+    *truly* anonymous rows together.
+    """
+    from .validation_gates_service import source_org_id
+
     seen: dict[str, dict] = {}
     for s in sources:
-        key = s.get("primary_source_id") or s.get("id")
+        key = source_org_id(s) or s.get("id") or s.get("primary_source_id") or id(s)
         if key not in seen:
             seen[key] = s
     return list(seen.values())

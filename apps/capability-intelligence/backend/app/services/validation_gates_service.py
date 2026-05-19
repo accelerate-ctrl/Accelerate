@@ -13,7 +13,10 @@ Spec-parity gates (per spec §5):
     G3 ERS             — Evidence Relevance Score ≥ threshold
                          (weights 0.35 recency / 0.25 tier / 0.20 independence
                           / 0.20 specificity, calibrated against golden_ers.json)
-    G4 INDEPENDENCE    — ≥2 distinct primary sources after dedup by `primary_source_id`
+    G4 INDEPENDENCE    — ≥2 distinct publisher organisations after dedup by
+                         :func:`source_org_id` (closes QA_AUDIT F07: previously
+                         deduped on URL-hashed primary_source_id, which let two
+                         articles from the same publisher count as independent)
     G5 CONSISTENCY     — no internal contradiction across claims (token-overlap heuristic)
     G6 ADVERSARIAL     — adversarial reviewer verdict ≤ MEDIUM severity;
                          marks `degraded=true` when Anthropic Sonnet is unavailable
@@ -38,9 +41,90 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 from .citation_verifier import verify_citation
 from .hallucination import detect_unsupported_claims
+
+# ─── F07 fix — canonical source-org identifier for triangulation ─────────────
+#
+# Two URLs from the same publisher (occ.gov/news/x and occ.gov/blog/y)
+# must collapse to a single independent source. The previous dedup keyed
+# on ``primary_source_id`` OR ``id`` — both URL-derived — which let two
+# pages from the same regulator count as two independent sources. This
+# helper returns a canonical organisation identifier so dedup is keyed on
+# the publisher, not the page.
+
+# Registrable-domain shortcuts for the publishers we ingest most often.
+# Avoids importing a heavyweight PSL library; the catalogue's source list
+# is finite and stable enough to hand-curate.
+_PUBLIC_SUFFIXES = (
+    "co.uk", "ac.uk", "gov.uk", "org.uk", "com.au", "co.nz", "co.jp",
+)
+
+
+def _registrable_domain(host: str) -> str:
+    """Best-effort registrable-domain extraction.
+
+    Strips a single subdomain layer (``www.occ.gov`` → ``occ.gov``);
+    preserves the two-label public suffixes we encounter
+    (``foo.example.co.uk`` → ``example.co.uk``).
+    """
+    host = (host or "").lower().strip(".")
+    if not host or ":" in host or all(c.isdigit() or c == "." for c in host):
+        return host
+    labels = host.split(".")
+    if len(labels) <= 2:
+        return host
+    last_two = ".".join(labels[-2:])
+    if last_two in _PUBLIC_SUFFIXES and len(labels) >= 3:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def source_org_id(source: dict) -> str:
+    """Return the canonical publisher identifier for a source row.
+
+    Resolution order:
+    1. ``source_org_id`` — explicit override the ingest layer can set.
+    2. ``source_id`` — matches the ``canonical_sources_policy.yml``
+       registry key (e.g. ``occ``, ``fdic``).
+    3. The registrable domain of the source's URL.
+    4. ``source`` field (already a domain string on news rows).
+    5. ``primary_source_id`` / ``id`` — last-resort fallback so a row
+       without a publisher is still dedup-keyed by itself, not collapsed
+       with every other anonymous row.
+    """
+    if not isinstance(source, dict):
+        return ""
+    explicit = source.get("source_org_id")
+    if explicit:
+        return str(explicit).lower().strip()
+    sid = source.get("source_id")
+    if sid:
+        return str(sid).lower().strip()
+    url = source.get("url") or source.get("source_url")
+    if url:
+        try:
+            host = urlparse(str(url)).hostname or ""
+        except Exception:
+            host = ""
+        dom = _registrable_domain(host)
+        if dom:
+            return dom
+    src = source.get("source")
+    if src and "." in str(src):
+        return _registrable_domain(str(src))
+    return str(
+        source.get("primary_source_id")
+        or source.get("id")
+        or ""
+    ).lower().strip()
+
+
+def distinct_source_orgs(sources: list[dict]) -> set[str]:
+    """Helper exported for the gates + consultant-loop dedup paths."""
+    return {source_org_id(s) for s in (sources or []) if source_org_id(s)}
 
 
 @dataclass
@@ -306,8 +390,11 @@ def _ers_components(output: dict, sources: list[dict]) -> dict[str, float]:
             continue
     tier_rank = {"T1": 1.0, "T2": 0.75, "T3": 0.5, "T4": 0.25, "T5": 0.1}
     tier_score = sum(tier_rank.get(s.get("tier", ""), 0.0) for s in sources) / len(sources)
-    primary_ids = {s.get("primary_source_id") or s.get("id") for s in sources}
-    independence = len(primary_ids) / len(sources)
+    # F07 fix — dedup on the publisher organisation, not URL-derived ids,
+    # so two articles from the same regulator don't double-count as
+    # independent sources.
+    orgs = distinct_source_orgs(sources)
+    independence = (len(orgs) / len(sources)) if sources else 0.0
     claims = output.get("claims", []) or []
     if claims:
         specificity = sum(1 for c in claims if c.get("subcap_id")) / len(claims)
@@ -340,18 +427,27 @@ def gate_g3_ers(
 
 
 def gate_g4_independence(output: dict, sources: list[dict]) -> GateResult:
-    """G4 — ≥2 distinct primary sources required after dedup."""
+    """G4 — ≥2 distinct *publisher organisations* required after dedup.
+
+    F07 fix: prior to this rev the gate deduped on
+    ``primary_source_id`` (typically a URL hash), which let two articles
+    from the same publisher (``occ.gov/news/x`` + ``occ.gov/blog/y``)
+    pass triangulation. Now dedup uses :func:`source_org_id`, which
+    collapses every URL from the same registrable domain or registry
+    key into a single bucket.
+    """
     if not sources:
         return GateResult(name="g4_independence", verdict="warn", score=0.5,
                           reasoning="no sources to evaluate")
-    primaries = {s.get("primary_source_id") or s.get("id") for s in sources}
-    if len(primaries) >= 2:
+    orgs = distinct_source_orgs(sources)
+    if len(orgs) >= 2:
         return GateResult(name="g4_independence", verdict="pass", score=1.0,
-                          reasoning=f"{len(primaries)} distinct primary source(s)")
+                          reasoning=f"{len(orgs)} distinct publisher org(s)",
+                          details={"orgs": sorted(orgs)})
     return GateResult(
         name="g4_independence", verdict="fail", score=0.0,
-        reasoning=f"only {len(primaries)} distinct primary source(s); triangulation requires ≥2",
-        details={"primary_ids": list(primaries),
+        reasoning=f"only {len(orgs)} distinct publisher org(s); triangulation requires ≥2",
+        details={"orgs": sorted(orgs),
                  "remediation": "mark as `single_source_evidence`; require human confirm"},
     )
 

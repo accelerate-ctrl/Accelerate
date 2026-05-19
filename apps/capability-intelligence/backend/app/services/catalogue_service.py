@@ -27,6 +27,20 @@ COLLECTIONS = {
     "ingest_runs": "ingest_runs",
     "flags": "flags",
     "settings": "settings",
+    # v7.0 extended (Phase 1.3) — closes part of QA_AUDIT F10. Each
+    # collection mirrors a workbook tab so the catalogue surface can
+    # join them back to subcaps for the Subcap Deep Dive (17 sections)
+    # and the Vendor / Use-Case / Cross-Pillar pages.
+    "agentforce_agents": "agentforce_agents",
+    "platform_constructs": "platform_constructs",
+    "offerings": "offerings",
+    "data_products": "data_products",
+    "offering_subcap_matrix": "offering_subcap_matrix",
+    "dataproduct_subcap_matrix": "dataproduct_subcap_matrix",
+    "cross_pillar_stories": "cross_pillar_stories",
+    "cross_pillar_coverage": "cross_pillar_coverage",
+    "completeness": "completeness",
+    "cascade_simulation": "cascade_simulation",
 }
 
 
@@ -269,7 +283,18 @@ def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
 
 
 def _persist_pillar_slice(repo: Repository, pid: str, result: ParseResult) -> None:
-    """Replace this pillar's rows in each child collection (atomic-ish per coll)."""
+    """Replace this pillar's rows in each child collection (atomic-ish per coll).
+
+    Wrapped in ``defer_persist`` so the ~10k cross-pillar stories +
+    cascade rows don't generate a disk flush per row. Without this the
+    P1 refresh balloons from ~5s to >2 minutes purely on the
+    delete-then-insert loop.
+    """
+    with repo.defer_persist():
+        _persist_pillar_slice_inner(repo, pid, result)
+
+
+def _persist_pillar_slice_inner(repo: Repository, pid: str, result: ParseResult) -> None:
     # Load existing rows for the pillar, delete, then insert.
     for coll_key, items in (
         ("categories", result.categories),
@@ -280,6 +305,17 @@ def _persist_pillar_slice(repo: Repository, pid: str, result: ParseResult) -> No
         ("themes", result.theme_mappings),
         ("stories", result.stories),
         ("vc_mappings", result.vc_mappings),
+        # v7.0 extended slices (Phase 1.3).
+        ("agentforce_agents", result.agentforce_agents),
+        ("platform_constructs", result.platform_constructs),
+        ("offerings", result.offerings),
+        ("data_products", result.data_products),
+        ("offering_subcap_matrix", result.offering_subcap_matrix),
+        ("dataproduct_subcap_matrix", result.dataproduct_subcap_matrix),
+        ("cross_pillar_stories", result.cross_pillar_stories),
+        ("cross_pillar_coverage", result.cross_pillar_coverage),
+        ("completeness", result.completeness),
+        ("cascade_simulation", result.cascade_simulation),
     ):
         coll = COLLECTIONS[coll_key]
         # Drop existing pillar slice
@@ -334,6 +370,27 @@ def _doc_id_for(coll_key: str, doc: dict) -> str | None:
         return doc.get("story_key")
     if coll_key == "vc_mappings":
         return f"{doc.get('sub_cap_id')}::{doc.get('subvertical_code')}"
+    # v7.0 extended ids (Phase 1.3) — composite keys keep cross-pillar
+    # rows distinct when the same Offering / DataProduct appears in
+    # multiple pillar workbooks.
+    if coll_key == "agentforce_agents":
+        return doc.get("agent_id")
+    if coll_key == "platform_constructs":
+        return f"{doc.get('vendor') or '?'}::{doc.get('construct_name')}"
+    if coll_key == "offerings":
+        return f"{doc.get('source_pillar_id') or doc.get('pillar_id') or '?'}::{doc.get('offering_id')}"
+    if coll_key == "data_products":
+        return f"{doc.get('source_pillar_id') or doc.get('pillar_id') or '?'}::{doc.get('module_id')}"
+    if coll_key == "offering_subcap_matrix":
+        return f"{doc.get('offering_id')}::{doc.get('sub_cap_id')}"
+    if coll_key == "dataproduct_subcap_matrix":
+        return f"{doc.get('module_id')}::{doc.get('sub_cap_id')}"
+    if coll_key == "cross_pillar_stories":
+        # Destination pillar disambiguates the same Story_Key landing in
+        # different pillar workbooks.
+        return f"{doc.get('destination_pillar_id') or doc.get('pillar_id') or '?'}::{doc.get('story_key')}"
+    if coll_key in ("cross_pillar_coverage", "completeness", "cascade_simulation"):
+        return doc.get("sub_cap_id")
     return None
 
 

@@ -51,6 +51,20 @@ class ParseResult:
     stories: list[dict] = field(default_factory=list)
     vc_mappings: list[dict] = field(default_factory=list)
 
+    # v7.0 schema extensions (Phase 1.3 — close QA_AUDIT F10 partially).
+    # Each list maps 1:1 to a workbook tab and is persisted to its own
+    # Firestore subcollection by ``catalogue_service._persist_pillar_slice``.
+    agentforce_agents: list[dict] = field(default_factory=list)        # tab 8
+    platform_constructs: list[dict] = field(default_factory=list)      # tab 9
+    offerings: list[dict] = field(default_factory=list)                # tab 10
+    data_products: list[dict] = field(default_factory=list)            # tab 11
+    offering_subcap_matrix: list[dict] = field(default_factory=list)   # tab 12
+    dataproduct_subcap_matrix: list[dict] = field(default_factory=list)  # tab 13
+    cross_pillar_stories: list[dict] = field(default_factory=list)     # tab 14
+    cross_pillar_coverage: list[dict] = field(default_factory=list)    # tab 16
+    completeness: list[dict] = field(default_factory=list)             # tab 18
+    cascade_simulation: list[dict] = field(default_factory=list)       # tab 19
+
 
 # ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -111,8 +125,35 @@ def parse_workbook(source: bytes | str | Path, default_pillar_id: str | None = N
     if "21_VC_Mapping_PerSubcap" in sheets:
         _emit_vc_mappings(*_read_vc_sheet(wb["21_VC_Mapping_PerSubcap"]), result=result)
 
+    # ── v7.0 extended tabs (Phase 1.3) ──
+    if "8_Agentforce_Agents_List" in sheets:
+        _emit_agentforce_agents(*_read_sheet(wb["8_Agentforce_Agents_List"]), result=result)
+    if "9_Platform_Constructs_Library" in sheets:
+        _emit_platform_constructs(*_read_sheet(wb["9_Platform_Constructs_Library"]), result=result)
+    elif "9_Platform_Constructs" in sheets:
+        _emit_platform_constructs(*_read_sheet(wb["9_Platform_Constructs"]), result=result)
+    if "10_Productized_Offerings" in sheets:
+        _emit_offerings(*_read_sheet(wb["10_Productized_Offerings"]), result=result)
+    if "11_Data_Products" in sheets:
+        _emit_data_products(*_read_sheet(wb["11_Data_Products"]), result=result)
+    if "12_Offering_SubCap_Matrix" in sheets:
+        _emit_offering_subcap_matrix(*_read_sheet(wb["12_Offering_SubCap_Matrix"]), result=result)
+    if "13_DataProduct_SubCap_Matrix" in sheets:
+        _emit_dataproduct_subcap_matrix(*_read_sheet(wb["13_DataProduct_SubCap_Matrix"]), result=result)
+    if "14_CrossPillar_Stories" in sheets:
+        _emit_cross_pillar_stories(*_read_sheet(wb["14_CrossPillar_Stories"]), result=result)
+    if "16_SubCap_CrossPillar_Coverage" in sheets:
+        _emit_cross_pillar_coverage(*_read_sheet(wb["16_SubCap_CrossPillar_Coverage"]), result=result)
+    if "18_SubCap_Completeness_Profile" in sheets:
+        _emit_completeness(*_read_sheet(wb["18_SubCap_Completeness_Profile"]), result=result)
+    if "19_Toggle_Cascade_Simulation" in sheets:
+        _emit_cascade_simulation(*_read_sheet(wb["19_Toggle_Cascade_Simulation"]), result=result)
+
     log.info(
-        "parsed pillar=%s subcaps=%d l3=%d l4=%d maturity=%d themes=%d stories=%d",
+        "parsed pillar=%s subcaps=%d l3=%d l4=%d maturity=%d themes=%d stories=%d "
+        "agents=%d constructs=%d offerings=%d data_products=%d "
+        "offering_matrix=%d dataproduct_matrix=%d xpillar_stories=%d "
+        "coverage=%d completeness=%d cascade_sim=%d",
         result.pillar_id,
         len(result.subcaps),
         len(result.l3_platforms),
@@ -120,6 +161,16 @@ def parse_workbook(source: bytes | str | Path, default_pillar_id: str | None = N
         len(result.maturity_descriptors),
         len(result.theme_mappings),
         len(result.stories),
+        len(result.agentforce_agents),
+        len(result.platform_constructs),
+        len(result.offerings),
+        len(result.data_products),
+        len(result.offering_subcap_matrix),
+        len(result.dataproduct_subcap_matrix),
+        len(result.cross_pillar_stories),
+        len(result.cross_pillar_coverage),
+        len(result.completeness),
+        len(result.cascade_simulation),
     )
     return result
 
@@ -441,4 +492,320 @@ def _emit_stories(rows: list[list[Any]], headers: list[str], result: ParseResult
             "use_case_ids": _split_list(d.get("Use_Case_IDs")),
             "match_confidence": d.get("Match_Confidence"),
             "summary": d.get("Story_Summary"),
+        })
+
+
+# ─── v7.0 extended emitters (Phase 1.3) ──────────────────────────────────────
+#
+# Each emitter is small + defensive: it skips rows missing the primary key,
+# tolerates header variants the workbook authors used over different
+# revisions, and normalises numeric counts to int when possible. Nothing
+# fails the parse — bad rows just get skipped and the row count comes out
+# lower than expected, which surfaces as a schema_status anomaly in
+# Mission Control.
+
+
+def _to_int(value: Any) -> int | None:
+    """Coerce a workbook cell to int, returning None for blanks / NaN."""
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _emit_agentforce_agents(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 8 — Agentforce_Agents_List."""
+    for r in rows:
+        d = _row_dict(r, headers)
+        agent_id = d.get("Agent_ID")
+        if not agent_id:
+            continue
+        result.agentforce_agents.append({
+            "agent_id": agent_id,
+            "pillar_id": result.pillar_id,
+            "agent_name": d.get("Agent_Name"),
+            "lob": d.get("LOB"),
+            "workflow": d.get("Workflow"),
+            "status": d.get("Status"),
+            "source_type": d.get("Source_Type"),
+            "parent_l3": d.get("Parent_L3"),
+            "description": d.get("Description"),
+            "source_url": d.get("Source_URL"),
+        })
+
+
+def _emit_platform_constructs(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 9 — Platform_Constructs_Library."""
+    for r in rows:
+        d = _row_dict(r, headers)
+        name = d.get("Construct_Name")
+        if not name:
+            continue
+        result.platform_constructs.append({
+            "construct_name": name,
+            "pillar_id": result.pillar_id,
+            "vendor": d.get("Vendor"),
+            "description": d.get("Description"),
+            "syntax_hint": d.get("Syntax_Hint"),
+            "docs_url": d.get("Docs_URL"),
+        })
+
+
+def _emit_offerings(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 10 — Productized_Offerings.
+
+    Note: v7.0 offerings are cross-pillar by design (same OFF-* id may
+    appear in P1 and P3 workbooks). The cross-pillar dedup happens at
+    persist time in ``canonical_entity_service`` (Phase 1.4); the
+    parser keeps the full row from this pillar's workbook.
+    """
+    for r in rows:
+        d = _row_dict(r, headers)
+        oid = d.get("Offering_ID")
+        if not oid:
+            continue
+        result.offerings.append({
+            "offering_id": oid,
+            "source_pillar_id": result.pillar_id,
+            "offering_name": d.get("Offering_Name"),
+            "category": d.get("Category"),
+            "wrap_around": d.get("Wrap_Around"),
+            "status": d.get("Status"),
+            "overview": d.get("Overview"),
+            "industry_challenge": d.get("Industry_Challenge"),
+            "outcomes": d.get("Outcomes (semicolon-separated)"),
+            "core_capabilities": d.get("Core_Capabilities (capability: description)"),
+            "tiers": d.get("Tiers (tier - pricing - description)"),
+            "primary_vendors": d.get("Primary_Vendors"),
+            "l3_platforms_used": _split_list(d.get("L3_Platforms_Used")),
+            "target_personas": _split_list(d.get("Target_Personas")),
+            "reference_url": d.get("Reference_URL"),
+            "source_evidence": d.get("Source_Evidence"),
+            "source_doc_section": d.get("Source_Doc_Section"),
+            "total_mapped_subcaps": _to_int(d.get("Total_Mapped_SubCaps")),
+            "active_mapped_subcaps": _to_int(d.get("Active_Mapped_SubCaps")),
+            "linkage_health_pct": _to_float(d.get("Linkage_Health_Pct")),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_data_products(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 11 — Data_Products."""
+    for r in rows:
+        d = _row_dict(r, headers)
+        mid = d.get("Module_ID")
+        if not mid:
+            continue
+        result.data_products.append({
+            "module_id": mid,
+            "source_pillar_id": result.pillar_id,
+            "module_name": d.get("Module_Name"),
+            "category": d.get("Category"),
+            "description": d.get("Description"),
+            "typical_pairing": d.get("Typical_Pairing (Offerings)"),
+            "validation_strength": d.get("Validation_Strength"),
+            "reference_url": d.get("Reference_URL"),
+            "source_doc_section": d.get("Source_Doc_Section"),
+            "total_mapped_subcaps": _to_int(d.get("Total_Mapped_SubCaps")),
+            "active_mapped_subcaps": _to_int(d.get("Active_Mapped_SubCaps")),
+            "linkage_health_pct": _to_float(d.get("Linkage_Health_Pct")),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_offering_subcap_matrix(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 12 — Offering_SubCap_Matrix."""
+    for r in rows:
+        d = _row_dict(r, headers)
+        oid = d.get("Offering_ID")
+        sc = d.get("Sub_Cap_ID")
+        if not oid or not sc:
+            continue
+        result.offering_subcap_matrix.append({
+            "offering_id": oid,
+            "sub_cap_id": sc,
+            "pillar_id": result.pillar_id,
+            "offering_name": d.get("Offering_Name"),
+            "sub_cap_name": d.get("Sub_Cap_Name"),
+            "mapping_rationale": d.get(
+                "Mapping_Rationale (Customized - WHY this offering directly addresses this sub-cap)"
+            ) or d.get("Mapping_Rationale"),
+            "maturity_lift": d.get("Maturity_Lift (Current State → Target State)") or d.get("Maturity_Lift"),
+            "capabilities_addressing_subcap": d.get("Capabilities_Addressing_SubCap"),
+            "reference_url": d.get("Reference_URL"),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_dataproduct_subcap_matrix(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 13 — DataProduct_SubCap_Matrix."""
+    for r in rows:
+        d = _row_dict(r, headers)
+        mid = d.get("Module_ID")
+        sc = d.get("Sub_Cap_ID")
+        if not mid or not sc:
+            continue
+        result.dataproduct_subcap_matrix.append({
+            "module_id": mid,
+            "sub_cap_id": sc,
+            "pillar_id": result.pillar_id,
+            "module_name": d.get("Module_Name"),
+            "sub_cap_name": d.get("Sub_Cap_Name"),
+            "mapping_rationale": d.get("Mapping_Rationale (Customized)") or d.get("Mapping_Rationale"),
+            "maturity_lift": d.get("Maturity_Lift (Current State → Target State)") or d.get("Maturity_Lift"),
+            "reference_url": d.get("Reference_URL"),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_cross_pillar_stories(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 14 — CrossPillar_Stories.
+
+    Each row is a generated story originating in another pillar that
+    touches this pillar's subcaps. The 3-state cascade column (Active /
+    Partial / Inactive) is the ``zennify_effective_status`` field.
+    """
+    for r in rows:
+        d = _row_dict(r, headers)
+        key = d.get("Story_Key")
+        if not key:
+            continue
+        result.cross_pillar_stories.append({
+            "story_key": key,
+            "destination_pillar_id": result.pillar_id,
+            "origin_pillar": d.get("Origin_Pillar"),
+            "origin_pillar_name": d.get("Origin_Pillar_Name"),
+            "origin_sub_cap_id": d.get("Origin_SubCap_ID"),
+            "origin_sub_cap_name": d.get("Origin_SubCap_Name"),
+            "origin_l1_capability": d.get("Origin_L1_Capability"),
+            "themes": [t.strip() for t in str(d.get("P1_Themes") or d.get("Themes") or "").split(";") if t.strip()],
+            "theme_count": _to_int(d.get("Theme_Count")),
+            "confidence_level": d.get("Confidence_Level"),
+            "story_title": d.get("Story_Title"),
+            "story_summary": d.get("Story_Summary"),
+            "linked_sub_caps": [
+                s.strip()
+                for s in str(d.get("Linked_P1_SubCaps") or d.get("Linked_SubCaps") or "").split(";")
+                if s.strip()
+            ],
+            "linked_sub_cap_count": _to_int(d.get("Linked_SubCap_Count")),
+            "linked_offerings": d.get("Linked_Offerings"),
+            "linked_offering_count": _to_int(d.get("Linked_Offering_Count")),
+            "source_reference": d.get("Source_Reference"),
+            "active_linked_sub_cap_count": _to_int(d.get("Active_Linked_SubCap_Count")),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_cross_pillar_coverage(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 16 — SubCap_CrossPillar_Coverage.
+
+    Aggregates how many cross-pillar stories touch each subcap, broken
+    down by source pillar. Drives the Subcap Deep Dive cross-pillar
+    section + Mission Control density matrix.
+    """
+    for r in rows:
+        d = _row_dict(r, headers)
+        sc = d.get("P1_Sub_Cap_ID") or d.get("Sub_Cap_ID")
+        if not sc:
+            continue
+        result.cross_pillar_coverage.append({
+            "sub_cap_id": sc,
+            "pillar_id": result.pillar_id,
+            "sub_cap_name": d.get("P1_Sub_Cap_Name") or d.get("Sub_Cap_Name"),
+            "total_cross_pillar_stories": _to_int(d.get("Total_Cross_Pillar_Stories")),
+            "p2_stories": _to_int(d.get("P2_Stories")),
+            "p3_stories": _to_int(d.get("P3_Stories")),
+            "p4_stories": _to_int(d.get("P4_Stories")),
+            "themes_contributing": [
+                t.strip()
+                for t in str(d.get("Themes_Contributing") or "").split(";")
+                if t.strip()
+            ],
+            "linked_offerings_strict": d.get("Linked_Offerings (Strict - from Batch 3 Mapping)"),
+            "top_story_examples": d.get("Top_Story_Examples (key | title excerpt)"),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_completeness(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 18 — SubCap_Completeness_Profile.
+
+    The authoritative completeness score per subcap (5 core layers + 3
+    extended layers = max 8). Replaces today's computed completeness on
+    Subcap Deep Dive with the workbook-curated version.
+    """
+    for r in rows:
+        d = _row_dict(r, headers)
+        sc = d.get("Sub_Cap_ID")
+        if not sc:
+            continue
+        result.completeness.append({
+            "sub_cap_id": sc,
+            "pillar_id": result.pillar_id,
+            "sub_cap_name": d.get("Sub_Cap_Name"),
+            "category_id": d.get("Category"),
+            "l1_capability": d.get("L1_Capability"),
+            "stories_count": _to_int(d.get("Stories_Count")),
+            "l4_count": _to_int(d.get("L4_Count")),
+            "maturity_count": _to_int(d.get("Maturity_Count")),
+            "l3_count": _to_int(d.get("L3_Count")),
+            "use_case_count": _to_int(d.get("UseCase_Count")),
+            "offering_count": _to_int(d.get("Offering_Count")),
+            "mapped_offerings": d.get("Mapped_Offerings"),
+            "data_product_count": _to_int(d.get("DataProduct_Count")),
+            "mapped_data_products": d.get("Mapped_DataProducts"),
+            "theme": d.get("Theme"),
+            "cross_pillar_stories": _to_int(d.get("CrossPillar_Stories")),
+            "core_score": _to_int(d.get("Core_Score (max 5)")),
+            "extended_score": _to_int(d.get("Extended_Score (max 3)")),
+            "total_score": _to_int(d.get("Total_Score (max 8)")),
+            "narrative": d.get("Customized_Completeness_Narrative"),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
+        })
+
+
+def _emit_cascade_simulation(rows: list[list[Any]], headers: list[str], result: ParseResult) -> None:
+    """Tab 19 — Toggle_Cascade_Simulation.
+
+    Pre-computed cascade impact estimates per subcap. The
+    :mod:`cascade_service` produces these dynamically at runtime; this
+    table is the workbook author's static reference, useful for
+    audit-trail reconciliation.
+    """
+    for r in rows:
+        d = _row_dict(r, headers)
+        sc = d.get("Sub_Cap_ID")
+        if not sc:
+            continue
+        result.cascade_simulation.append({
+            "sub_cap_id": sc,
+            "pillar_id": result.pillar_id,
+            "sub_cap_name": d.get("Sub_Cap_Name"),
+            "direct_stories_inactive": _to_int(d.get("→User_Stories_Inactive")),
+            "direct_l4_features_inactive": _to_int(d.get("→L4_Features_Inactive")),
+            "direct_maturity_inactive": _to_int(d.get("→Maturity_Rows_Inactive")),
+            "direct_l3_affected": _to_int(d.get("→L3_References_Affected")),
+            "direct_offerings_inactive": _to_int(d.get("→Offering_Mappings_Inactive")),
+            "direct_data_products_inactive": _to_int(d.get("→DataProduct_Mappings_Inactive")),
+            "direct_themes_inactive": _to_int(d.get("→Theme_Mappings_Inactive")),
+            "direct_coverage_inactive": _to_int(d.get("→Coverage_Rows_Inactive")),
+            "indirect_xpillar_partial": _to_int(d.get("→Cross_Pillar_Stories_Going_Partial")),
+            "indirect_xpillar_inactive": _to_int(d.get("→Cross_Pillar_Stories_Going_Inactive")),
+            "indirect_offerings_partial": _to_int(d.get("→Offerings_Going_Partial")),
+            "indirect_data_products_partial": _to_int(d.get("→DataProducts_Going_Partial")),
+            "total_cascade_footprint": _to_int(d.get("Total_Cascade_Footprint")),
+            "cascade_severity": d.get("Cascade_Severity"),
+            "zennify_effective_status": d.get("Zennify_Effective_Status"),
         })

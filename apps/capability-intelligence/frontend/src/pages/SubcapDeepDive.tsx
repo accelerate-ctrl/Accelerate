@@ -125,7 +125,91 @@ export default function SubcapDeepDive() {
           <Stat n={data.themes?.length || 0} label="Themes" />
           <Stat n={data.sow_signals?.mention_count || 0} label="SOW mentions" />
         </div>
+        {data.completeness?.total_score !== undefined && (
+          <div className="mt-3 flex items-center gap-2 text-xs">
+            <span className="bg-zen-teal/20 text-zen-dark-green rounded px-2 py-1 font-medium">
+              Workbook score: {data.completeness.total_score}/8
+            </span>
+            {data.completeness.core_score !== undefined && (
+              <span className="text-fg-soft">
+                core {data.completeness.core_score}/5 · extended {data.completeness.extended_score ?? 0}/3
+              </span>
+            )}
+          </div>
+        )}
       </Section>
+
+      {/* v7.0: Productized offerings that address this subcap (tab 12) */}
+      {data.offerings && data.offerings.length > 0 && (
+        <Section title={`Productized offerings (${data.offerings.length})`}>
+          <ul className="space-y-2">
+            {data.offerings.map((o) => (
+              <li key={`${o.offering_id}-${o.sub_cap_id}`} className="border border-zen-separator rounded p-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-zen-dark-green">
+                  <span className="font-mono text-[11px] bg-zen-ice rounded px-1.5 py-0.5">
+                    {o.offering_id}
+                  </span>
+                  <span>{o.offering_name}</span>
+                  {o.zennify_effective_status && (
+                    <span className="ml-auto text-[10px] bg-zen-light-green/40 text-zen-dark-teal rounded px-1.5 py-0.5">
+                      {o.zennify_effective_status}
+                    </span>
+                  )}
+                </div>
+                {o.mapping_rationale && (
+                  <p className="mt-1 text-xs text-zen-dark-teal/80 line-clamp-3">{o.mapping_rationale}</p>
+                )}
+                {o.maturity_lift && (
+                  <p className="mt-1 text-[11px] text-zen-text-gray italic">{o.maturity_lift}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* v7.0: Data products that ground this subcap (tab 13) */}
+      {data.data_products && data.data_products.length > 0 && (
+        <Section title={`Data products (${data.data_products.length})`}>
+          <ul className="space-y-2">
+            {data.data_products.map((dp) => (
+              <li key={`${dp.module_id}-${dp.sub_cap_id}`} className="border border-zen-separator rounded p-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-zen-dark-green">
+                  <span className="font-mono text-[11px] bg-zen-ice rounded px-1.5 py-0.5">{dp.module_id}</span>
+                  <span>{dp.module_name}</span>
+                </div>
+                {dp.mapping_rationale && (
+                  <p className="mt-1 text-xs text-zen-dark-teal/80 line-clamp-3">{dp.mapping_rationale}</p>
+                )}
+                {dp.maturity_lift && (
+                  <p className="mt-1 text-[11px] text-zen-text-gray italic">{dp.maturity_lift}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* v7.0: Cross-pillar coverage breakdown (tab 16) */}
+      {data.cross_pillar_coverage && data.cross_pillar_coverage.total_cross_pillar_stories ? (
+        <Section title="Cross-pillar coverage">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <Stat n={data.cross_pillar_coverage.total_cross_pillar_stories || 0} label="Total stories" />
+            <Stat n={data.cross_pillar_coverage.p2_stories || 0} label="From P2" />
+            <Stat n={data.cross_pillar_coverage.p3_stories || 0} label="From P3" />
+            <Stat n={data.cross_pillar_coverage.p4_stories || 0} label="From P4" />
+          </div>
+          {data.cross_pillar_coverage.themes_contributing && data.cross_pillar_coverage.themes_contributing.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {data.cross_pillar_coverage.themes_contributing.map((t) => (
+                <span key={t} className="text-[10px] bg-zen-purple-grey/40 text-zen-dark-teal rounded px-1.5 py-0.5">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+        </Section>
+      ) : null}
 
       {s.description && (
         <Section title="Description">

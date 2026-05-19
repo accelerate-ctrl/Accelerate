@@ -142,6 +142,59 @@ export type Subcap = {
   lifecycle_state?: string;
 };
 
+// v7.0 extended row shapes — added by the Phase 1.3 parser.
+export type OfferingMatrixRow = {
+  offering_id: string;
+  offering_name?: string;
+  sub_cap_id: string;
+  sub_cap_name?: string;
+  mapping_rationale?: string;
+  maturity_lift?: string;
+  capabilities_addressing_subcap?: string;
+  reference_url?: string;
+  zennify_effective_status?: string;
+};
+
+export type DataProductMatrixRow = {
+  module_id: string;
+  module_name?: string;
+  sub_cap_id: string;
+  sub_cap_name?: string;
+  mapping_rationale?: string;
+  maturity_lift?: string;
+  reference_url?: string;
+  zennify_effective_status?: string;
+};
+
+export type CompletenessProfile = {
+  sub_cap_id: string;
+  sub_cap_name?: string;
+  stories_count?: number;
+  l4_count?: number;
+  maturity_count?: number;
+  l3_count?: number;
+  use_case_count?: number;
+  offering_count?: number;
+  data_product_count?: number;
+  cross_pillar_stories?: number;
+  core_score?: number;
+  extended_score?: number;
+  total_score?: number;
+  narrative?: string;
+  zennify_effective_status?: string;
+};
+
+export type CrossPillarCoverage = {
+  sub_cap_id: string;
+  sub_cap_name?: string;
+  total_cross_pillar_stories?: number;
+  p2_stories?: number;
+  p3_stories?: number;
+  p4_stories?: number;
+  themes_contributing?: string[];
+  zennify_effective_status?: string;
+};
+
 export type SubcapDetail = {
   subcap: Subcap;
   maturity: Record<string, unknown> | null;
@@ -149,6 +202,12 @@ export type SubcapDetail = {
   use_cases: Record<string, unknown>[];
   themes: Record<string, unknown>[];
   stories: Record<string, unknown>[];
+  // v7.0 extended sections (Phase 1.3)
+  offerings?: OfferingMatrixRow[];
+  data_products?: DataProductMatrixRow[];
+  completeness?: CompletenessProfile | null;
+  cross_pillar_coverage?: CrossPillarCoverage | null;
+  cascade_simulation?: Record<string, unknown> | null;
 };
 
 export type Tree = {

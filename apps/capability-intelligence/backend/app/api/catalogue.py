@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..deps import auth_dep
 from ..services import catalogue_service as svc
+from ..services.catalogue_service import COLLECTIONS
 
 router = APIRouter()
 
@@ -59,12 +60,25 @@ def get_subcaps(pillar_id: str | None = None, _=Depends(auth_dep)) -> list[dict]
 @router.get("/subcaps/{sub_cap_id}")
 def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     from ..services import sow_service, stories_service
+    from ..services.repository import get_repository
     sub = svc.get_subcap(sub_cap_id)
     if not sub:
         raise HTTPException(404, f"sub_cap_id not found: {sub_cap_id}")
     sow_mentions = sow_service.list_mentions_for_subcap(sub_cap_id)
     canonical = stories_service.list_canonical({"sub_cap_id": sub_cap_id}, limit=50)
     jira = stories_service.list_jira({"sub_cap_id": sub_cap_id}, limit=50)
+
+    # v7.0 extended joins (Phase 1.3) — surface the offering /
+    # data-product / completeness / cross-pillar coverage rows that
+    # mention this subcap so the Subcap Deep Dive can render every
+    # spec'd section without a per-section roundtrip.
+    repo = get_repository()
+    offerings = repo.list(COLLECTIONS["offering_subcap_matrix"], {"sub_cap_id": sub_cap_id})
+    data_products = repo.list(COLLECTIONS["dataproduct_subcap_matrix"], {"sub_cap_id": sub_cap_id})
+    completeness = repo.get(COLLECTIONS["completeness"], sub_cap_id)
+    coverage = repo.get(COLLECTIONS["cross_pillar_coverage"], sub_cap_id)
+    cascade_sim = repo.get(COLLECTIONS["cascade_simulation"], sub_cap_id)
+
     return {
         "subcap": sub,
         "maturity": svc.get_maturity(sub_cap_id),
@@ -83,7 +97,87 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
             "canonical": canonical[:10],
             "jira": jira[:10],
         },
+        # v7.0 sections
+        "offerings": offerings,
+        "data_products": data_products,
+        "completeness": completeness,
+        "cross_pillar_coverage": coverage,
+        "cascade_simulation": cascade_sim,
     }
+
+
+# ─── v7.0 list endpoints (Phase 1.3) — wired into Vendor Intelligence /
+#     Use Case Explorer / Cross-Pillar pages ──────────────────────────────
+
+
+@router.get("/offerings")
+def list_offerings(_=Depends(auth_dep)) -> list[dict]:
+    """Productized offerings (workbook tab 10). De-dup across pillars."""
+    from ..services.repository import get_repository
+    seen: dict[str, dict] = {}
+    for row in get_repository().list(COLLECTIONS["offerings"]):
+        oid = row.get("offering_id")
+        if oid and oid not in seen:
+            seen[oid] = row
+    return list(seen.values())
+
+
+@router.get("/data-products")
+def list_data_products(_=Depends(auth_dep)) -> list[dict]:
+    """Data products (workbook tab 11). De-dup across pillars."""
+    from ..services.repository import get_repository
+    seen: dict[str, dict] = {}
+    for row in get_repository().list(COLLECTIONS["data_products"]):
+        mid = row.get("module_id")
+        if mid and mid not in seen:
+            seen[mid] = row
+    return list(seen.values())
+
+
+@router.get("/agentforce-agents")
+def list_agentforce_agents(_=Depends(auth_dep)) -> list[dict]:
+    """AI agents catalogued from the workbook (tab 8)."""
+    from ..services.repository import get_repository
+    return get_repository().list(COLLECTIONS["agentforce_agents"])
+
+
+@router.get("/platform-constructs")
+def list_platform_constructs(_=Depends(auth_dep)) -> list[dict]:
+    """Reusable platform constructs (tab 9)."""
+    from ..services.repository import get_repository
+    return get_repository().list(COLLECTIONS["platform_constructs"])
+
+
+@router.get("/cross-pillar-stories")
+def list_cross_pillar_stories(
+    pillar_id: str | None = None,
+    sub_cap_id: str | None = None,
+    limit: int = 100,
+    _=Depends(auth_dep),
+) -> list[dict]:
+    """Cross-pillar stories (tab 14).
+
+    ``pillar_id`` filters by the destination pillar (the pillar this
+    story affects). ``sub_cap_id`` further narrows to stories whose
+    ``linked_sub_caps`` includes the given id.
+    """
+    from ..services.repository import get_repository
+    rows = get_repository().list(COLLECTIONS["cross_pillar_stories"])
+    if pillar_id:
+        rows = [r for r in rows if r.get("destination_pillar_id") == pillar_id]
+    if sub_cap_id:
+        rows = [r for r in rows if sub_cap_id in (r.get("linked_sub_caps") or [])]
+    return rows[:limit]
+
+
+@router.get("/completeness/{sub_cap_id}")
+def get_completeness(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
+    """Authoritative workbook-curated completeness profile for a subcap."""
+    from ..services.repository import get_repository
+    row = get_repository().get(COLLECTIONS["completeness"], sub_cap_id)
+    if row is None:
+        raise HTTPException(404, f"no completeness row for {sub_cap_id}")
+    return row
 
 
 @router.get("/l3-platforms")
