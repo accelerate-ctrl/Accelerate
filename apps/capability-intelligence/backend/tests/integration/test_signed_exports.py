@@ -5,9 +5,8 @@ import json
 
 import pytest
 
-from app.services.repository import get_repository
 from app.services import catalogue_service
-
+from app.services.repository import get_repository
 
 # Header names — keep in sync with app/api/exports.py.
 SIG_HEADER = "X-Export-Signature"

@@ -5,7 +5,6 @@ import pytest
 from app.services import stories_service
 from app.services.repository import get_repository
 
-
 CANONICAL_COLL = stories_service.CANONICAL_COLL
 JIRA_COLL = stories_service.JIRA_COLL
 

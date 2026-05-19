@@ -146,8 +146,7 @@ def test_optional_asset_size_can_be_omitted():
 
 def test_live_dma_packet_emitter_satisfies_contract(settings_for_tests):
     # Producer/consumer integration: call the real emitter and validate.
-    from app.services import catalogue_service, sow_service
-    from app.services import client_journey_service
+    from app.services import catalogue_service, client_journey_service, sow_service
     catalogue_service.refresh_pillar("P1", by="test")
     sow_service.ingest_all()
     repo = client_journey_service.get_repository()

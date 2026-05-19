@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4

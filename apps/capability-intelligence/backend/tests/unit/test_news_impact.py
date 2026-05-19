@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 from app.services import news_service
 
-
 VALID_SUBCAPS = [
     {"sub_cap_id": "P1C1.1.1", "sub_cap_name": "Digital Strategy"},
     {"sub_cap_id": "P1C2.1.1", "sub_cap_name": "Governance Charter"},

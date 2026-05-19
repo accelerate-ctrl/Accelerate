@@ -3,6 +3,7 @@
 import pytest
 
 from app.services import user_budget
+from app.services.repository import get_repository
 from app.services.user_budget import (
     USER_BUDGET_OVERRIDES,
     USER_SPEND_COLLECTION,
@@ -16,7 +17,6 @@ from app.services.user_budget import (
     spend_for,
     top_spenders,
 )
-from app.services.repository import get_repository
 
 
 @pytest.fixture(autouse=True)

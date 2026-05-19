@@ -5,8 +5,8 @@ from dataclasses import dataclass
 import pytest
 
 from app.services import retrieval_telemetry
-from app.services.retrieval_telemetry import list_recent, record, summary
 from app.services.repository import get_repository
+from app.services.retrieval_telemetry import list_recent, record, summary
 
 
 @dataclass
@@ -176,8 +176,8 @@ def test_hybrid_retriever_records_telemetry(settings_for_tests):
     """End-to-end: a retrieve() call must leave a telemetry row.
     Builds a tiny corpus inline so we don't depend on the full
     catalogue refresh path."""
-    from app.services.rag import catalogue_corpus_builder, hybrid_retriever
     from app.services.catalogue_service import COLLECTIONS
+    from app.services.rag import catalogue_corpus_builder, hybrid_retriever
 
     repo = get_repository()
     repo.upsert(COLLECTIONS["subcaps"], "P1C1.1.1", {
@@ -205,8 +205,8 @@ def test_hybrid_retriever_records_telemetry(settings_for_tests):
 
 
 def test_hybrid_retriever_skips_telemetry_when_opted_out(settings_for_tests):
-    from app.services.rag import catalogue_corpus_builder, hybrid_retriever
     from app.services.catalogue_service import COLLECTIONS
+    from app.services.rag import catalogue_corpus_builder, hybrid_retriever
 
     repo = get_repository()
     repo.upsert(COLLECTIONS["subcaps"], "P1C1.1.1", {

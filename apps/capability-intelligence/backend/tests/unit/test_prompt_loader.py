@@ -1,6 +1,7 @@
 """Prompt YAML loader tests (Phase 5.1 / IMP-6)."""
 
 import textwrap
+from pathlib import Path
 
 import pytest
 
@@ -17,7 +18,7 @@ def prompts_dir(tmp_path, monkeypatch):
     prompt_loader.reload()
 
 
-def _write_prompt(dir_: "Path", op: str, version: str, content: str) -> None:
+def _write_prompt(dir_: Path, op: str, version: str, content: str) -> None:
     op_dir = dir_ / op
     op_dir.mkdir(parents=True, exist_ok=True)
     (op_dir / f"{version}.yaml").write_text(textwrap.dedent(content), encoding="utf-8")

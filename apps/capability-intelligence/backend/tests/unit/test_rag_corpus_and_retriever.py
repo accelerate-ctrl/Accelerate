@@ -17,7 +17,6 @@ from app.services.rag.catalogue_corpus_builder import (
 from app.services.rag.hybrid_retriever import retrieve
 from app.services.repository import get_repository
 
-
 # ─── Builder fixtures ──────────────────────────────────────────────────────
 
 

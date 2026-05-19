@@ -16,7 +16,6 @@ from app.services import graph_layer_b_proposer as lb
 from app.services.catalogue_service import COLLECTIONS
 from app.services.repository import get_repository
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────────────
 
 
