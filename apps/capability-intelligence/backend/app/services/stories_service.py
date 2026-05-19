@@ -252,6 +252,61 @@ def list_jira(filter: dict | None = None, limit: int = 200) -> list[dict]:
     return rows[:limit]
 
 
+def _matches_query(row: dict, query: str) -> bool:
+    """Case-insensitive substring match across story_key, sub_cap_id,
+    summary. Used by the paginated list endpoints so the FE filter
+    operates over the full 15k stories instead of only the loaded page.
+    """
+    q = query.lower()
+    for col in ("story_key", "sub_cap_id", "summary"):
+        v = row.get(col)
+        if isinstance(v, str) and q in v.lower():
+            return True
+    return False
+
+
+def paginate_canonical(
+    *,
+    sub_cap_id: str | None = None,
+    query: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict:
+    """Server-side paginated + filtered listing of canonical stories.
+
+    Returns ``{rows, total, offset, limit}`` so the FE knows when to
+    show "Load more" vs the end of the list. Filter is applied across
+    story_key / sub_cap_id / summary; the result is paginated AFTER
+    filter so the count reflects matches.
+    """
+    repo = get_repository()
+    flt = {"sub_cap_id": sub_cap_id} if sub_cap_id else None
+    rows = repo.list(CANONICAL_COLL, flt)
+    if query:
+        rows = [r for r in rows if _matches_query(r, query)]
+    total = len(rows)
+    page = rows[offset : offset + limit]
+    return {"rows": page, "total": total, "offset": offset, "limit": limit}
+
+
+def paginate_jira(
+    *,
+    sub_cap_id: str | None = None,
+    query: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict:
+    """Server-side paginated + filtered listing of Jira stories."""
+    repo = get_repository()
+    flt = {"sub_cap_id": sub_cap_id} if sub_cap_id else None
+    rows = repo.list(JIRA_COLL, flt)
+    if query:
+        rows = [r for r in rows if _matches_query(r, query)]
+    total = len(rows)
+    page = rows[offset : offset + limit]
+    return {"rows": page, "total": total, "offset": offset, "limit": limit}
+
+
 def get_story(story_key: str) -> dict | None:
     """Look in canonical first, then jira, then the Batch-1 raw `stories` coll."""
     repo = get_repository()

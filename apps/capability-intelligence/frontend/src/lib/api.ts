@@ -195,6 +195,13 @@ export type CrossPillarCoverage = {
   zennify_effective_status?: string;
 };
 
+export type StoriesPage<T> = {
+  rows: T[];
+  total: number;
+  offset: number;
+  limit: number;
+};
+
 export type AffectedNewsItem = {
   news_id: string;
   title: string;

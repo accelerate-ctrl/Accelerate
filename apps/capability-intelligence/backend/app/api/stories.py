@@ -42,6 +42,42 @@ def jira(sub_cap_id: str | None = None, limit: int = 200, _=Depends(auth_dep)) -
     return svc.list_jira({"sub_cap_id": sub_cap_id} if sub_cap_id else None, limit=limit)
 
 
+# ─── Paginated + filtered listings (Phase 2.2 / IMP-3) ──────────────────────
+#
+# The original ``/canonical`` + ``/jira`` endpoints return the first N rows
+# only; the new ``/canonical/paged`` + ``/jira/paged`` variants return the
+# full filtered slice with total count so the FE can render a "Load more"
+# pattern against the real 15k-row corpus instead of capping at 100.
+
+
+@router.get("/canonical/paged")
+def canonical_paged(
+    sub_cap_id: str | None = None,
+    q: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    _=Depends(auth_dep),
+) -> dict:
+    """Paginated canonical stories with server-side filter."""
+    return svc.paginate_canonical(
+        sub_cap_id=sub_cap_id, query=q, offset=offset, limit=limit,
+    )
+
+
+@router.get("/jira/paged")
+def jira_paged(
+    sub_cap_id: str | None = None,
+    q: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+    _=Depends(auth_dep),
+) -> dict:
+    """Paginated Jira stories with server-side filter."""
+    return svc.paginate_jira(
+        sub_cap_id=sub_cap_id, query=q, offset=offset, limit=limit,
+    )
+
+
 @router.get("/by-subcap/{sub_cap_id}")
 def by_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     return svc.list_stories_for_subcap(sub_cap_id)
