@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 DIGEST_COLLECTION = "strategic_digests"
 DIGEST_RUNS_COLLECTION = "digest_runs"
+DIGEST_CHECKPOINT_COLLECTION = "digest_checkpoints"
 
 DEFAULT_PRIORITY_LIMIT = 5
 DEFAULT_RECOMMENDED_STATES = ("RISING", "STABLE", "EMERGING")
@@ -396,9 +397,23 @@ def _generate_inner(
         subvertical=subvertical, limit=priority_limit, accept_states=accept_states,
     )
 
+    # F08 — load existing per-priority checkpoints so a crashed prior
+    # run resumes from where it left off instead of replaying Opus
+    # against every priority again. Each checkpoint is keyed by
+    # (digest_id, sub_cap_id) so a re-run for the same period+sv
+    # honours the cache.
+    digest_id = _digest_id(subvertical, period)
+    checkpoints = _load_checkpoints(digest_id)
+    if checkpoints:
+        logger.info(
+            "digest %s: resuming with %d cached priority checkpoint(s)",
+            digest_id, len(checkpoints),
+        )
+
     priorities: list[PriorityNarrative] = []
     total_cost = 0.0
     sources_count = 0
+    resumed_count = 0
 
     # Per QA_AUDIT.md fix #7 — Opus daily budget feasibility check.
     # Each Opus call consumes ~5K out tokens; 60K daily output ceiling.
@@ -413,6 +428,24 @@ def _generate_inner(
 
     for p in top:
         sub_cap_id = p["sub_cap_id"]
+
+        # F08 fast path — if a checkpoint exists, deserialize the prior
+        # PriorityNarrative and skip the expensive LLM call. The
+        # narrative + evidence + chain_id + cost are all stamped in
+        # the checkpoint so the resumed digest is byte-identical to
+        # the original.
+        ckpt = checkpoints.get(sub_cap_id)
+        if ckpt and ckpt.get("narrative"):
+            priorities.append(_priority_from_checkpoint(ckpt))
+            sources_count += (
+                len(ckpt.get("evidence_sows") or [])
+                + len(ckpt.get("evidence_benchmarks") or [])
+                + len(ckpt.get("evidence_news") or [])
+            )
+            total_cost += float(ckpt.get("cost_usd") or 0.0)
+            resumed_count += 1
+            continue
+
         sows = _evidence_sow(sub_cap_id)
         benchmarks = _evidence_benchmarks(sub_cap_id)
         news = _evidence_news(sub_cap_id)
@@ -433,33 +466,40 @@ def _generate_inner(
                 f"- NEWS [{n['source']}] {n['title']}" for n in news
             )
         )
-        narrative, recommendation, chain_id, cost = _produce_narrative(
+        narrative_text, recommendation, chain_id, cost = _produce_narrative(
             p, sources_blob,
             subvertical=subvertical, period=period,
             downgrade_to_sonnet=downgrade,
         )
         total_cost += cost
         delta = _delta_vs_previous(sub_cap_id, subvertical=subvertical, previous_period=previous)
-        priorities.append(
-            PriorityNarrative(
-                sub_cap_id=sub_cap_id,
-                sub_cap_name=p.get("sub_cap_name", ""),
-                state=p.get("state"),
-                score=p.get("score"),
-                confidence=p.get("confidence"),
-                narrative=narrative,
-                recommendation=recommendation,
-                evidence_sows=sows,
-                evidence_benchmarks=benchmarks,
-                evidence_news=news,
-                delta=delta,
-                chain_id=chain_id,
-                cost_usd=cost,
-            )
+        narrative_obj = PriorityNarrative(
+            sub_cap_id=sub_cap_id,
+            sub_cap_name=p.get("sub_cap_name", ""),
+            state=p.get("state"),
+            score=p.get("score"),
+            confidence=p.get("confidence"),
+            narrative=narrative_text,
+            recommendation=recommendation,
+            evidence_sows=sows,
+            evidence_benchmarks=benchmarks,
+            evidence_news=news,
+            delta=delta,
+            chain_id=chain_id,
+            cost_usd=cost,
         )
+        priorities.append(narrative_obj)
+
+        # F08 — persist the per-priority checkpoint immediately so a
+        # crash mid-run doesn't lose this priority's expensive Opus
+        # call. Done inside the loop, not the outer defer_persist
+        # block, so the on-disk state is up-to-date moment-to-moment.
+        if persist:
+            _write_checkpoint(digest_id, sub_cap_id, narrative_obj)
 
     summary = _executive_summary(subvertical, period, priorities)
-    digest_id = _digest_id(subvertical, period)
+    # digest_id is already computed at the top of this function for the
+    # checkpoint loader; reuse it.
 
     digest = StrategicDigest(
         digest_id=digest_id,
@@ -488,9 +528,14 @@ def _generate_inner(
                 "started_at": started.isoformat(),
                 "completed_at": datetime.now(timezone.utc).isoformat(),
                 "priorities_emitted": len(priorities),
+                "priorities_resumed_from_checkpoint": resumed_count,
                 "total_cost_usd": total_cost,
             },
         )
+        # F08 — clear per-priority checkpoints now that the full digest
+        # is persisted. The next call for the same period+sv starts
+        # from scratch unless it's a re-run before completion.
+        _clear_checkpoints(digest_id)
     return digest
 
 
@@ -520,3 +565,89 @@ def list_digests(subvertical: str | None = None, limit: int = 50) -> list[dict]:
 
 def get_digest(digest_id: str) -> dict | None:
     return get_repository().get(DIGEST_COLLECTION, digest_id)
+
+
+# ─── F08 — checkpoint / resume helpers ───────────────────────────────────
+
+
+def _checkpoint_doc_id(digest_id: str, sub_cap_id: str) -> str:
+    """Composite key so a (period, subvertical) digest's per-priority
+    checkpoints don't collide with another digest's."""
+    return f"{digest_id}::{sub_cap_id}"
+
+
+def _load_checkpoints(digest_id: str) -> dict[str, dict]:
+    """Map of sub_cap_id → checkpoint row for the given digest."""
+    repo = get_repository()
+    prefix = f"{digest_id}::"
+    out: dict[str, dict] = {}
+    for row in repo.list(DIGEST_CHECKPOINT_COLLECTION):
+        doc_id = row.get("id") or row.get("doc_id") or ""
+        if not doc_id.startswith(prefix):
+            continue
+        sub_cap_id = doc_id[len(prefix):]
+        if not sub_cap_id:
+            continue
+        out[sub_cap_id] = row
+    return out
+
+
+def _write_checkpoint(digest_id: str, sub_cap_id: str, narrative: PriorityNarrative) -> None:
+    """Persist a per-priority checkpoint so a crashed run can resume.
+
+    The checkpoint shape mirrors PriorityNarrative + a checkpoint_id
+    field so list scans + targeted reads both work.
+    """
+    repo = get_repository()
+    doc_id = _checkpoint_doc_id(digest_id, sub_cap_id)
+    payload = {
+        "id": doc_id,
+        "digest_id": digest_id,
+        "sub_cap_id": sub_cap_id,
+        "checkpointed_at": datetime.now(timezone.utc).isoformat(),
+        **asdict(narrative),
+    }
+    repo.upsert(DIGEST_CHECKPOINT_COLLECTION, doc_id, payload)
+
+
+def _priority_from_checkpoint(ckpt: dict) -> PriorityNarrative:
+    """Rebuild a PriorityNarrative from a checkpoint row.
+
+    Only the fields PriorityNarrative declares are passed through;
+    extra checkpoint fields (id, digest_id, checkpointed_at) are
+    silently dropped.
+    """
+    return PriorityNarrative(
+        sub_cap_id=ckpt["sub_cap_id"],
+        sub_cap_name=ckpt.get("sub_cap_name") or ckpt["sub_cap_id"],
+        state=ckpt.get("state"),
+        score=ckpt.get("score"),
+        confidence=ckpt.get("confidence"),
+        narrative=ckpt.get("narrative", ""),
+        recommendation=ckpt.get("recommendation", ""),
+        evidence_sows=ckpt.get("evidence_sows") or [],
+        evidence_benchmarks=ckpt.get("evidence_benchmarks") or [],
+        evidence_news=ckpt.get("evidence_news") or [],
+        delta=ckpt.get("delta"),
+        chain_id=ckpt.get("chain_id"),
+        cost_usd=float(ckpt.get("cost_usd") or 0.0),
+    )
+
+
+def _clear_checkpoints(digest_id: str) -> int:
+    """Drop every checkpoint for ``digest_id``. Returns the count
+    dropped (useful for tests + audit logs)."""
+    repo = get_repository()
+    prefix = f"{digest_id}::"
+    dropped = 0
+    for row in list(repo.list(DIGEST_CHECKPOINT_COLLECTION)):
+        doc_id = row.get("id") or ""
+        if doc_id.startswith(prefix):
+            repo.delete(DIGEST_CHECKPOINT_COLLECTION, doc_id)
+            dropped += 1
+    return dropped
+
+
+def list_checkpoints(digest_id: str) -> list[dict]:
+    """Public helper for the operator dashboard / tests."""
+    return list(_load_checkpoints(digest_id).values())

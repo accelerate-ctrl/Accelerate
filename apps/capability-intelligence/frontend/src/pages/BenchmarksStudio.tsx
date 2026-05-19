@@ -155,6 +155,24 @@ export default function BenchmarksStudio() {
               <span>p75 <strong>{d.p75.toFixed(2)}</strong></span>
               <span>mean <strong>{d.mean?.toFixed(2)}</strong></span>
               <span>cv <strong>{d.coef_var.toFixed(2)}</strong></span>
+              {typeof d.ci_low === 'number' && typeof d.ci_high === 'number' && (
+                <span
+                  className="text-zen-blue"
+                  title={`HBS ${Math.round((d.ci_level ?? 0.9) * 100)}% CI on median, clustered by primary_source_id`}
+                >
+                  CI <strong>{d.ci_low.toFixed(2)}–{d.ci_high.toFixed(2)}</strong>
+                </span>
+              )}
+              {typeof d.effective_n === 'number' && d.effective_n !== d.n && (
+                <span title="distinct primary_source_id count after clustering (F06)">
+                  eff_n <strong>{d.effective_n}</strong>/{d.n}
+                </span>
+              )}
+              {typeof d.cluster_aware_stdev === 'number' && (
+                <span title="cluster-aware stdev — pstdev of one rep per primary_source_id (F06)">
+                  σ_cluster <strong>{d.cluster_aware_stdev.toFixed(2)}</strong>
+                </span>
+              )}
               <span className="ml-auto inline-flex items-center gap-1">
                 <Database size={10} /> sources: {d.source_kinds.join(', ')}
               </span>
@@ -191,21 +209,53 @@ function DistributionBar({ dist, unit }: { dist: BenchmarkDistribution; unit?: s
   const hi = dist.max ?? dist.p75;
   if (lo === null || hi === null || lo === hi) return null;
   const span = hi - lo;
-  const left = ((dist.p25 - lo) / span) * 100;
-  const right = ((dist.p75 - lo) / span) * 100;
-  const med = ((dist.p50 - lo) / span) * 100;
+  const clamp = (n: number) => Math.max(0, Math.min(100, n));
+  const left = clamp(((dist.p25 - lo) / span) * 100);
+  const right = clamp(((dist.p75 - lo) / span) * 100);
+  const med = clamp(((dist.p50 - lo) / span) * 100);
+  // Phase 4.4 — hierarchical-bootstrap CI band overlay (F06).
+  // Rendered as a narrow translucent stripe above the p25-p75 box so
+  // it doesn't fight the existing legend.
+  const hasCi =
+    typeof dist.ci_low === 'number' &&
+    typeof dist.ci_high === 'number' &&
+    dist.ci_low !== dist.ci_high;
+  const ciLeft = hasCi ? clamp(((dist.ci_low! - lo) / span) * 100) : 0;
+  const ciRight = hasCi ? clamp(((dist.ci_high! - lo) / span) * 100) : 0;
+  const ciTooltip =
+    hasCi && dist.ci_low !== undefined && dist.ci_high !== undefined
+      ? `HBS ${Math.round((dist.ci_level ?? 0.9) * 100)}% CI: ${dist.ci_low.toFixed(
+          2,
+        )} – ${dist.ci_high.toFixed(2)} (effective_n=${dist.effective_n ?? dist.n})`
+      : '';
   return (
-    <div className="mt-2 relative h-2 bg-zen-light-green/40 rounded">
-      <div
-        className="absolute h-2 bg-zen-teal/60 rounded"
-        style={{ left: `${left}%`, width: `${Math.max(2, right - left)}%` }}
-        title={`${unit ?? ''} p25-p75: ${dist.p25.toFixed(2)} – ${dist.p75.toFixed(2)}`}
-      />
-      <div
-        className="absolute h-2 w-0.5 bg-zen-dark-green"
-        style={{ left: `${med}%` }}
-        title={`p50: ${dist.p50.toFixed(2)}`}
-      />
+    <div className="mt-2">
+      {hasCi && (
+        <div
+          className="relative h-1 bg-zen-light-green/20 rounded mb-0.5"
+          title={ciTooltip}
+        >
+          <div
+            className="absolute h-1 bg-zen-blue/50 rounded"
+            style={{
+              left: `${ciLeft}%`,
+              width: `${Math.max(1, ciRight - ciLeft)}%`,
+            }}
+          />
+        </div>
+      )}
+      <div className="relative h-2 bg-zen-light-green/40 rounded">
+        <div
+          className="absolute h-2 bg-zen-teal/60 rounded"
+          style={{ left: `${left}%`, width: `${Math.max(2, right - left)}%` }}
+          title={`${unit ?? ''} p25-p75: ${dist.p25.toFixed(2)} – ${dist.p75.toFixed(2)}`}
+        />
+        <div
+          className="absolute h-2 w-0.5 bg-zen-dark-green"
+          style={{ left: `${med}%` }}
+          title={`p50: ${dist.p50.toFixed(2)}`}
+        />
+      </div>
     </div>
   );
 }

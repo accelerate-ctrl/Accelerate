@@ -703,14 +703,25 @@ export type BenchmarkDistribution = {
   cohort_id: string;
   period: string;
   n: number;
+  // F06 — number of unique primary_source_ids after clustering.
+  // effective_n ≤ n; the bootstrap CI uses effective_n, not n.
+  effective_n?: number;
   min: number | null;
   max: number | null;
   mean: number | null;
   stdev: number;
+  // F06 — cluster-aware variants (preferred for spread reporting).
+  cluster_aware_mean?: number;
+  cluster_aware_stdev?: number;
   p25: number;
   p50: number;
   p75: number;
   coef_var: number;
+  // Hierarchical-bootstrap CI on the median, clustered by primary_source_id.
+  ci_low?: number;
+  ci_high?: number;
+  ci_method?: string;
+  ci_level?: number;
   verdict: BenchmarkVerdict;
   source_kinds: string[];
   observation_ids: string[];
