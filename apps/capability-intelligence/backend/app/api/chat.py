@@ -25,18 +25,19 @@ class MessageBody(BaseModel):
 
 
 @router.post("/messages")
-def post_message(body: MessageBody, _=Depends(auth_dep)) -> dict:
+def post_message(body: MessageBody, user=Depends(auth_dep)) -> dict:
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="message cannot be empty")
     reply = chat_service.post_message(
         message=body.message,
         conversation_id=body.conversation_id,
+        user_email=getattr(user, "email", None),
     )
     return asdict(reply)
 
 
 @router.post("/messages/stream")
-def stream_message(body: MessageBody, _=Depends(auth_dep)) -> StreamingResponse:
+def stream_message(body: MessageBody, user=Depends(auth_dep)) -> StreamingResponse:
     """Server-Sent Events flavour of POST /messages.
 
     The handler emits a sequence of events the SPA can render
@@ -72,6 +73,7 @@ def stream_message(body: MessageBody, _=Depends(auth_dep)) -> StreamingResponse:
         reply = chat_service.post_message(
             message=body.message,
             conversation_id=body.conversation_id,
+            user_email=getattr(user, "email", None),
         )
         if reply.chain_id:
             yield _sse("chain", {

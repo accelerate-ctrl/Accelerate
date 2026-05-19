@@ -22,6 +22,7 @@ from . import (
     notifications,
     personas,
     projects,
+    qa_dashboard,
     reasoning_chains,
     search,
     sheets,
@@ -79,3 +80,4 @@ api_router.include_router(exports.router, prefix="/exports", tags=["exports"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(personas.router, prefix="/personas", tags=["personas"])
 api_router.include_router(what_if.router, prefix="/what-if", tags=["what-if"])
+api_router.include_router(qa_dashboard.router, prefix="/qa", tags=["qa"])

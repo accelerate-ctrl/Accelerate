@@ -303,6 +303,7 @@ def run(
     operation_type: str = "general",
     pillar_id: str | None = None,
     subvertical: str | None = None,
+    user_email: str | None = None,
 ) -> LoopResult:
     """Run the consultant loop.
 
@@ -327,6 +328,7 @@ def run(
         "subvertical": subvertical,
         "sub_cap_id": sub_cap_id,
         "chain_id": chain_id,
+        "user_email": user_email,
     }
 
     # 1) clarify

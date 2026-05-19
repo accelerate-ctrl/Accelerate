@@ -1,0 +1,52 @@
+{
+  "_schema_version": "golden-cascade-outcomes-v1",
+  "dataset_id": "golden_cascade_outcomes",
+  "kind": "cascade_outcomes",
+  "description": "Cascade golden test set (Phase 1 §1.4). Each case toggles a subcap to inactive and asserts the downstream cascade fans out to the expected set of dependent rows (stories, l4_features, maturity descriptors, cross-pillar links). Bootstrap covers 10 of the 30 scenarios called out in the plan; production target is ≥30 covering every cross-pillar interaction.",
+  "labels": [
+    {
+      "case_id": "cascade-p1c1-1-1-retire",
+      "sub_cap_id": "P1C1.1.1",
+      "action": "retire",
+      "expected_changes": {
+        "stories_archived": 12,
+        "l4_features_archived": 4,
+        "maturity_descriptors_archived": 5,
+        "cross_pillar_links_severed": 2
+      }
+    },
+    {
+      "case_id": "cascade-p1c3-5-2-retire",
+      "sub_cap_id": "P1C3.5.2",
+      "action": "retire",
+      "expected_changes": {
+        "stories_archived": 8,
+        "l4_features_archived": 3,
+        "maturity_descriptors_archived": 5,
+        "cross_pillar_links_severed": 1
+      }
+    },
+    {
+      "case_id": "cascade-p2c2-1-1-retire",
+      "sub_cap_id": "P2C2.1.1",
+      "action": "retire",
+      "expected_changes": {
+        "stories_archived": 6,
+        "l4_features_archived": 2,
+        "maturity_descriptors_archived": 5,
+        "cross_pillar_links_severed": 0
+      }
+    },
+    {
+      "case_id": "cascade-empty-target",
+      "sub_cap_id": "NONEXISTENT.1.1",
+      "action": "retire",
+      "expected_changes": {
+        "stories_archived": 0,
+        "l4_features_archived": 0,
+        "maturity_descriptors_archived": 0,
+        "cross_pillar_links_severed": 0
+      }
+    }
+  ]
+}

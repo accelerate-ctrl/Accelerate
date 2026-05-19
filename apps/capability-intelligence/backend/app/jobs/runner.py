@@ -40,6 +40,7 @@ ALL_JOBS = (
     "citation_verify_daily",
     "drift_check_daily",
     "evidence_promotion_nightly",
+    "source_health_digest_daily",
 )
 
 

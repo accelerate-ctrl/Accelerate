@@ -270,6 +270,7 @@ def post_message(
     message: str,
     conversation_id: str | None = None,
     persist: bool = True,
+    user_email: str | None = None,
 ) -> ChatReply:
     """Run a single chat round-trip.
 
@@ -319,6 +320,7 @@ def post_message(
             sub_cap_id=sub_cap_id,
             synth_model=ModelKind.GEMINI_PRO,
             persist=True,
+            user_email=user_email,
         )
         # Assemble reply text from claim outputs (or fall back to raw answer)
         claims = loop.output.get("claims") or []

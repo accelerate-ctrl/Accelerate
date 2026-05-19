@@ -11,6 +11,7 @@ import {
 import { apiGet, type Overview } from '@/lib/api';
 import PillarBreakdown, { type Structure } from '@/components/PillarBreakdown';
 import PillarRefreshPanel from '@/components/PillarRefreshPanel';
+import QaHealthTile from '@/components/QaHealthTile';
 import horizonBand from '@/assets/illustrations/horizon_minimal_band.jpg';
 
 export default function MissionControl() {
@@ -134,6 +135,10 @@ export default function MissionControl() {
           <QuickLink to="/suggestions" icon={<BookOpenCheck size={14} />} label="AI Suggestions" />
         </div>
       )}
+
+      {/* Phase 5 — QA & Audit roll-up surfaced on Mission Control so
+          engineers see budget / source-health / retrieval at a glance. */}
+      <QaHealthTile />
     </div>
   );
 }

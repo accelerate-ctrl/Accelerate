@@ -286,16 +286,81 @@ _cache = LlmCache()
 _tracker = CostTracker()
 
 
+# IMP-9 — Pro/Sonnet/Opus downgrades when a user is over their daily
+# budget. Mapping is conservative: drop one tier so the answer still
+# uses an LLM, just a cheaper one.
+_DOWNGRADE_MAP: dict[ModelKind, ModelKind] = {
+    ModelKind.OPUS: ModelKind.GEMINI_PRO,
+    ModelKind.SONNET: ModelKind.GEMINI_PRO,
+    ModelKind.GEMINI_PRO: ModelKind.GEMINI_FLASH,
+}
+
+
+def _maybe_downgrade(req: LlmRequest) -> tuple[LlmRequest, dict[str, Any] | None]:
+    """Apply per-user budget downgrade (IMP-9) if needed.
+
+    Returns the (possibly-rewritten) request and a metadata dict that
+    records the downgrade outcome for the cost tracker / chain logger.
+    """
+    md = req.metadata or {}
+    user_email = md.get("user_email")
+    if not user_email or req.model not in _DOWNGRADE_MAP:
+        return req, None
+    try:
+        from ..user_budget import decision_for
+    except Exception:  # noqa: BLE001
+        return req, None
+    decision = decision_for(user_email)
+    if not decision.should_downgrade:
+        return req, {
+            "downgraded": False,
+            "spend_usd": decision.spend_usd,
+            "budget_usd": decision.budget_usd,
+        }
+    downgraded_model = _DOWNGRADE_MAP[req.model]
+    new_md = {**md, "downgraded_from": req.model.value, "downgrade_reason": "user_daily_budget"}
+    new_req = LlmRequest(
+        model=downgraded_model,
+        prompt=req.prompt,
+        system=req.system,
+        temperature=req.temperature,
+        max_tokens=req.max_tokens,
+        cache=req.cache,
+        metadata=new_md,
+    )
+    logger.info(
+        "llm.downgrade",
+        extra={
+            "user_email": user_email,
+            "from_model": req.model.value,
+            "to_model": downgraded_model.value,
+            "spend_usd": decision.spend_usd,
+            "budget_usd": decision.budget_usd,
+        },
+    )
+    return new_req, {
+        "downgraded": True,
+        "from_model": req.model.value,
+        "to_model": downgraded_model.value,
+        "spend_usd": decision.spend_usd,
+        "budget_usd": decision.budget_usd,
+    }
+
+
 def call(req: LlmRequest) -> LlmResponse:
     """Dispatch to the right adapter, with cache + cost guardrails.
 
     Order of operations:
+        0. Apply per-user budget downgrade (IMP-9) — Pro/Sonnet/Opus
+           drop to Flash when the user is over their daily cap.
         1. Cache lookup (if req.cache).
         2. Cost-tracker pre-check — raises BudgetExceeded if the daily
            ceiling is already hit.
         3. Adapter dispatch.
-        4. Cache write + cost-tracker record.
+        4. Cache write + cost-tracker record + per-user spend record.
     """
+    req, downgrade_info = _maybe_downgrade(req)
+
     if req.cache:
         hit = _cache.get(req)
         if hit is not None:
@@ -323,6 +388,16 @@ def call(req: LlmRequest) -> LlmResponse:
         sub_cap_id=md.get("sub_cap_id"),
         batch=md.get("batch"),
     )
+    # IMP-9 — also record the spend against the per-user envelope.
+    user_email = md.get("user_email")
+    if user_email and resp.cost_usd:
+        try:
+            from ..user_budget import record_spend
+            record_spend(user_email, cost_usd=float(resp.cost_usd))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("user_budget.record_failed: %s", exc)
+    if downgrade_info is not None and resp.raw is not None:
+        resp.raw.setdefault("user_budget", downgrade_info)
     return resp
 
 

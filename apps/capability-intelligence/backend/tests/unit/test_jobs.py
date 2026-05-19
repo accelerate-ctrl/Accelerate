@@ -24,10 +24,12 @@ def seeded(settings_for_tests):
     return settings_for_tests
 
 
-def test_all_14_jobs_registered():
-    assert len(ALL_JOBS) == 14
+def test_all_15_jobs_registered():
+    # Phase 5 adds source_health_digest_daily (IMP-13).
+    assert len(ALL_JOBS) == 15
     assert "news_poll" in ALL_JOBS
     assert "digest_quarterly" in ALL_JOBS
+    assert "source_health_digest_daily" in ALL_JOBS
 
 
 def test_unknown_job_raises():

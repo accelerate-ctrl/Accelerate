@@ -78,23 +78,36 @@ def record(
     top_doc_ids: list[str] = []
     scores: list[float] = []
     for hit in hits or []:
-        # Handle both dataclass and dict shapes.
-        meta = getattr(hit, "metadata", None) or {}
+        # Handle both dataclass and dict shapes. Dicts fall through to
+        # ``hit.get(field)``; dataclasses use ``getattr``.
+        is_dict = isinstance(hit, dict)
+        meta = (hit.get("metadata") if is_dict else getattr(hit, "metadata", None)) or {}
         if not isinstance(meta, dict):
             meta = dict(meta)
-        signals = getattr(hit, "signals", None) or []
+        signals = (
+            hit.get("signals") if is_dict else getattr(hit, "signals", None)
+        ) or []
         if not isinstance(signals, list):
             signals = list(signals)
+        # Some callers pass a single "signal" string instead of a list —
+        # treat that as a one-element list so the counters still tick.
+        single = hit.get("signal") if is_dict else getattr(hit, "signal", None)
+        if single and not signals:
+            signals = [single]
         for s in signals:
             by_signal[str(s)] += 1
             if s == "structured":
                 structured_hit = True
-        kind = meta.get("kind") or "unknown"
+        kind = meta.get("kind") or (hit.get("kind") if is_dict else None) or "unknown"
         by_kind[str(kind)] += 1
-        doc_id = getattr(hit, "doc_id", None) or meta.get("source_id")
+        doc_id = (
+            (hit.get("doc_id") if is_dict else getattr(hit, "doc_id", None))
+            or meta.get("source_id")
+            or (hit.get("source_id") if is_dict else None)
+        )
         if doc_id and len(top_doc_ids) < 5:
             top_doc_ids.append(str(doc_id))
-        score = getattr(hit, "score", None)
+        score = hit.get("score") if is_dict else getattr(hit, "score", None)
         if isinstance(score, (int, float)):
             scores.append(float(score))
 

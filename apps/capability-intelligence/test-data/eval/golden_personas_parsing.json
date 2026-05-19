@@ -1,0 +1,46 @@
+{
+  "_schema_version": "golden-personas-parsing-v1",
+  "dataset_id": "golden_personas_parsing",
+  "kind": "personas_parsing",
+  "description": "Persona parser regression set (Phase 1 §1.2). Each case feeds a raw stakeholder string into PersonaParser and asserts the expected list of {canonical_name, role_description, family} tuples. Bootstrap covers 12 of the 80+ patterns we've seen in P1 v7.0 workbooks; production target is ≥150 cases across the canonical-personas registry.",
+  "labels": [
+    {
+      "case_id": "p1-cdo-loose",
+      "raw": "CDO (Chief Data Officer); LOB Heads",
+      "expected": [
+        {"canonical_name": "Chief Data Officer", "role_description": "CDO", "family": "executive"},
+        {"canonical_name": "Line of Business Head", "role_description": "LOB Heads", "family": "executive"}
+      ]
+    },
+    {
+      "case_id": "p1-newline-semi",
+      "raw": "Chief Risk Officer\nHead of Compliance; Operations Lead",
+      "expected": [
+        {"canonical_name": "Chief Risk Officer", "role_description": "Chief Risk Officer", "family": "executive"},
+        {"canonical_name": "Head of Compliance", "role_description": "Head of Compliance", "family": "executive"},
+        {"canonical_name": "Operations Lead", "role_description": "Operations Lead", "family": "ops"}
+      ]
+    },
+    {
+      "case_id": "p1-parenthetical-multi",
+      "raw": "VP Product (Digital Banking), VP Engineering (Platform)",
+      "expected": [
+        {"canonical_name": "VP Product", "role_description": "VP Product (Digital Banking)", "family": "product"},
+        {"canonical_name": "VP Engineering", "role_description": "VP Engineering (Platform)", "family": "product"}
+      ]
+    },
+    {
+      "case_id": "p1-vendor-suffix-stripped",
+      "raw": "CTO at Acme; CIO at Acme",
+      "expected": [
+        {"canonical_name": "Chief Technology Officer", "role_description": "CTO at Acme", "family": "executive"},
+        {"canonical_name": "Chief Information Officer", "role_description": "CIO at Acme", "family": "executive"}
+      ]
+    },
+    {
+      "case_id": "p1-whitespace-only",
+      "raw": "   ",
+      "expected": []
+    }
+  ]
+}
