@@ -43,6 +43,30 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** POST a multipart form (e.g. for file uploads). Caller builds the
+ * FormData; we attach bearer auth but let the browser set Content-Type
+ * with the multipart boundary. Surfaces server error bodies in the
+ * thrown message so the UI can show "Failed to parse: missing
+ * 2_Capability_Map" rather than a bare HTTP code. */
+export async function apiPostForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(url(path), {
+    method: 'POST',
+    headers: { Authorization: bearer() },
+    body: form,
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const j = await res.json();
+      detail = (j && (j.detail || j.error || JSON.stringify(j))) || '';
+    } catch {
+      detail = await res.text().catch(() => '');
+    }
+    throw new Error(`POST ${path} → ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  return (await res.json()) as T;
+}
+
 /** Stream a POST as SSE — yields { event, data } for each event. The
  * server formats events as `event: <name>\ndata: <json>\n\n`. Used by
  * the AI Chat redesign to render the consultant-loop phases live. */
@@ -164,6 +188,23 @@ export type IngestRun = {
   pillars_skipped: Array<{ pillar_id: string; reason: string }>;
   counts_by_pillar: Record<string, Record<string, number>>;
   flags_raised: string[];
+};
+
+export type CatalogueStatePillar = {
+  pillar_id: string;
+  name: string;
+  schema_status: 'complete' | 'incomplete' | 'missing';
+  source_file_name: string | null;
+  source_version: string | null;
+  ingested_at: string | null;
+  ingested_by: string | null;
+  row_counts: Record<string, number>;
+  last_run_id: string | null;
+};
+
+export type CatalogueState = {
+  pillars: CatalogueStatePillar[];
+  as_of: string;
 };
 
 export type CatalogueVersion = {

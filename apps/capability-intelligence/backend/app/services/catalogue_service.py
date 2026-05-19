@@ -59,6 +59,112 @@ def refresh_all_pillars(*, by: str = "system") -> IngestRunResult:
     return _run_ingest(by=by, pillar_filter=None)
 
 
+def ingest_uploaded_workbook(
+    *,
+    pillar_id: str,
+    file_name: str,
+    content: bytes,
+    by: str = "system",
+) -> IngestRunResult:
+    """Parse + persist a workbook uploaded directly from the SPA.
+
+    Bypasses Drive discovery — used by `POST /api/sheets/upload` so pillar
+    leads can ship pending-approval v7.0 workbooks without a Drive round-trip.
+    Same persistence path as the scheduled refresh, so D21 (global catalogue
+    state) is honoured.
+    """
+    started = datetime.utcnow()
+    repo = get_repository()
+    loaded: list[str] = []
+    skipped: list[dict] = []
+    counts: dict[str, dict[str, int]] = {}
+    flags: list[dict] = []
+
+    try:
+        result = parse_workbook(content, default_pillar_id=pillar_id)
+    except Exception as e:
+        log.exception("upload parse failed for %s", pillar_id)
+        flag = _make_flag(
+            "INGEST_FAILURE", "HIGH", "pillar", pillar_id,
+            f"Failed to parse uploaded {file_name}", str(e),
+        )
+        flags.append(flag)
+        repo.upsert(COLLECTIONS["flags"], flag["flag_id"], flag)
+        skipped.append({"pillar_id": pillar_id, "reason": "parse_failure"})
+    else:
+        if result.schema_status != "complete":
+            flag = _make_flag(
+                "SCHEMA_INCOMPLETE", "HIGH", "pillar", pillar_id,
+                f"{file_name}: schema not aligned with v7.0 reference",
+                "; ".join(result.schema_issues or ["unknown"]),
+                extra={"file": file_name, "issues": result.schema_issues},
+            )
+            flags.append(flag)
+            repo.upsert(COLLECTIONS["flags"], flag["flag_id"], flag)
+
+        pillar_doc = (result.pillars[0] if result.pillars else {
+            "pillar_id": pillar_id, "name": pillar_id, "schema_status": result.schema_status,
+        })
+        pillar_doc.update({
+            "source_file_id": f"upload:{file_name}",
+            "source_file_name": file_name,
+            "source_file_modified_at": started.isoformat(),
+            "source_version": f"upload-{int(started.timestamp())}",
+            "schema_status": result.schema_status,
+            "ingested_at": started.isoformat(),
+            "ingested_by": by,
+        })
+        repo.upsert(COLLECTIONS["pillars"], pillar_id, pillar_doc)
+        _persist_pillar_slice(repo, pillar_id, result)
+        loaded.append(pillar_id)
+        counts[pillar_id] = {
+            "categories": len(result.categories),
+            "l1": len(result.l1_capabilities),
+            "subcaps": len(result.subcaps),
+            "use_cases": len(result.use_cases),
+            "l3": len(result.l3_platforms),
+            "l4": len(result.l4_features),
+            "maturity": len(result.maturity_descriptors),
+            "themes": len(result.theme_mappings),
+            "stories": len(result.stories),
+            "vc_mappings": len(result.vc_mappings),
+        }
+
+    try:
+        from . import graph_service
+        graph_service.invalidate_cache()
+    except Exception:
+        pass
+
+    completed = datetime.utcnow()
+    run_id = f"upload-{pillar_id}-{int(started.timestamp())}"
+    run_doc = {
+        "run_id": run_id,
+        "started_at": started.isoformat(),
+        "completed_at": completed.isoformat(),
+        "by": by,
+        "source": "manual_upload",
+        "file_name": file_name,
+        "pillars_attempted": [pillar_id],
+        "pillars_loaded": loaded,
+        "pillars_skipped": skipped,
+        "counts_by_pillar": counts,
+        "flags_raised": [f["flag_id"] for f in flags],
+    }
+    repo.upsert(COLLECTIONS["ingest_runs"], run_id, run_doc)
+
+    return IngestRunResult(
+        run_id=run_id,
+        started_at=started,
+        completed_at=completed,
+        pillars_attempted=[pillar_id],
+        pillars_loaded=loaded,
+        pillars_skipped=skipped,
+        counts_by_pillar=counts,
+        flags_raised=flags,
+    )
+
+
 def _run_ingest(*, by: str, pillar_filter: str | None) -> IngestRunResult:
     started = datetime.utcnow()
     repo = get_repository()

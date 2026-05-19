@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiGet, type CatalogueState } from '@/lib/api';
+import PillarUploadDropZone from '@/components/PillarUploadDropZone';
 
 type EffectiveSettings = {
   env: string;
@@ -16,9 +17,15 @@ type EffectiveSettings = {
 };
 
 export default function SettingsPage() {
+  const qc = useQueryClient();
   const { data } = useQuery<EffectiveSettings>({
     queryKey: ['settings'],
     queryFn: () => apiGet<EffectiveSettings>('/settings'),
+  });
+  const { data: state } = useQuery<CatalogueState>({
+    queryKey: ['catalogue-state'],
+    queryFn: () => apiGet<CatalogueState>('/sheets/state'),
+    refetchInterval: 30_000,
   });
 
   return (
@@ -29,6 +36,33 @@ export default function SettingsPage() {
           Effective configuration. Most values come from environment variables / Secret Manager.
         </p>
       </div>
+
+      <section className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-4 space-y-3">
+        <div>
+          <h2 className="text-base font-semibold text-zen-dark-green">Pillar workbooks</h2>
+          <p className="text-xs text-zen-dark-teal/70">
+            Drop the canonical v7.0 .xlsx for each pillar. Used while Drive
+            copies are pending pillar-lead approval; once approved, the Drive
+            poller will pick them up automatically every 6 hours. Each upload
+            replaces that pillar's slice of the catalogue and broadcasts to
+            all active sessions.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {(state?.pillars || []).map((p) => (
+            <PillarUploadDropZone
+              key={p.pillar_id}
+              pillar={p}
+              onUploaded={() => {
+                void qc.invalidateQueries({ queryKey: ['catalogue-state'] });
+                void qc.invalidateQueries({ queryKey: ['overview'] });
+                void qc.invalidateQueries({ queryKey: ['catalogue-tree'] });
+                void qc.invalidateQueries({ queryKey: ['catalogue-structure'] });
+              }}
+            />
+          ))}
+        </div>
+      </section>
 
       {data && (
         <div className="bg-white rounded-lg shadow-sm border border-zen-light-green/40 p-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
