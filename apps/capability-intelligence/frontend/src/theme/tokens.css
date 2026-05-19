@@ -29,12 +29,77 @@
   --zen-separator: #E5E7EB;
   --zen-muted-text: #6B7280;
   --zen-text-gray: #4A5568;
+
+  /* ─── Semantic theme tokens (UI/UX Brief §2.1) ───────────────────────
+     These are the tokens components should consume. The brand vars
+     above are the palette; these vars map roles to palette values and
+     are overridden under [data-theme="dark"] below for dark mode.
+     ───────────────────────────────────────────────────────────────── */
+  --background: #FFFFFF;
+  --surface: #E8F7F6;
+  --surface-raised: #F2F4F9;
+  --surface-overlay: #FFFFFF;
+  --border: #B0EDD3;
+  --border-focus: #27BBAF;
+  --text-primary: #1C4A4D;
+  --text-secondary: #185F60;
+  --text-tertiary: #666666;
+  --text-inverse: #FFFFFF;
+  --accent: #27BBAF;
+  --accent-strong: #139F94;
+  --warning: #FE9732;
+  --warning-soft: #FFCB99;
+  --severity-high: #FE9732;
+  --severity-medium: #FFCB99;
+  --severity-low: #62D7B8;
+  --tier-t1: #185F60;
+  --tier-t2: #27BBAF;
+  --tier-t3: #62D7B8;
+  --tier-t4: #FFCB99;
+  --tier-t5: #FE9732;
+
+  color-scheme: light;
+}
+
+/* Dark-mode overrides. Applied via the inline FOUC-prevention script in
+   index.html before React paints. Persisted to
+   users/{uid}.preferences.theme (Phase 5 wires the API call). */
+[data-theme="dark"] {
+  --background: #0D1F20;
+  --surface: #142E2F;
+  --surface-raised: #1A3839;
+  --surface-overlay: #1F4546;
+  --border: #1C4A4D;
+  --border-focus: #27BBAF;
+  --text-primary: #E8F7F6;
+  --text-secondary: #62D7B8;
+  --text-tertiary: #999999;
+  --text-inverse: #0D1F20;
+  --accent: #27BBAF;
+  --accent-strong: #62D7B8;
+  --warning: #FFCB99;
+  --warning-soft: #FE9732;
+  --severity-high: #FE9732;
+  --severity-medium: #FFCB99;
+  --severity-low: #62D7B8;
+  --tier-t1: #62D7B8;
+  --tier-t2: #27BBAF;
+  --tier-t3: #139F94;
+  --tier-t4: #FFCB99;
+  --tier-t5: #FE9732;
+
+  color-scheme: dark;
 }
 
 html, body, #root { height: 100%; }
-body { font-family: 'DM Sans', 'Inter', system-ui, sans-serif; }
+body {
+  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  transition: background-color 200ms ease, color 200ms ease;
+}
 
 *:focus-visible {
-  outline: 2px solid var(--zen-teal);
+  outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }

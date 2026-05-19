@@ -281,7 +281,11 @@ def get_tree(pillar_id: str | None = None, _=Depends(auth_dep)) -> dict:
             "sub_cap_id": s["sub_cap_id"],
             "sub_cap_name": s["sub_cap_name"],
             "tier": s.get("tier"),
-            "lifecycle_state": s.get("lifecycle_state", "active"),
+            # Lifecycle state is computed by lifecycle_service and lives
+            # in the lifecycle_states/{sub_cap_id} collection. The
+            # structure endpoint returns whatever was joined in by the
+            # caller; default to null so the FE knows to look it up.
+            "lifecycle_state": s.get("lifecycle_state"),
         })
     out_pillars = []
     for pid, pnode in sorted(by_p.items()):

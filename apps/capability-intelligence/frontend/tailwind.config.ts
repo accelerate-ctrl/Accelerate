@@ -8,9 +8,29 @@ import type { Config } from 'tailwindcss';
 // semantic aliases (text/bg/surface/...) for new code.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Dark mode is driven by the [data-theme="dark"] attribute on <html>,
+  // set by the FOUC-prevention script in index.html before React paints.
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
+        // Semantic theme tokens (UI/UX Brief §2.1). New components should
+        // consume these instead of brand-named colors so they respect
+        // [data-theme="dark"] automatically.
+        bg: 'var(--background)',
+        surface: 'var(--surface)',
+        'surface-raised': 'var(--surface-raised)',
+        'surface-overlay': 'var(--surface-overlay)',
+        border: 'var(--border)',
+        'border-focus': 'var(--border-focus)',
+        fg: 'var(--text-primary)',
+        'fg-soft': 'var(--text-secondary)',
+        'fg-muted': 'var(--text-tertiary)',
+        'fg-inverse': 'var(--text-inverse)',
+        accent: 'var(--accent)',
+        'accent-strong': 'var(--accent-strong)',
+        warning: 'var(--warning)',
+        'warning-soft': 'var(--warning-soft)',
         zen: {
           // Greens — primary brand family
           'dark-green': '#1C4A4D',     // body text on light bg

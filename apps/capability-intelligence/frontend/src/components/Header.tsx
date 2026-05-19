@@ -4,6 +4,7 @@ import { apiPost } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { SUBVERTICALS, useFilters } from '../store/filters';
 import iconTeal from '../assets/zennify/icon_teal.png';
+import ThemeToggle from './ThemeToggle';
 
 type Props = {
   onOpenMobileMenu?: () => void;
@@ -45,7 +46,7 @@ export default function Header({ onOpenMobileMenu }: Props) {
   return (
     <header
       data-testid="header"
-      className="h-14 shrink-0 bg-white border-b border-zen-separator flex items-center px-3 md:px-6 gap-2 md:gap-4"
+      className="h-14 shrink-0 bg-surface-overlay border-b border-border flex items-center px-3 md:px-6 gap-2 md:gap-4"
     >
       {/* Mobile hamburger */}
       <button
@@ -106,6 +107,8 @@ export default function Header({ onOpenMobileMenu }: Props) {
           {last.sources_succeeded}/{last.sources_total} ok
         </span>
       )}
+
+      <ThemeToggle />
 
       {/* Sign-out — only shown when an actual Google ID-token session is
           active. Dev-mode users don't see a sign-out button (no session

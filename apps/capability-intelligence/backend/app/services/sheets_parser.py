@@ -20,6 +20,8 @@ from typing import Any
 
 import openpyxl
 
+from .ingestion.persona_parser import parse_personas
+
 log = logging.getLogger(__name__)
 
 REQUIRED_CAPMAP_HEADERS = [
@@ -201,6 +203,12 @@ def _emit_subcaps(rows: list[list[Any]], headers: list[str], result: ParseResult
         key = (category_id or "", l1_name or "")
         if key not in seen_l1:
             seen_l1[key] = None
+        # v7.0 personas: parse with paren-aware tokenizer so role
+        # descriptions inside parens don't get shredded. ``personas``
+        # keeps the denormalized canonical-name list (back-compat for
+        # consumers that haven't migrated to structured PersonaRefs);
+        # ``persona_refs`` carries the full structured payload.
+        persona_refs = parse_personas(d.get("Personas"))
         result.subcaps.append({
             "sub_cap_id": sub_cap_id,
             "sub_cap_name": d.get("Sub_Cap_Name") or sub_cap_id,
@@ -210,13 +218,17 @@ def _emit_subcaps(rows: list[list[Any]], headers: list[str], result: ParseResult
             "description": d.get("Description"),
             "solution_type": d.get("Solution_Type"),
             "tier": d.get("Tier") or "T1",
-            "personas": _split_list(d.get("Personas")),
+            "personas": [ref.canonical_name for ref in persona_refs],
+            "persona_refs": [ref.model_dump(by_alias=True) for ref in persona_refs],
             "l3_platforms": _split_list(d.get("L3_Platforms_Addressing_SubCap")),
             "l4_features": _split_list(d.get("L4_Features_Available")),
             "use_cases": _split_list(d.get("Use_Cases")),
             "story_refs": _split_list(d.get("Story_Refs_with_UC_Links")),
             "zennify_status": d.get("Zennify_Status"),
-            "lifecycle_state": "active",
+            # Lifecycle is computed by lifecycle_service from market
+            # signals (PRD D4); ingest leaves it None and the service
+            # writes it to the lifecycle_states/{sub_cap_id} document.
+            "lifecycle_state": None,
         })
 
         # use cases — best-effort parse from the Use_Cases column

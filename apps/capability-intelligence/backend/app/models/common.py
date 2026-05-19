@@ -26,12 +26,54 @@ class SourceTier(str, Enum):
 
 
 class LifecycleState(str, Enum):
-    ACTIVE = "active"
-    HIGH_VALUE = "high_value"
-    DECAY = "decay"
-    INACTIVE = "inactive"
-    PROPOSED = "proposed"
-    RETIRED = "retired"
+    """Market-signal lifecycle vocabulary (PRD v2.0 D4).
+
+    Replaces the curation-axis values (ACTIVE/HIGH_VALUE/DECAY/etc.) that
+    leaked from the v14 schema. The values match the strings produced by
+    :mod:`app.services.lifecycle_service` and consumed by the frontend
+    Lifecycle Manager kanban.
+    """
+    EMERGING = "EMERGING"
+    RISING = "RISING"
+    STABLE = "STABLE"
+    DECLINING = "DECLINING"
+    FADING = "FADING"
+    DEAD = "DEAD"
+
+
+class SubVertical(str, Enum):
+    """9 canonical subverticals (PRD D19).
+
+    BK + RB are merged into Retail Banking; WM + AM are merged into
+    Wealth & Asset Management. IB is Insurance Brokerages.
+    """
+    RB = "RB"   # Retail Banking (incl. former BK)
+    CB = "CB"   # Commercial Banking
+    CR = "CR"   # Credit Unions
+    CM = "CM"   # Capital Markets
+    WAM = "WAM"  # Wealth & Asset Management (incl. former WM + AM)
+    IN = "IN"   # Insurance Carriers
+    IB = "IB"   # Insurance Brokerages
+    PI = "PI"   # PayTech & FinTech
+    LS = "LS"   # Lending Services
+
+
+class PersonaFamily(str, Enum):
+    """5 persona families per PRD §4 / App Flow §3.3."""
+    C_SUITE = "c_suite"
+    OPERATIONS = "operations"
+    TECHNOLOGY = "technology"
+    RISK_COMPLIANCE = "risk_compliance"
+    FRONTLINE = "frontline"
+
+
+class LeverageTier(str, Enum):
+    """Consultant-loop leverage tiers (PRD §6.1)."""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    COMMIT = "COMMIT"
+    DIGEST = "DIGEST"
 
 
 class MaturityLevel(str, Enum):
@@ -100,6 +142,8 @@ SCHEMA_VERSIONS: dict[str, str] = {
     "capability_cluster": "cluster-v1",
     "delta_report": "delta-report-v1",
     "graph_snapshot_shard": "graph-shard-v1",
+    # Phase 1 — v7.0 schema alignment
+    "persona_ref": "persona-ref-v1",
 }
 
 

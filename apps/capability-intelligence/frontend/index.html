@@ -8,6 +8,22 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet" />
     <!-- Google Identity Services — used when AUTH_MODE=google_oauth. -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Theme FOUC-prevention (UI/UX Brief §8.1). Reads the persisted
+         preference synchronously before React paints; falls back to the
+         OS color-scheme preference; defaults to light. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('zen-theme');
+          var theme = stored === 'dark' || stored === 'light'
+            ? stored
+            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (_) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
     <title>Zennify — Capability Intelligence</title>
   </head>
   <body class="bg-zen-white-green text-zen-dark-green antialiased">

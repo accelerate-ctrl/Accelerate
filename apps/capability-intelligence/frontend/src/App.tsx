@@ -15,7 +15,7 @@ export default function App() {
   }, [load]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-zen-ice">
+    <div className="flex h-screen w-screen overflow-hidden bg-surface text-fg">
       <SignInGate />
       <Sidebar mobileOpen={drawerOpen} onCloseMobile={() => setDrawerOpen(false)} />
       {drawerOpen && (

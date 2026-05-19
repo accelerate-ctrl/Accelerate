@@ -9,7 +9,15 @@ from .catalogue import (
     Subcap,
     UseCase,
 )
-from .common import ClaimLabel, LifecycleState, MaturityLevel, SourceTier
+from .common import (
+    ClaimLabel,
+    LeverageTier,
+    LifecycleState,
+    MaturityLevel,
+    PersonaFamily,
+    SourceTier,
+    SubVertical,
+)
 from .flag import ChangeFlag
 from .version import CatalogueVersion, VersionDiff
 
@@ -23,9 +31,12 @@ __all__ = [
     "Subcap",
     "UseCase",
     "ClaimLabel",
+    "LeverageTier",
     "LifecycleState",
     "MaturityLevel",
+    "PersonaFamily",
     "SourceTier",
+    "SubVertical",
     "ChangeFlag",
     "CatalogueVersion",
     "VersionDiff",

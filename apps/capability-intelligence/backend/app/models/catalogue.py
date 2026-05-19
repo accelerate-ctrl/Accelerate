@@ -39,13 +39,27 @@ class Subcap(BaseModel):
     description: str | None = None
     solution_type: str | None = None
     tier: str = "T1"  # subcap tier T1 | T2
-    personas: list[str] = Field(default_factory=list)
+    personas: list[str] = Field(
+        default_factory=list,
+        description="Denormalized canonical persona names (back-compat).",
+    )
+    persona_refs: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Structured persona references parsed from v7.0 cells with "
+            "paren-aware tokenization. Each entry is a PersonaRef dump "
+            "(canonical_name, role_description, family, raw)."
+        ),
+    )
     l3_platforms: list[str] = Field(default_factory=list)
     l4_features: list[str] = Field(default_factory=list)
     use_cases: list[str] = Field(default_factory=list)
     story_refs: list[str] = Field(default_factory=list)
     zennify_status: str | None = None
-    lifecycle_state: LifecycleState = LifecycleState.ACTIVE
+    # Computed by lifecycle_service from market signals (PRD D4); not
+    # assigned at ingest. Stored in the lifecycle_states/{sub_cap_id}
+    # subcollection — surfaced here only for convenience joins.
+    lifecycle_state: LifecycleState | None = None
 
 
 class UseCase(BaseModel):
