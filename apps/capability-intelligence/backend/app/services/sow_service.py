@@ -22,7 +22,7 @@ from pathlib import Path
 from rapidfuzz import fuzz
 
 from . import catalogue_service as cat
-from .dlp_service import redact
+from .dlp_service import redact_required
 from .entity_resolver import known_entities, resolve
 from .repository import get_repository
 from .text_extraction import SUPPORTED_EXTS, extract
@@ -443,7 +443,7 @@ def _ingest_all_inner(*, started, by: str) -> SowIngestResult:
             })
             continue
 
-        red = redact(doc.text)
+        red = redact_required(doc.text, context=f"sow:{f.sow_id}")
         chunks = chunk_text(red.text)
         client_canonical, client_raw, client_conf = guess_client(red.text, f.file_name)
         mentions = extract_mentions(chunks, subcaps)
