@@ -195,6 +195,18 @@ export type CrossPillarCoverage = {
   zennify_effective_status?: string;
 };
 
+export type AffectedNewsItem = {
+  news_id: string;
+  title: string;
+  source: string;
+  url?: string;
+  published_at?: string;
+  magnitude: 'HIGH' | 'MEDIUM' | 'LOW';
+  rationale?: string;
+  impact_class?: string;
+  summary?: string;
+};
+
 export type SubcapDetail = {
   subcap: Subcap;
   maturity: Record<string, unknown> | null;
@@ -208,6 +220,8 @@ export type SubcapDetail = {
   completeness?: CompletenessProfile | null;
   cross_pillar_coverage?: CrossPillarCoverage | null;
   cascade_simulation?: Record<string, unknown> | null;
+  // Phase 2.1 — news items touching this subcap with per-subcap magnitude.
+  affected_news?: AffectedNewsItem[];
 };
 
 export type Tree = {

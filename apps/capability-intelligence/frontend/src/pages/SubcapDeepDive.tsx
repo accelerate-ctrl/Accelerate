@@ -190,6 +190,54 @@ export default function SubcapDeepDive() {
         </Section>
       )}
 
+      {/* Phase 2.1 — News items touching this subcap, with per-subcap
+          magnitude chips. Surfaces the new affected_subcaps payload
+          from the news impact classifier. */}
+      {data.affected_news && data.affected_news.length > 0 && (
+        <Section title={`News impact (${data.affected_news.length})`}>
+          <ul className="space-y-2">
+            {data.affected_news.map((n) => (
+              <li key={n.news_id} className="border border-zen-separator rounded p-2">
+                <div className="flex items-start gap-2">
+                  <span
+                    className={`text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 shrink-0 ${
+                      n.magnitude === 'HIGH'
+                        ? 'bg-zen-orange text-white'
+                        : n.magnitude === 'MEDIUM'
+                        ? 'bg-zen-light-orange text-zen-dark-green'
+                        : 'bg-zen-light-green/60 text-zen-dark-green'
+                    }`}
+                  >
+                    {n.magnitude}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    {n.url ? (
+                      <a
+                        href={n.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-zen-dark-green font-medium hover:underline"
+                      >
+                        {n.title}
+                      </a>
+                    ) : (
+                      <span className="text-sm text-zen-dark-green font-medium">{n.title}</span>
+                    )}
+                    <div className="text-[11px] text-zen-text-gray mt-0.5">
+                      {n.source}
+                      {n.published_at && ` · ${new Date(n.published_at).toLocaleDateString()}`}
+                    </div>
+                    {n.rationale && (
+                      <p className="text-xs text-zen-dark-teal/80 mt-1 italic">{n.rationale}</p>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {/* v7.0: Cross-pillar coverage breakdown (tab 16) */}
       {data.cross_pillar_coverage && data.cross_pillar_coverage.total_cross_pillar_stories ? (
         <Section title="Cross-pillar coverage">

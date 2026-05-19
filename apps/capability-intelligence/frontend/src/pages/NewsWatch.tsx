@@ -12,6 +12,12 @@ import {
 import { Link } from 'react-router-dom';
 import { apiGet, apiPost, type NewsIngestRun, type NewsItem } from '@/lib/api';
 
+type AffectedSubcap = {
+  sub_cap_id: string;
+  magnitude: 'HIGH' | 'MEDIUM' | 'LOW';
+  rationale: string;
+};
+
 type Impact = {
   summary?: string;
   impact_class?:
@@ -19,7 +25,10 @@ type Impact = {
     | 'reinforcement'
     | 'benchmark_source'
     | 'no_impact';
+  // Legacy flat id list — kept for back-compat with cached impact rows.
   affects_subcaps?: string[];
+  // Structured per-subcap impact (Phase 2.1, PRD FR-17).
+  affected_subcaps?: AffectedSubcap[];
   suggests_new_subcap?: {
     name: string;
     rationale: string;
@@ -27,6 +36,12 @@ type Impact = {
   } | null;
   confidence?: number;
   synthesised_at?: string;
+};
+
+const MAGNITUDE_BAND: Record<AffectedSubcap['magnitude'], string> = {
+  HIGH: 'bg-zen-orange text-white',
+  MEDIUM: 'bg-zen-light-orange text-zen-dark-green',
+  LOW: 'bg-zen-light-green/60 text-zen-dark-green',
 };
 
 const IMPACT_BAND: Record<string, { bg: string; accent: string; label: string }> = {
@@ -228,20 +243,40 @@ export default function NewsWatch() {
                   <p className="text-xs text-zen-text-gray mt-1 line-clamp-3">{n.text}</p>
                 )}
 
-                {/* Affected subcaps: prefer LLM-inferred `affects_subcaps`,
-                    fall back to ingest-time fuzzy `sub_cap_hits`. */}
+                {/* Affected subcaps with per-subcap magnitude (Phase 2.1).
+                    Prefer the structured ``affected_subcaps`` payload
+                    when present; fall back to the legacy flat list,
+                    then to ingest-time fuzzy ``sub_cap_hits``. */}
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {((impact.affects_subcaps && impact.affects_subcaps.length > 0
-                    ? impact.affects_subcaps
-                    : (n.sub_cap_hits || [])) as string[]).map((h) => (
-                    <Link
-                      key={h}
-                      to={`/subcap?id=${encodeURIComponent(h)}`}
-                      className="font-mono text-[10px] bg-zen-light-green/60 text-zen-dark-teal px-1 py-0.5 rounded hover:text-zen-dark-green"
-                    >
-                      {h}
-                    </Link>
-                  ))}
+                  {impact.affected_subcaps && impact.affected_subcaps.length > 0
+                    ? impact.affected_subcaps.map((entry) => (
+                        <Link
+                          key={entry.sub_cap_id}
+                          to={`/subcap?id=${encodeURIComponent(entry.sub_cap_id)}`}
+                          title={entry.rationale || entry.sub_cap_id}
+                          className="inline-flex items-center gap-1 font-mono text-[10px] bg-zen-light-green/60 text-zen-dark-teal px-1 py-0.5 rounded hover:text-zen-dark-green"
+                        >
+                          <span
+                            className={`text-[9px] uppercase tracking-wider px-1 rounded ${
+                              MAGNITUDE_BAND[entry.magnitude]
+                            }`}
+                          >
+                            {entry.magnitude}
+                          </span>
+                          {entry.sub_cap_id}
+                        </Link>
+                      ))
+                    : ((impact.affects_subcaps && impact.affects_subcaps.length > 0
+                        ? impact.affects_subcaps
+                        : (n.sub_cap_hits || [])) as string[]).map((h) => (
+                        <Link
+                          key={h}
+                          to={`/subcap?id=${encodeURIComponent(h)}`}
+                          className="font-mono text-[10px] bg-zen-light-green/60 text-zen-dark-teal px-1 py-0.5 rounded hover:text-zen-dark-green"
+                        >
+                          {h}
+                        </Link>
+                      ))}
                   {(n.subverticals || []).slice(0, 3).map((sv) => (
                     <span
                       key={sv}

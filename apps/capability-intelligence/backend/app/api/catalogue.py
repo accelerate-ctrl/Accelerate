@@ -79,6 +79,12 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
     coverage = repo.get(COLLECTIONS["cross_pillar_coverage"], sub_cap_id)
     cascade_sim = repo.get(COLLECTIONS["cascade_simulation"], sub_cap_id)
 
+    # Phase 2.1 — News items that touch this subcap, sorted by magnitude
+    # then recency. Prefers the new ``affected_subcaps`` (structured)
+    # payload; falls back to the legacy ``affects_subcaps`` flat list
+    # and finally to the ingest-time fuzzy ``sub_cap_hits``.
+    affected_news = _news_for_subcap(sub_cap_id)
+
     return {
         "subcap": sub,
         "maturity": svc.get_maturity(sub_cap_id),
@@ -103,7 +109,74 @@ def get_subcap(sub_cap_id: str, _=Depends(auth_dep)) -> dict:
         "completeness": completeness,
         "cross_pillar_coverage": coverage,
         "cascade_simulation": cascade_sim,
+        # Phase 2.1 — news impact section
+        "affected_news": affected_news,
     }
+
+
+def _news_for_subcap(sub_cap_id: str, *, limit: int = 12) -> list[dict]:
+    """Surface news items touching a specific subcap.
+
+    Returns a sorted list of ``{news_id, title, source, url, published_at,
+    magnitude, rationale, impact_class, summary}`` rows. Magnitude is the
+    highest seen across the article's affected-subcap entries; rationale
+    is taken from the matching entry. Recency breaks ties.
+    """
+    from ..services.repository import get_repository
+    repo = get_repository()
+    items = repo.list("news_items")
+    out: list[dict] = []
+    for n in items:
+        impact = (n.get("impact") or {}) if isinstance(n.get("impact"), dict) else {}
+        magnitude: str | None = None
+        rationale = ""
+        # Structured shape — preferred.
+        for entry in impact.get("affected_subcaps") or []:
+            if isinstance(entry, dict) and entry.get("sub_cap_id") == sub_cap_id:
+                magnitude = entry.get("magnitude", "LOW")
+                rationale = entry.get("rationale", "")
+                break
+        if magnitude is None:
+            legacy = impact.get("affects_subcaps") or []
+            if sub_cap_id in legacy:
+                magnitude = "LOW"
+        if magnitude is None and sub_cap_id in (n.get("sub_cap_hits") or []):
+            # Fuzzy ingest-time match only; no LLM analysis ran yet.
+            magnitude = "LOW"
+        if magnitude is None:
+            continue
+        out.append({
+            "news_id": n.get("id"),
+            "title": n.get("title"),
+            "source": n.get("source"),
+            "url": n.get("url"),
+            "published_at": n.get("published_at"),
+            "magnitude": magnitude,
+            "rationale": rationale,
+            "impact_class": impact.get("impact_class"),
+            "summary": impact.get("summary"),
+        })
+    _mag_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    out.sort(
+        key=lambda r: (
+            _mag_order.get(r["magnitude"], 9),
+            # Sort recent items first within the same magnitude band.
+            -(_iso_epoch(r.get("published_at"))),
+        ),
+    )
+    return out[:limit]
+
+
+def _iso_epoch(ts: str | None) -> float:
+    """Best-effort ISO-8601 → epoch seconds for sort tie-breakers."""
+    if not ts:
+        return 0.0
+    try:
+        from datetime import datetime
+        # Accept the trailing Z form openpyxl + RSS emit.
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
 
 
 # ─── v7.0 list endpoints (Phase 1.3) — wired into Vendor Intelligence /

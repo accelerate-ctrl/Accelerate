@@ -256,6 +256,7 @@ def latest_run() -> dict | None:
 # already carrying a non-null `impact` block are skipped unless `force=True`.
 
 IMPACT_CLASSES = ("catalogue_extension", "reinforcement", "benchmark_source", "no_impact")
+IMPACT_MAGNITUDES = ("HIGH", "MEDIUM", "LOW")
 
 _IMPACT_SYSTEM = (
     "You are a Zennify strategist judging whether a news article changes the "
@@ -281,7 +282,13 @@ Return JSON with this exact schema:
 {{
   "summary": "<one sentence, ≤30 words, what the article says>",
   "impact_class": "<catalogue_extension | reinforcement | benchmark_source | no_impact>",
-  "affects_subcaps": ["P1C…", "P1C…"],  // 0–4 ids drawn from the inventory above
+  "affected_subcaps": [
+      {{
+          "sub_cap_id": "P1C…",            // must be in the inventory above
+          "magnitude": "HIGH | MEDIUM | LOW",
+          "rationale": "<≤25 words, why this article moves this subcap>"
+      }}
+  ],  // 0–4 entries; sorted by magnitude DESC then by relevance.
   "suggests_new_subcap": null | {{
       "name": "<short capability name>",
       "rationale": "<why this isn't already covered>",
@@ -290,12 +297,25 @@ Return JSON with this exact schema:
   "confidence": 0.0–1.0
 }}
 
+Magnitude rubric:
+* HIGH    — the article either (a) reports a specific regulator action /
+            published rule directly affecting the subcap, (b) names a
+            material customer of the subcap, (c) describes a competitor
+            shipping the capability, or (d) cites a benchmark we could
+            ingest.
+* MEDIUM  — the article describes a trend or product launch adjacent to
+            the subcap but doesn't name a customer / regulator action.
+* LOW     — the article is FS-relevant but only loosely connected; the
+            subcap is mentioned by inference only.
+
 Rules:
 * Never invent a sub_cap_id that isn't in the inventory.
 * "catalogue_extension" requires `suggests_new_subcap` to be non-null.
-* "no_impact" means the article is FS-news but doesn't touch capability scope.
-* "benchmark_source" means the article reports a quantitative benchmark we
-  could ingest (cite the metric in `summary`).
+* "no_impact" means the article is FS-news but doesn't touch capability
+  scope; ``affected_subcaps`` MUST be the empty list in that case.
+* "benchmark_source" means the article reports a quantitative benchmark
+  we could ingest (cite the metric in `summary`).
+* Magnitudes must be one of HIGH | MEDIUM | LOW exactly.
 """
 
 
@@ -364,7 +384,59 @@ def synthesise_impact(item: dict, *, subcaps: list[dict] | None = None) -> dict:
     klass = payload.get("impact_class") or "no_impact"
     if klass not in IMPACT_CLASSES:
         klass = "no_impact"
-    affects = [s for s in (payload.get("affects_subcaps") or []) if isinstance(s, str)][:4]
+
+    valid_subcap_ids = {s.get("sub_cap_id") for s in (subcaps or []) if s.get("sub_cap_id")}
+
+    # Per-subcap magnitude scoring (Phase 2.1 — PRD FR-17). The LLM is
+    # asked to emit a structured list of {sub_cap_id, magnitude,
+    # rationale}; we also accept the legacy flat list shape (``affects_
+    # subcaps: ["P1C…"]``) for backward compatibility with cached calls
+    # and tests that fixture the older response shape.
+    raw_affected = payload.get("affected_subcaps") or payload.get("affects_subcaps") or []
+    affected_with_magnitude: list[dict] = []
+    if isinstance(raw_affected, list):
+        for entry in raw_affected[:8]:  # hard cap to bound cost downstream
+            if isinstance(entry, dict):
+                sid = entry.get("sub_cap_id")
+                if not sid or sid not in valid_subcap_ids:
+                    continue
+                mag = (entry.get("magnitude") or "").upper()
+                if mag not in IMPACT_MAGNITUDES:
+                    mag = "LOW"
+                affected_with_magnitude.append({
+                    "sub_cap_id": sid,
+                    "magnitude": mag,
+                    "rationale": (entry.get("rationale") or "")[:200],
+                })
+            elif isinstance(entry, str):
+                # Legacy shape — accept the id, default magnitude to LOW
+                # since we have no rationale.
+                if entry in valid_subcap_ids:
+                    affected_with_magnitude.append({
+                        "sub_cap_id": entry,
+                        "magnitude": "LOW",
+                        "rationale": "",
+                    })
+
+    # When the article is no_impact the magnitude list MUST be empty
+    # per the prompt rules; enforce it server-side so a sloppy LLM
+    # response can't leak misleading magnitudes through.
+    if klass == "no_impact":
+        affected_with_magnitude = []
+
+    # Cap to top-4 by magnitude (HIGH > MEDIUM > LOW) for the UI; the
+    # raw list above already capped at 8 to bound the cost on downstream
+    # per-subcap loops.
+    _mag_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    affected_with_magnitude.sort(
+        key=lambda e: (_mag_order.get(e["magnitude"], 9), e["sub_cap_id"]),
+    )
+    affected_with_magnitude = affected_with_magnitude[:4]
+
+    # Back-compat flat list — keeps existing consumers (chat retrieval,
+    # Subcap Deep Dive news join) working without code change.
+    affects = [e["sub_cap_id"] for e in affected_with_magnitude]
+
     suggested = payload.get("suggests_new_subcap")
     if klass != "catalogue_extension":
         suggested = None
@@ -378,7 +450,10 @@ def synthesise_impact(item: dict, *, subcaps: list[dict] | None = None) -> dict:
     return {
         "summary": (payload.get("summary") or "")[:400],
         "impact_class": klass,
+        # Legacy flat list (back-compat).
         "affects_subcaps": affects,
+        # Structured per-subcap impact (new in Phase 2.1).
+        "affected_subcaps": affected_with_magnitude,
         "suggests_new_subcap": suggested,
         "confidence": round(conf, 3),
         "synthesised_at": datetime.now(timezone.utc).isoformat(),
