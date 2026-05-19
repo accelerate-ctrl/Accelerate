@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { apiGet, type SubcapDetail } from '@/lib/api';
+import CascadePreviewModal from '@/components/CascadePreviewModal';
 
 type SubcapDetailV3 = SubcapDetail & {
   sow_signals?: {
@@ -27,6 +29,8 @@ const MATURITY_LEVELS = [
 export default function SubcapDeepDive() {
   const [params] = useSearchParams();
   const id = params.get('id');
+  const queryClient = useQueryClient();
+  const [cascadeOpen, setCascadeOpen] = useState<null | 'Inactive' | 'Active'>(null);
 
   const { data, isLoading, error } = useQuery<SubcapDetailV3>({
     queryKey: ['subcap', id],
@@ -67,8 +71,32 @@ export default function SubcapDeepDive() {
           {s.zennify_status && (
             <span className="bg-zen-teal/30 text-zen-dark-green rounded px-1.5 py-0.5">{s.zennify_status}</span>
           )}
+          {/* Toggle action — opens the cascade preview modal (J4). */}
+          <button
+            type="button"
+            onClick={() =>
+              setCascadeOpen(s.zennify_status === 'Inactive' ? 'Active' : 'Inactive')
+            }
+            className="ml-auto text-[11px] bg-zen-ice text-zen-dark-green border border-zen-separator rounded px-2 py-0.5 hover:bg-zen-light-green/40"
+            title="Open the cascade preview before toggling this subcap"
+          >
+            Toggle status…
+          </button>
         </div>
       </div>
+
+      {cascadeOpen && id && (
+        <CascadePreviewModal
+          subCapId={id}
+          toStatus={cascadeOpen}
+          onCancel={() => setCascadeOpen(null)}
+          onApplied={() => {
+            setCascadeOpen(null);
+            // Refresh the deep-dive payload so the new status is visible.
+            queryClient.invalidateQueries({ queryKey: ['subcap', id] });
+          }}
+        />
+      )}
 
       {/* Completeness profile — at-a-glance counts of every link type
           (stories, L4 features, maturity descriptors, L3 platforms,

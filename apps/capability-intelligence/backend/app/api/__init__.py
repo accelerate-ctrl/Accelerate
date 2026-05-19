@@ -5,6 +5,7 @@ from . import (
     audit,
     auth,
     benchmarks,
+    cascade,
     catalogue,
     chat,
     client_journeys,
@@ -49,6 +50,7 @@ api_router.include_router(ingest.router, prefix="/ingest", tags=["ingest"])
 
 # Stubs — each batch lights its own routes up
 api_router.include_router(catalogue.router, prefix="/catalogue", tags=["catalogue"])
+api_router.include_router(cascade.router, prefix="/cascade", tags=["cascade"])
 api_router.include_router(lens.router, prefix="/lens", tags=["lens"])
 api_router.include_router(versions.router, prefix="/versions", tags=["versions"])
 api_router.include_router(diffs.router, prefix="/diffs", tags=["diffs"])
