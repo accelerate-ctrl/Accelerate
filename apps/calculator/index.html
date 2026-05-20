@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Calculator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="calculator" role="application" aria-label="Calculator">
+    <div class="display" id="display" aria-live="polite">0</div>
+    <div class="keys">
+      <button class="key key-fn" data-action="clear">AC</button>
+      <button class="key key-fn" data-action="sign">+/-</button>
+      <button class="key key-fn" data-action="percent">%</button>
+      <button class="key key-op" data-action="operator" data-op="/">÷</button>
+
+      <button class="key" data-action="digit" data-digit="7">7</button>
+      <button class="key" data-action="digit" data-digit="8">8</button>
+      <button class="key" data-action="digit" data-digit="9">9</button>
+      <button class="key key-op" data-action="operator" data-op="*">×</button>
+
+      <button class="key" data-action="digit" data-digit="4">4</button>
+      <button class="key" data-action="digit" data-digit="5">5</button>
+      <button class="key" data-action="digit" data-digit="6">6</button>
+      <button class="key key-op" data-action="operator" data-op="-">−</button>
+
+      <button class="key" data-action="digit" data-digit="1">1</button>
+      <button class="key" data-action="digit" data-digit="2">2</button>
+      <button class="key" data-action="digit" data-digit="3">3</button>
+      <button class="key key-op" data-action="operator" data-op="+">+</button>
+
+      <button class="key key-zero" data-action="digit" data-digit="0">0</button>
+      <button class="key" data-action="decimal">.</button>
+      <button class="key key-eq" data-action="equals">=</button>
+    </div>
+  </main>
+  <script src="calculator.js"></script>
+</body>
+</html>
