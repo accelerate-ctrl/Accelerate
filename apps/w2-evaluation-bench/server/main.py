@@ -32,7 +32,7 @@ from fastapi.responses import Response
 from . import orchestrator, packets
 from .storage import (new_run_id, run_dir, save_state, load_state, list_runs,
                       public_state, resolve_download)
-from .config import RUNS_DIR
+from .config import RUNS_DIR, EVAL_PROTOCOL  # noqa: F401 (RUNS_DIR kept for parity)
 
 app = FastAPI(title="Zennify W2 Evaluation Bench", version="1.1")
 
@@ -83,6 +83,7 @@ def create_run(brd: UploadFile = File(...),
              "live_evidence": bool(live_evidence),
              "auto_approve_checkpoint": bool(auto_approve_checkpoint),
              "evaluator_model": evaluator_model,
+             "protocol": EVAL_PROTOCOL,
              "digests": {}, "checkpoint_approved": False}
     save_state(run_id, state)
     st = orchestrator.advance(run_id)

@@ -30,4 +30,14 @@ if str(SCRIPTS) not in sys.path:
 # packet payload builder never reads it).
 ESCROW_NAME = ".lane-mapping"
 
+# Scoring protocol (v2.0). "dual-judge" is the product: every scoring unit is
+# judged once by each of contracts.JUDGES from byte-identical blinded packets,
+# then merged by evidence-ruled consensus (server/consensus.py). "five-pass" is
+# the frozen v1.1 protocol, retained ONLY for regression comparison (PRD D6,
+# TRD section 4) — never exposed in the UI.
+EVAL_PROTOCOL = os.environ.get("EVAL_PROTOCOL", "dual-judge")
+if EVAL_PROTOCOL not in ("dual-judge", "five-pass"):
+    raise RuntimeError(
+        f"EVAL_PROTOCOL must be 'dual-judge' or 'five-pass', got {EVAL_PROTOCOL!r}")
+
 PYTHON = sys.executable
