@@ -74,7 +74,8 @@ def result(rd: Path, pid: str) -> dict:
 
 
 def usage_totals(rd: Path) -> dict:
-    tot = {"packets": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd_reported": 0.0}
+    tot = {"packets": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd_reported": 0.0,
+           "per_judge": {}}
     for p in _pdir(rd).glob("*.result.json"):
         d = json.loads(p.read_text())
         u = d.get("usage") or {}
@@ -82,6 +83,14 @@ def usage_totals(rd: Path) -> dict:
         tot["input_tokens"] += int(u.get("input_tokens") or 0)
         tot["output_tokens"] += int(u.get("output_tokens") or 0)
         tot["cost_usd_reported"] += float(u.get("total_cost_usd") or 0.0)
+        # v2.0: per-judge split for the console usage line (G5 visibility per
+        # judge; the runner ledgers usage.judge on every routed packet).
+        judge = u.get("judge") or "claude-code"
+        ju = tot["per_judge"].setdefault(judge, {"packets": 0, "input_tokens": 0,
+                                                 "output_tokens": 0})
+        ju["packets"] += 1
+        ju["input_tokens"] += int(u.get("input_tokens") or 0)
+        ju["output_tokens"] += int(u.get("output_tokens") or 0)
     return tot
 
 

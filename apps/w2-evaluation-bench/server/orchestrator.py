@@ -339,13 +339,37 @@ def batch_judge_aggregate(rd: Path, st: dict) -> None:
         agg["agreement_stats"] = consensus_mod.merge_lane_stats(agg["group_stats"])
         agg_path.write_text(json.dumps(agg, indent=2, sort_keys=True))
         s = agg["agreement_stats"]
+        # Per-dimension judge/consensus positions for the console's concurrence
+        # meter (UI/UX §3.4). ADDITIVE key on the §2 consensus digest — no
+        # existing endpoint carries per-dim judge data (errata G-1).
+        ja, jb = contracts.JUDGES
+        jr = agg["judge_runs_by_dimension"]
+        rpd = s.get("verdict_agreement_rate_per_dim") or {}
+        ddims = set()
+        for dd in agg.get("dissents") or []:
+            cid = dd.get("criterion_id") or ""
+            sk = dd.get("sub_key") or ""
+            if cid:
+                ddims.add(cid[0])
+            elif sk.startswith("sub:"):
+                ddims.add(sk.split(":")[1])
+        ih = _integration_heavy(st)
+        per_dim = {d: {"cc": (jr.get(ja) or {}).get(d),
+                       "gm": (jr.get(jb) or {}).get(d),
+                       "con": (jr.get("consensus") or {}).get(d),
+                       "max": contracts.dim_max(int(d), ih),
+                       "conc": agg["per_dim_agreement"].get(d),
+                       "agree": rpd.get(d),
+                       "dissent": d in ddims}
+                   for d in map(str, range(1, 8))}
         st["digests"].setdefault("consensus", {})[label] = {
             "verdict_agreement_rate": s.get("verdict_agreement_rate"),
             "score_concordance": s.get("score_concordance"),
             "agreement_overall": s.get("agreement_overall"),
             "divergences": s.get("divergence_count"),
             "dissents": s.get("dissent_count"),
-            "reliability": s.get("reliability_label")}
+            "reliability": s.get("reliability_label"),
+            "per_dim": per_dim}
 
 
 def stage_scoring_packets_fivepass(rd: Path, st: dict) -> bool:

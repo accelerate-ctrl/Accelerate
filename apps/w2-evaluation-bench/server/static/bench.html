@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>W2 Evaluation Bench · Console</title>
+<style>
+/* Console identity (UI/UX brief §2): the deliverable's own styler palette
+   (report_style.py) — the console wears the instrument's identity. */
+@font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoRegular.woff2) format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoMedium.woff2) format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoSemiBold.woff2) format('woff2');font-weight:600;font-display:swap}
+:root{
+  --ink:#10282a; --deep:#1c4a4d; --teal:#139f94; --sub:#22bcad;
+  --blue:#8094c0; --pos:#059669; --neg:#c25008; --paper:#f2f5f4;
+  --card:#ffffff; --ink2:#5c7a7c; --line:rgba(28,74,77,.14); --line2:rgba(28,74,77,.08);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --sans:'Avenir Next','Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+a{color:var(--teal)}
+:focus-visible{outline:2px solid var(--deep);outline-offset:2px}
+button{cursor:pointer;border:0;font-family:var(--sans)}
+header{background:var(--deep);color:#eaf4f3;padding:16px 26px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:19px;margin:0;letter-spacing:.4px;font-weight:600}
+header .tag{font:12px var(--mono);color:var(--sub)}
+header .guard{margin-left:auto;font:11px var(--mono);color:#bfe5e1;border:1px solid #2b6a6c;border-radius:4px;padding:4px 10px}
+main{max-width:1140px;margin:24px auto;padding:0 20px;display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px}
+@media (max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+main>div{min-width:0}
+.id,.blind{overflow-wrap:anywhere}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+h2{font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:var(--deep);margin:0 0 12px;font-weight:700}
+label{display:block;font:12px var(--mono);color:#4a6a68;margin:10px 0 4px}
+input[type=file],select,input[type=text],input[type=password]{width:100%;font:13px var(--mono);padding:7px;border:1px solid var(--line);border-radius:6px;background:#fbfdfd}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.btn{background:var(--teal);color:#fff;font-weight:600;font-size:14.5px;padding:11px 16px;border-radius:9px;width:100%;margin-top:14px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:transparent;color:var(--deep);border:1px solid var(--line);width:auto;padding:8px 14px;font-size:13px}
+.btn.stop{background:var(--neg);width:auto;padding:8px 14px;font-size:13px}
+.badge-panel{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(19,159,148,.22);border-radius:999px;padding:7px 12px;font-size:12px;color:var(--teal);font-weight:600;white-space:nowrap}
+.badge-panel i{width:7px;height:7px;border-radius:50%;background:var(--teal)}
+.micro{font-size:12px;line-height:1.5;color:var(--ink2);margin-top:11px}
+.run-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px}
+.run-item:hover{background:#f4faf9}
+.run-item .id{font:12px var(--mono)}
+.chip{font:10px var(--mono);padding:1px 7px;border-radius:9px;border:1px solid var(--line);color:var(--ink2)}
+.badge{font:10px var(--mono);padding:2px 8px;border-radius:10px;color:#fff;background:var(--blue);white-space:nowrap}
+.badge.done{background:var(--pos)} .badge.awaiting_checkpoint{background:var(--neg)}
+.badge.awaiting_packets{background:var(--teal)} .badge.error,.badge.stopped{background:#7a2e10}
+.rail{display:flex;margin:8px 0 18px}
+.rail .st{flex:1;text-align:center;font:10.5px var(--mono);color:#7b9391;position:relative;padding-top:15px}
+.rail .st::before{content:"";position:absolute;top:4px;left:0;right:0;height:3px;background:var(--line);transition:background .2s ease}
+.rail .st.hit{color:var(--deep)} .rail .st.hit::before{background:var(--sub)}
+.rail .st.now{color:var(--neg);font-weight:700} .rail .st.now::before{background:var(--neg)}
+@media (max-width:640px){.rail .st{font-size:0}.rail .st.now{font-size:10px}.rail .st{padding-top:10px}}
+table{width:100%;border-collapse:collapse;font:12px var(--mono)}
+td,th{padding:6px 8px;border-bottom:1px solid var(--line2);text-align:left}
+th{color:#4a6a68;font-weight:600}
+.tblwrap{overflow-x:auto}
+.blind{font:11px var(--mono);color:var(--blue);letter-spacing:1px}
+.jbadge{font:10px var(--mono);padding:1px 6px;border-radius:8px;color:#fff}
+.jbadge.cc{background:var(--teal)} .jbadge.gm{background:var(--blue)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.stat{font:12px var(--mono);border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:#fbfdfd}
+.stat b{color:var(--deep)}
+.banner{border-radius:8px;padding:10px 14px;font-size:13px;margin:10px 0}
+.banner.wait{background:#fdf6ee;border:1px solid rgba(194,80,8,.25);color:#7a4a17}
+.banner.err{background:#fbf0ec;border:1px solid rgba(194,80,8,.35);color:#7a2e10}
+.banner.stop{background:#f0f0f0;border:1px solid #ccc;color:#555}
+.usage{font:12px var(--mono);color:var(--ink2);margin:8px 0}
+.usage .cc{color:var(--teal)} .usage .gm{color:var(--blue)} .usage b{color:var(--pos)}
+.dl{display:flex;gap:8px;flex-wrap:wrap}
+.dl a{font:12px var(--mono);border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-decoration:none;color:var(--deep);background:#fbfdfd}
+.dl a:hover{border-color:var(--teal)}
+.dl a.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
+.lift{font:38px var(--mono);font-weight:600;margin:4px 0}
+.meter-tip{font:11px var(--mono);color:var(--ink2)}
+.toggle{font:11px var(--mono);color:var(--teal);background:none;border:none;text-decoration:underline;padding:0}
+.autoappr{display:inline-block;font:11px var(--mono);color:var(--pos);border:1px solid rgba(5,150,105,.3);border-radius:6px;padding:3px 8px;margin-bottom:8px}
+.modal{position:fixed;inset:0;background:rgba(16,40,42,.55);display:flex;align-items:center;justify-content:center;z-index:50}
+.modal .box{background:#fff;border-radius:14px;padding:28px;width:min(400px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.modal h3{margin:0 0 6px;font-size:17px;color:var(--deep)}
+.modal p{font-size:13px;color:var(--ink2);margin:0 0 14px}
+.hidden{display:none !important}
+@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>W2 Evaluation Bench</h1>
+  <span class="tag">Solutioning Evaluation Framework · v4.7 · dual-judge consensus</span>
+  <span class="guard">runner: subscription-only · API keys refused · billing tripwire armed</span>
+</header>
+<main>
+  <div>
+    <!-- New run card (§3.2) -->
+    <section class="card" aria-labelledby="nr">
+      <h2 id="nr">New run</h2>
+      <label for="brd">BRD (requirements truth)</label>
+      <input type="file" id="brd" accept=".md,.txt">
+      <label for="sdd1">SDD 1</label>
+      <input type="file" id="sdd1" accept=".md,.txt">
+      <label for="sdd2">SDD 2 — leave empty for Mode B review</label>
+      <input type="file" id="sdd2" accept=".md,.txt">
+      <div id="modeAOpts" class="hidden">
+        <div class="row">
+          <div><label for="zen">ZenAgent lane</label>
+            <select id="zen"><option value="a">SDD 1</option><option value="b">SDD 2</option></select></div>
+          <div><label for="ev">Release evidence</label>
+            <select id="ev"><option value="">Register (offline)</option><option value="1">Live via runner</option></select></div>
+        </div>
+      </div>
+      <div class="row">
+        <div><label for="ckpt">Checkpoint</label>
+          <select id="ckpt"><option value="1">Hands-free (default)</option><option value="">Pause at D.5 for me</option></select></div>
+        <div><label>Judging</label>
+          <span class="badge-panel"><i></i>Panel: Claude + Gemini</span></div>
+      </div>
+      <button class="btn" id="start">Start evaluation</button>
+      <div class="micro">Three files → blinded comparison with methodology lift. Two files → design review. You won’t be needed again until the report.</div>
+    </section>
+    <!-- Runs list (§3.3) -->
+    <section class="card" aria-labelledby="rl">
+      <h2 id="rl">Runs</h2>
+      <div id="runs"><div class="micro">No runs yet. Upload a BRD and one or two SDDs to start.</div></div>
+    </section>
+    <!-- Runner card (FR-12) -->
+    <section class="card" aria-labelledby="rc">
+      <h2 id="rc">Runner</h2>
+      <div id="runners" class="micro">No heartbeat yet. Install your runner with the one-command installer (see the installation guide) and it will appear here.</div>
+    </section>
+  </div>
+  <div>
+    <!-- Run detail (§3.4) -->
+    <section class="card" id="detail" aria-live="polite">
+      <h2>Run detail</h2>
+      <div class="micro">Select a run on the left.</div>
+    </section>
+  </div>
+</main>
+<div class="modal hidden" id="tokModal" role="dialog" aria-modal="true" aria-labelledby="tokT">
+  <div class="box">
+    <h3 id="tokT">Bench token</h3>
+    <p>This bench is token-protected. Paste your personal bench token (from your administrator). It is stored only in this browser.</p>
+    <input type="password" id="tokIn" aria-label="bench token" placeholder="token">
+    <button class="btn" id="tokGo">Continue</button>
+  </div>
+</div>
+<script>
+"use strict";
+/* Engine truth (contracts.py): dimension names + maxima. Demo names from the
+   design prototype were replaced with the engine's real dimensions (errata P-2). */
+const DIMS = [
+  {n:1, name:"BRD Comprehension", max:15},
+  {n:2, name:"Requirement Coverage", max:15},
+  {n:3, name:"Salesforce Solution Fit", max:20},
+  {n:4, name:"Design Specificity", max:15},
+  {n:5, name:"Dependencies and Assumptions", max:15},
+  {n:6, name:"Scope Discipline", max:10},
+  {n:7, name:"Estimation Readiness", max:15},
+];
+const STAGES_A = ["intake","setup","mapping","dual scoring","consensus","checkpoint","sheets+lift","reveal+report"];
+const STAGES_B = ["intake","setup","mapping","dual scoring","consensus","review+report"];
+/* server stage key -> rail index (Mode A) */
+const STAGE_IDX_A = {S0:0, S1:1, S2:2, S3:3, "S3.5":4, S4:6, S5:7};
+const STAGE_IDX_B = {S0:0, S1:1, S2:2, S3:3, "S3.5":4, S4:5};
+const C = {teal:"#139f94", blue:"#8094c0", sub:"#22bcad", neg:"#c25008", line:"rgba(28,74,77,.18)"};
+
+let TOKEN = localStorage.getItem("w2tok") || "";
+let selected = null, meterAsTable = matchMedia("(max-width:640px)").matches;
+let pollT = null;
+
+function hdrs(){ return TOKEN ? {"X-W2-Token": TOKEN} : {}; }
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({headers: hdrs()}, opts||{}));
+  if (r.status === 401){ askToken(); throw new Error("401"); }
+  return r.json();
+}
+function askToken(){ document.getElementById("tokModal").classList.remove("hidden"); }
+document.getElementById("tokGo").onclick = () => {
+  TOKEN = document.getElementById("tokIn").value.trim();
+  localStorage.setItem("w2tok", TOKEN);
+  document.getElementById("tokModal").classList.add("hidden");
+  refresh();
+};
+
+document.getElementById("sdd2").addEventListener("change", e => {
+  document.getElementById("modeAOpts").classList.toggle("hidden", !e.target.files.length);
+});
+
+document.getElementById("start").onclick = async () => {
+  const brd = document.getElementById("brd").files[0];
+  const s1 = document.getElementById("sdd1").files[0];
+  const s2 = document.getElementById("sdd2").files[0];
+  if (!brd || !s1) { alert("A BRD and at least SDD 1 are required."); return; }
+  const fd = new FormData();
+  fd.append("brd", brd); fd.append("sdd_1", s1);
+  if (s2) {
+    fd.append("sdd_2", s2);
+    fd.append("zenagent_is", document.getElementById("zen").value);
+    if (document.getElementById("ev").value) fd.append("live_evidence", "true");
+  }
+  fd.append("auto_approve_checkpoint", document.getElementById("ckpt").value ? "true" : "false");
+  const btn = document.getElementById("start");
+  btn.disabled = true; btn.textContent = "Starting…";
+  try {
+    const r = await fetch("/api/runs", {method:"POST", headers: hdrs(), body: fd});
+    if (r.status === 401){ askToken(); return; }
+    const d = await r.json();
+    selected = d.run_id;
+    refresh();
+  } finally { btn.disabled = false; btn.textContent = "Start evaluation"; }
+};
+
+function badge(st){ return `<span class="badge ${st}">${(st||"").replace(/_/g," ")}</span>`; }
+function esc(s){ const d = document.createElement("div"); d.textContent = String(s==null?"":s); return d.innerHTML; }
+function pct(v){ return (v==null||isNaN(v)) ? "–" : Math.round(v*100) + "%"; }
+function n1(v){ return (v==null||isNaN(v)) ? "–" : (+v).toFixed(1).replace(/\.0$/,""); }
+function ago(ts){
+  if (!ts) return "never";
+  const s = Math.max(0, (Date.now() - new Date(ts+"Z").getTime())/1000|0);
+  return s < 90 ? s + "s ago" : Math.round(s/60) + "m ago";
+}
+
+async function refresh(){
+  let runs;
+  try { runs = await api("/api/runs"); } catch(e){ return; }
+  const el = document.getElementById("runs");
+  if (!runs.length) el.innerHTML = '<div class="micro">No runs yet. Upload a BRD and one or two SDDs to start.</div>';
+  else el.innerHTML = runs.map(r => `
+    <div class="run-item" role="button" tabindex="0" data-id="${esc(r.run_id)}">
+      <span class="id">${esc(r.run_id)}</span>
+      <span class="chip">${esc(r.mode)}</span>
+      ${badge(r.status)}
+    </div>`).join("");
+  el.querySelectorAll(".run-item").forEach(x => {
+    x.onclick = () => { selected = x.dataset.id; renderDetail(); };
+    x.onkeydown = ev => { if (ev.key === "Enter") x.onclick(); };
+  });
+  try {
+    const rs = await api("/api/runners");
+    const rl = document.getElementById("runners");
+    if (rs.length) rl.innerHTML = rs.map(r =>
+      `<div class="micro"><b style="color:var(--pos)">●</b> ${esc(r.member)}’s runner: connected · last seen ${ago(r.last_seen)} · <span class="blind">${esc(r.runner_id)}</span>${r.engine?` · ${esc(r.engine)}`:""}</div>`).join("");
+  } catch(e){}
+  if (!selected && runs.length) selected = runs[0].run_id;
+  if (selected) renderDetail();
+}
+
+function rail(mode, stage, status){
+  const stages = mode === "A" ? STAGES_A : STAGES_B;
+  const idxMap = mode === "A" ? STAGE_IDX_A : STAGE_IDX_B;
+  let cur = idxMap[stage] ?? 0;
+  if (status === "awaiting_checkpoint") cur = mode === "A" ? 5 : cur;
+  if (status === "done") cur = stages.length;
+  return `<div class="rail" role="img" aria-label="stage ${esc(stage)}">` + stages.map((s,i) =>
+    `<div class="st ${i<cur?"hit":i===cur?"now":""}">${s}</div>`).join("") + "</div>";
+}
+
+function meterSVG(perDim){
+  const W = 620, ROW = 34, PAD_L = 200, PAD_R = 66, H = ROW*DIMS.length + 14;
+  let g = "";
+  DIMS.forEach((d, i) => {
+    const pd = perDim[String(d.n)] || {};
+    const y = 20 + i*ROW, x0 = PAD_L, x1 = W - PAD_R;
+    const sc = v => (v==null ? null : x0 + (x1-x0) * Math.max(0, Math.min(1, v/(pd.max||d.max))));
+    const cc = sc(pd.cc), gm = sc(pd.gm), con = sc(pd.con);
+    const fused = cc!=null && gm!=null && Math.abs(cc-gm) < 6 && !pd.dissent;
+    g += `<text x="0" y="${y+4}" font-size="11" fill="#4a6a68" font-family="IBM Plex Mono,monospace">D${d.n} ${esc(d.name).slice(0,26)}</text>`;
+    g += `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="${C.line}" stroke-width="3"/>`;
+    if (fused && con!=null){
+      g += `<line x1="${x0}" y1="${y}" x2="${con}" y2="${y}" stroke="${C.sub}" stroke-width="5" stroke-linecap="round"><title>D${d.n}: judges concur — consensus ${n1(pd.con)}/${pd.max}</title></line>`;
+    } else {
+      if (cc!=null) g += `<line x1="${x0}" y1="${y-3}" x2="${cc}" y2="${y-3}" stroke="${C.teal}" stroke-width="2.5" stroke-linecap="round"><title>Judge A (Claude): ${n1(pd.cc)}/${pd.max}</title></line>`;
+      if (gm!=null) g += `<line x1="${x0}" y1="${y+3}" x2="${gm}" y2="${y+3}" stroke="${C.blue}" stroke-width="2.5" stroke-linecap="round"><title>Judge B (Gemini): ${n1(pd.gm)}/${pd.max}</title></line>`;
+      if (con!=null) g += `<circle cx="${con}" cy="${y}" r="3.4" fill="#1c4a4d"><title>Consensus: ${n1(pd.con)}/${pd.max}</title></circle>`;
+    }
+    if (pd.dissent) g += `<circle cx="${x1+12}" cy="${y}" r="4.5" fill="${C.neg}"><title>D${d.n}: recorded dissent — see the report annex</title></circle><text x="${x1+21}" y="${y+4}" font-size="10" fill="${C.neg}" font-family="IBM Plex Mono,monospace">DISSENT</text>`;
+    g += `<text x="${x1+12}" y="${y+4}" font-size="10" fill="#7b9391" font-family="IBM Plex Mono,monospace">${pd.dissent?"":n1(pd.con)}</text>`;
+  });
+  g += `<g font-size="10" font-family="IBM Plex Mono,monospace">
+    <line x1="${PAD_L}" y1="${H-4}" x2="${PAD_L+26}" y2="${H-4}" stroke="${C.teal}" stroke-width="2.5"/><text x="${PAD_L+31}" y="${H}" fill="#4a6a68">CC Judge A (Claude)</text>
+    <line x1="${PAD_L+170}" y1="${H-4}" x2="${PAD_L+196}" y2="${H-4}" stroke="${C.blue}" stroke-width="2.5"/><text x="${PAD_L+201}" y="${H}" fill="#4a6a68">GM Judge B (Gemini)</text>
+    <circle cx="${PAD_L+345}" cy="${H-4}" r="4" fill="${C.neg}"/><text x="${PAD_L+353}" y="${H}" fill="#4a6a68">dissent</text></g>`;
+  return `<svg viewBox="0 0 ${W} ${H+8}" width="100%" role="img" aria-label="Concurrence meter: judge scores per dimension">${g}</svg>`;
+}
+
+function meterTable(perDim){
+  const rows = DIMS.map(d => {
+    const pd = perDim[String(d.n)] || {};
+    return `<tr><td>D${d.n} ${esc(d.name)}</td><td><span class="jbadge cc">CC</span> ${n1(pd.cc)}</td>
+      <td><span class="jbadge gm">GM</span> ${n1(pd.gm)}</td><td>${n1(pd.con)}/${pd.max||d.max}</td>
+      <td>${pd.conc==null?"–":(+pd.conc).toFixed(2)}</td><td>${pd.agree==null?"–":pct(pd.agree)}</td>
+      <td>${pd.dissent?'<b style="color:var(--neg)">DISSENT</b>':"clear"}</td></tr>`;
+  }).join("");
+  return `<div class="tblwrap"><table aria-label="Concurrence table"><tr><th>Dimension</th><th>Judge A</th><th>Judge B</th><th>Consensus</th><th>Concord.</th><th>Verdict agr.</th><th>Dissent</th></tr>${rows}</table></div>`;
+}
+
+function judgingPanel(st){
+  const cons = (st.digests||{}).consensus || {};
+  const labels = Object.keys(cons);
+  if (!labels.length) return "";
+  let html = `<h2 style="margin-top:16px">Judging</h2>`;
+  labels.forEach(lab => {
+    const c = cons[lab];
+    html += `<div style="margin:6px 0 2px"><span class="blind">${esc(lab)}</span></div>
+    <div class="chips">
+      <span class="stat">verdict agreement <b>${pct(c.verdict_agreement_rate)}</b></span>
+      <span class="stat">score concordance <b>${c.score_concordance==null?"–":(+c.score_concordance).toFixed(2)}</b></span>
+      <span class="stat">dissents <b>${c.dissents ?? 0}</b></span>
+      <span class="stat">${esc(c.reliability || "")}</span>
+    </div>`;
+    if (c.per_dim) html += meterAsTable ? meterTable(c.per_dim) : meterSVG(c.per_dim);
+  });
+  html += `<button class="toggle" id="meterToggle">view as ${meterAsTable ? "meter" : "table"}</button>`;
+  return html;
+}
+
+function checkpointPanel(st){
+  const cp = st.checkpoint;
+  if (!cp || !cp.lanes) return "";
+  const paused = st.status === "awaiting_checkpoint";
+  let rows = "";
+  Object.entries(cp.lanes).forEach(([lab, l]) => {
+    rows += `<tr><td class="blind">${esc(lab)}</td><td>${n1(l.total)}</td>
+      <td>${pct(l.agreement_rate)}</td><td>${l.dissent_count ?? "–"}</td>
+      <td>${l.mapping ? esc(l.mapping.dim_4_floor_cap==null ? "no cap" : l.mapping.dim_4_floor_cap) : "–"}</td>
+      <td>${l.release_summary ? esc(l.release_summary.rr_deductions_capped_total ?? 0) : "–"}</td></tr>`;
+  });
+  return `<h2 style="margin-top:16px">Checkpoint (D.5, blinded)</h2>
+    ${paused ? "" : `<span class="autoappr">auto-approved · recorded at ${esc(st.checkpoint_approved_at || "")} · ${esc(st.checkpoint_approved_by || "")}</span>`}
+    <div class="tblwrap"><table><tr><th>Lane</th><th>Total</th><th>Agreement</th><th>Dissents</th><th>Dim-4 floor</th><th>RR capped</th></tr>${rows}</table></div>
+    ${paused ? `<div class="row" style="margin-top:10px">
+       <button class="btn ghost" id="approveBtn">Proceed to score sheets</button>
+       <button class="btn stop" id="stopBtn">Stop with reason</button></div>` : ""}`;
+}
+
+function usageLine(st){
+  const u = st.usage || {};
+  const per = u.per_judge || {};
+  const cc = per["claude-code"] || {}, gm = per["gemini"] || {};
+  const known = per["claude-code"] || per["gemini"];
+  return `<div class="usage">subscription usage · ${u.packets||0} packets · `
+    + (known
+       ? `<span class="cc">${cc.input_tokens||0} in / ${cc.output_tokens||0} out (Claude)</span> · <span class="gm">${gm.input_tokens||0} in / ${gm.output_tokens||0} out (Gemini)</span>`
+       : `${u.input_tokens||0} in / ${u.output_tokens||0} out`)
+    + ` · <b>reported API cost $${(u.cost_usd_reported||0).toFixed(2)} (must stay 0.00)</b></div>`;
+}
+
+function deliverables(st){
+  const arts = st.artifacts || {};
+  if (!Object.keys(arts).length) return "";
+  const tk = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "";
+  const order = ["report","score_sheet_a","score_sheet_b","content_mapping","release_a","release_b","lift","run_record","diagnostic_bundle"];
+  const links = order.filter(k => arts[k]).map(k =>
+    `<a class="${k==="report"?"primary":""}" href="/api/runs/${encodeURIComponent(st.run_id)}/download/${k}${tk}">${k.replace(/_/g," ")}</a>`);
+  return `<h2 style="margin-top:16px">Deliverables</h2><div class="dl">${links.join("")}</div>`;
+}
+
+function revealedBlock(st){
+  const rev = (st.digests||{}).reveal;
+  if (st.mode === "B"){
+    const r = (st.digests||{}).review;
+    if (!r) return "";
+    return `<h2 style="margin-top:16px">Review result</h2>
+      <div class="lift" style="color:${r.build_ready==="build_ready"?"var(--pos)":"var(--neg)"};font-size:26px">${esc((r.build_ready||"").replace(/_/g," "))}</div>
+      <div class="micro">${r.findings} findings · ${r.recommendations} refinement recommendations · ${r.dissents||0} contested (cross-judge dissent) — see the Dissent &amp; Reconciliation annex in the report.</div>`;
+  }
+  if (!rev) return "";
+  const lift = rev.headline_lift_za_minus_ots;
+  const jl = rev.judge_lifts || {};
+  const band = rev.lift_band || [];
+  const sign = v => v==null ? "–" : (v>0?"+":"")+v;
+  return `<h2 style="margin-top:16px">Revealed result</h2>
+    <div class="lift" style="color:${lift>=0?"var(--pos)":"var(--neg)"}">${sign(lift)}</div>
+    <div class="micro">${esc(rev.za_label||"")} resolved to ZenAgent · ZA ${rev.za_total} / OTS ${rev.ots_total} · judge lifts: Claude ${sign(jl["claude-code"])} / Gemini ${sign(jl["gemini"])} · band [${band[0] ?? "–"}, ${band[1] ?? "–"}] · concurrence ${rev.agreement_overall ?? "–"}</div>
+    <div class="micro">${dissentCount(st)} dissent(s) — see the Dissent &amp; Reconciliation annex in the report.</div>`;
+}
+function dissentCount(st){
+  const cons = (st.digests||{}).consensus || {};
+  return Object.values(cons).reduce((a,c) => a + (c.dissents||0), 0);
+}
+
+async function renderDetail(){
+  let st;
+  try { st = await api("/api/runs/" + encodeURIComponent(selected)); } catch(e){ return; }
+  const d = document.getElementById("detail");
+  const open = st.open_packets || [];
+  let banner = "";
+  if (st.status === "awaiting_packets" && open.length && !open.some(p => p.claimed_by)){
+    const idleMin = (Date.now() - new Date((st.updated_at||st.created_at)+"Z").getTime())/60000;
+    if (idleMin > 2) banner = `<div class="banner wait">Waiting for your runner. Check the daemon on your machine: <span class="blind">systemctl --user status w2-runner</span></div>`;
+  }
+  if (st.status === "error"){
+    banner = String(st.error||"").startsWith("BILLING_TRIPWIRE")
+      ? `<div class="banner err"><b>Halted deliberately:</b> a packet reported a billable API cost. No result was stored. Fix the runner’s credentials (subscription only) and start a new run.</div>`
+      : `<div class="banner err"><b>Error.</b> ${esc(st.error)}<br>Start a new run to retry — artifacts from this run remain downloadable where present.</div>`;
+  }
+  if (st.status === "stopped")
+    banner = `<div class="banner stop">Stopped at D.5 — ${esc(st.stop_reason || "operator stop")}</div>`;
+
+  const pk = open.length ? `
+    <h2 style="margin-top:16px">Open packets</h2>
+    <div class="tblwrap"><table><tr><th>packet</th><th>kind</th><th>lane</th><th>judge</th><th>claimed by</th></tr>
+    ${open.map(p => {
+      const j = (p.packet_id.endsWith(":gemini")) ? "gm" : "cc";
+      return `<tr><td>${esc(p.packet_id)}</td><td>${esc(p.kind)}</td>
+        <td class="blind">${esc(p.label||"")}</td>
+        <td><span class="jbadge ${j}">${j==="cc"?"CC":"GM"}</span></td>
+        <td>${esc(p.claimed_by||"—")}</td></tr>`;}).join("")}
+    </table></div>` : "";
+
+  d.innerHTML = `<h2>Run detail</h2>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="id" style="font:13px var(--mono)">${esc(st.run_id)}</span>
+      <span class="chip">Mode ${esc(st.mode)}</span>${badge(st.status)}
+      <span class="chip">owner ${esc(st.owner||"operator")}</span>
+    </div>
+    ${rail(st.mode, st.stage, st.status)}
+    ${banner}
+    ${judgingPanel(st)}
+    ${pk}
+    ${usageLine(st)}
+    ${checkpointPanel(st)}
+    ${deliverables(st)}
+    ${revealedBlock(st)}`;
+
+  const mt = document.getElementById("meterToggle");
+  if (mt) mt.onclick = () => { meterAsTable = !meterAsTable; renderDetail(); };
+  const ab = document.getElementById("approveBtn");
+  if (ab) ab.onclick = async () => {
+    await api(`/api/runs/${encodeURIComponent(st.run_id)}/approve`,
+      {method:"POST", headers: Object.assign({"Content-Type":"application/json"}, hdrs()),
+       body: JSON.stringify({approve:true})});
+    renderDetail();
+  };
+  const sb = document.getElementById("stopBtn");
+  if (sb) sb.onclick = async () => {
+    const reason = prompt("Reason for stopping at D.5:") || "operator stop at D.5";
+    await api(`/api/runs/${encodeURIComponent(st.run_id)}/approve`,
+      {method:"POST", headers: Object.assign({"Content-Type":"application/json"}, hdrs()),
+       body: JSON.stringify({approve:false, reason})});
+    refresh();
+  };
+}
+
+/* Poll at 4s; back off when the tab is hidden (UI/UX §6). */
+function schedule(){
+  clearInterval(pollT);
+  pollT = setInterval(refresh, document.hidden ? 15000 : 4000);
+}
+document.addEventListener("visibilitychange", schedule);
+schedule();
+refresh();
+</script>
+</body>
+</html>

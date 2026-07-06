@@ -278,5 +278,14 @@ def post_result(run_id: str, pid: str, body: dict):
     return {"status": st["status"], "stage": st.get("stage")}
 
 
+@app.get("/bench")
+def bench_console():
+    """The operator console (UI/UX brief §3). `/` serves the landing page
+    (§8) via the static mount's index.html; both surfaces are token-exempt —
+    the console prompts for the member token on its first API call."""
+    return FileResponse(str(Path(__file__).parent / "static" / "bench.html"),
+                        media_type="text/html")
+
+
 app.mount("/", StaticFiles(directory=str(Path(__file__).parent / "static"),
                            html=True), name="static")

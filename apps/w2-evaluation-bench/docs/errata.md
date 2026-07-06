@@ -86,3 +86,19 @@ before Phase 0 began.
   user-level. v2.0 ships a `systemd --user` unit and the launchd plist that
   07-installation-guide references (new files).
 - V-5. `Dockerfile.runner` default engine `claude-code` → `panel` in v2.0.
+- V-6. `report_build_sdd_review.py` read a `verdict` field the pipeline never
+  set, so every v1.1 Mode B cover showed the default verdict; v2.0 maps the
+  bundle's `build_ready` onto the verdict vocabulary. Likewise the builder's
+  `findings_by_dimension` prose sections were empty on pipeline bundles; v2.0
+  derives them from the structured findings (lens + anchor + provenance).
+
+## Schema extensions (additive; Backend Schema remains authoritative)
+
+- G-1. `state.digests.consensus[label]` carries an additional `per_dim` map
+  ({dim: {cc, gm, con, max, conc, agree, dissent}}). The UI/UX brief §3.4
+  concurrence meter requires per-dimension judge positions and no documented
+  endpoint carries them; the §2 digest shape is extended rather than adding
+  an endpoint. Additive only — all documented fields unchanged.
+- G-2. `usage_totals` gains a `per_judge` split (console usage line shows
+  Claude and Gemini draw separately, §3.4); documented aggregate fields
+  unchanged.
