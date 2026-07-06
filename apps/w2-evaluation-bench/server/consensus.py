@@ -355,20 +355,34 @@ def merge(cards: dict, rulings: dict | None, *, criteria: list, sub_max: dict,
             raw = min(raw, float(floor_cap))
         return _round1(raw)
 
+    def _adjust(raw: float, dim: str) -> float:
+        if dim == "3" and rr_capped_total:
+            raw = max(0.0, raw + float(rr_capped_total))
+        if dim == "4" and floor_cap is not None:
+            raw = min(raw, float(floor_cap))
+        return _round1(raw)
+
     dim_out = {}
     for dim in dims:
         dim_out[dim] = {JUDGE_A: _dim_total(JUDGE_A, dim),
                         JUDGE_B: _dim_total(JUDGE_B, dim),
                         "consensus": _dim_total("consensus", dim)}
-        # Defensive re-assertion (Backend Schema section 6.2.3): consensus must
-        # sit within the judges' post-adjustment envelope, else the merge itself
-        # is wrong — this is a code bug, not a judge disagreement.
-        lo = min(dim_out[dim][JUDGE_A], dim_out[dim][JUDGE_B])
-        hi = max(dim_out[dim][JUDGE_A], dim_out[dim][JUDGE_B])
-        if not (lo - 1e-6 <= dim_out[dim]["consensus"] <= hi + 1e-6):
+        # Defensive re-assertion (Backend Schema section 6.2.3). NOTE the true
+        # by-construction invariant is the PER-SUB envelope sum, not the two
+        # judges' totals: a merge may adopt judge A's higher reading on one
+        # sub-criterion and judge B's higher reading on another, so the
+        # consensus total can legitimately sit above both totals. What CANNOT
+        # happen — because every consensus sub lies within its own pair's
+        # [min, max] and the Dim-3/Dim-4 adjustments are monotonic and applied
+        # identically — is escaping [adjust(Σ min(a,b)), adjust(Σ max(a,b))].
+        lo = _adjust(sum(min(v[JUDGE_A] or 0.0, v[JUDGE_B] or 0.0)
+                         for v in sub_out[dim].values()), dim)
+        hi = _adjust(sum(max(v[JUDGE_A] or 0.0, v[JUDGE_B] or 0.0)
+                         for v in sub_out[dim].values()), dim)
+        if not (lo - 0.05 <= dim_out[dim]["consensus"] <= hi + 0.05):
             raise AssertionError(
-                f"consensus dim {dim} total {dim_out[dim]['consensus']} escaped the judge "
-                f"envelope [{lo}, {hi}] after merge — merge invariant violated")
+                f"consensus dim {dim} total {dim_out[dim]['consensus']} escaped the "
+                f"per-sub envelope sum [{lo}, {hi}] after merge — merge invariant violated")
 
     record = {"lane": lane, "dim_group": dim_group,
               "judges": {JUDGE_A: f"scorecards/{lane}_{dim_group}_{JUDGE_A}.json",

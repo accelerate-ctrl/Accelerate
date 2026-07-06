@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""w2_runner — the operator-side execution agent.
+"""w2_runner — the operator-side execution agent (v2.0 dual-judge).
 
 Runs as a background daemon on operator-controlled compute, polling the W2
 server (local or Cloud Run) for open work packets and executing each act of
@@ -7,23 +7,26 @@ model judgment under YOUR Claude subscription (interactive `claude login` or a
 `claude setup-token` CLAUDE_CODE_OAUTH_TOKEN) — never an Anthropic API key.
 
     python3 w2_runner.py --server https://<cloud-run-url> --token $W2APP_TOKEN
-    python3 w2_runner.py --server ... --engine panel --gemini-passes 4,5
     python3 w2_runner.py --server http://localhost:8787 --engine mock --once
+    python3 w2_runner.py --selfcheck   # G1-G3 + Gemini + server reachability
 
 Engines:
-  claude-code  (default) `claude -p` per packet under the billing guard
-               (refuses API keys, preflights subscription auth, trips on any
-               billable cost, ledgers token usage).
-  panel        Multi-LLM judge: Claude Code executes every packet EXCEPT the
-               scoring passes listed in --gemini-passes (default 4,5), which
-               are judged by Gemini via GEMINI_API_KEY (Google-side billing;
-               zero Claude API spend). Cross-model disagreement surfaces
-               honestly in the five-pass stddev/ICC statistics.
-  mock         Deterministic built-in intelligence for demos/CI.
+  panel        (default) The v2.0 dual-judge panel: packets route by
+               meta.judge — claude-code -> `claude -p` under the billing
+               guard; gemini -> the Gemini API (GEMINI_API_KEY, Google-side
+               billing; zero Claude API spend). Reconciliation, narratives,
+               extraction and evidence packets run on Claude (Judge A).
+               There is NO silent fallback between judges (TR-8): a missing
+               judge refuses at preflight, and mid-run judge failures leave
+               packets open rather than mislabel provenance.
+  claude-code  Single-judge legacy engine for EVAL_PROTOCOL=five-pass
+               regression runs only.
+  mock         Deterministic built-in intelligence for demos/CI (judge-aware,
+               with seeded divergence so the consensus path is exercised).
 
 The default loop runs forever with exponential backoff on server outages —
-install it once (see examples/w2-runner.service) and forget it; --once drains
-the current queue and exits (CI/cron style).
+install it once (see examples/) and forget it; --once drains the current
+queue and exits (CI/cron style).
 """
 from __future__ import annotations
 import argparse
@@ -33,6 +36,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -82,21 +86,73 @@ def run_claude_code(packet: dict, claude_exe: str) -> tuple[dict, dict]:
     return result, billing_guard.usage_from_result(payload)
 
 
+def route_judge(packet: dict, engine: str) -> str:
+    """TR-8 judge routing. Panel: pass/review packets go to meta.judge;
+    reconcile, narrative, exec_narrative, components, features and evidence
+    are Judge A (claude-code). No silent fallback, ever."""
+    if engine != "panel":
+        return "claude-code"
+    meta = packet.get("meta") or {}
+    if packet.get("kind") in ("pass", "review") and meta.get("judge"):
+        return meta["judge"]
+    return "claude-code"
+
+
+def selfcheck(server: str, token: str) -> int:
+    """TR-31: human-readable PASS/FAIL lines; nonzero exit on any failure.
+    Checks the billing guard (G1-G3), the Gemini co-judge credential, and
+    bench reachability with the member token."""
+    ok = True
+
+    def line(name: str, passed: bool, detail: str) -> None:
+        nonlocal ok
+        ok = ok and passed
+        print(f"[selfcheck] {name:.<24} {'PASS' if passed else 'FAIL'}  ({detail})")
+
+    try:
+        billing_guard.preflight()
+        line("billing guard", True, "no API keys in scope; subscription auth OK")
+    except billing_guard.BillingGuardError as e:
+        line("billing guard", False, str(e).splitlines()[0][:120])
+    try:
+        import gemini_judge
+        info = gemini_judge.preflight()
+        tier = info.get("tier", "unverified")
+        line("gemini co-judge", tier != "free",
+             f"{info['gemini_model']} ({tier} tier)"
+             if tier != "free" else "free tier refused (training/commercial terms)")
+    except Exception as e:
+        line("gemini co-judge", False, str(e).splitlines()[0][:120])
+    global _TOKEN
+    _TOKEN = token
+    try:
+        http("GET", f"{server}/api/runs")
+        line("bench reachable", True, f"{server}")
+    except urllib.error.HTTPError as e:
+        line("bench reachable", False,
+             "bad or missing token (401)" if e.code == 401 else f"HTTP {e.code}")
+    except Exception as e:
+        line("bench reachable", False, str(e)[:120])
+    return 0 if ok else 2
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--server", default=os.environ.get("W2_SERVER",
                                                        "http://localhost:8787"))
-    ap.add_argument("--engine", choices=("claude-code", "panel", "mock"),
-                    default="claude-code")
+    ap.add_argument("--engine", choices=("panel", "claude-code", "mock"),
+                    default=os.environ.get("W2_ENGINE", "panel"))
     ap.add_argument("--token", default=os.environ.get("W2APP_TOKEN", ""),
-                    help="shared secret for the server's X-W2-Token auth")
-    ap.add_argument("--gemini-passes", default="4,5",
-                    help="panel mode: scoring pass numbers judged by Gemini")
+                    help="the member's personal bench token (X-W2-Token)")
     ap.add_argument("--once", action="store_true", help="drain current packets then exit")
     ap.add_argument("--poll", type=float, default=3.0)
+    ap.add_argument("--selfcheck", action="store_true",
+                    help="run G1-G3 + Gemini + reachability checks and exit (TR-31)")
     args = ap.parse_args()
     runner_id = f"runner-{uuid.uuid4().hex[:8]}"
-    gemini_passes = {int(x) for x in args.gemini_passes.split(",") if x.strip()}
+
+    if args.selfcheck:
+        return selfcheck(args.server, args.token)
 
     global _TOKEN
     _TOKEN = args.token
@@ -109,10 +165,10 @@ def main() -> int:
         if args.engine == "panel":
             import gemini_judge
             gj = gemini_judge.preflight()
-            print(f"[{runner_id}] panel mode — Gemini co-judge "
-                  f"({gj['gemini_model']}) takes scoring passes "
-                  f"{sorted(gemini_passes)}; Google-side billing, "
-                  "zero Claude API spend.")
+            print(f"[{runner_id}] dual-judge panel — Judge A claude-code "
+                  f"(subscription), Judge B {gj['gemini_model']} (Gemini API, "
+                  "Google-side billing, zero Claude API spend). Packets route "
+                  "by meta.judge; no silent fallback between judges.")
     else:
         import mock_intelligence  # noqa: F401
         print(f"[{runner_id}] MOCK engine — no model calls will be made.")
@@ -121,7 +177,8 @@ def main() -> int:
     backoff = args.poll
     while True:
         try:
-            p = http("GET", f"{args.server}/api/packets/next?runner_id={runner_id}")
+            p = http("GET", f"{args.server}/api/packets/next"
+                            f"?runner_id={runner_id}&engine={args.engine}")
             backoff = args.poll
         except Exception as e:
             print(f"[{runner_id}] server unreachable ({e}); retrying in "
@@ -138,25 +195,39 @@ def main() -> int:
             continue
         idle = 0
         pid, run_id = p["packet_id"], p["run_id"]
-        print(f"[{runner_id}] executing {run_id} :: {pid} ({p['kind']})")
+        judge = route_judge(p, args.engine)
+        print(f"[{runner_id}] executing {run_id} :: {pid} ({p['kind']}"
+              + (f" -> {judge}" if args.engine == "panel" else "") + ")")
         try:
             if args.engine == "mock":
                 import mock_intelligence
-                result, usage = mock_intelligence.execute(p), {"engine": "mock"}
-            elif (args.engine == "panel" and p.get("kind") == "pass"
-                  and int((p.get("meta") or {}).get("pass_n", 0)) in gemini_passes):
+                result = mock_intelligence.execute(p)
+                usage = mock_intelligence.usage_for(p)
+            elif judge == "gemini":
                 import gemini_judge
                 result, usage = gemini_judge.execute(p)
             else:
                 result, usage = run_claude_code(p, claude_exe)
                 usage["judge"] = "claude-code"
-            resp = http("POST", f"{args.server}/api/packets/{run_id}/{urllib.parse.quote(pid, safe='')}/result",
+            resp = http("POST", f"{args.server}/api/packets/{run_id}/"
+                                f"{urllib.parse.quote(pid, safe='')}/result",
                         {"result": result, "usage": usage})
             print(f"[{runner_id}]   -> stored; run status {resp.get('status')} "
                   f"(in {usage.get('input_tokens')}t / out {usage.get('output_tokens')}t)")
         except billing_guard.BillingGuardError as e:
             print(f"[{runner_id}] !! {e}", file=sys.stderr)
             return 2
+        except urllib.error.HTTPError as e:
+            if e.code == 402:
+                # Server-side billing tripwire fired: halt loudly (G4 twin).
+                print(f"[{runner_id}] !! server billing tripwire (402) on {pid}: "
+                      f"{e.read().decode()[:300]}", file=sys.stderr)
+                return 2
+            # 400 = malformed result rejected; the packet stays open and a
+            # fresh attempt happens on the next poll. Log and continue.
+            print(f"[{runner_id}] packet {pid} rejected (HTTP {e.code}): "
+                  f"{e.read().decode()[:300]}", file=sys.stderr)
+            time.sleep(args.poll)
         except Exception as e:
             print(f"[{runner_id}] packet {pid} failed: {e}", file=sys.stderr)
             time.sleep(args.poll)

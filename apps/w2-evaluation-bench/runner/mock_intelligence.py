@@ -206,9 +206,61 @@ def _verdict_for(crit: dict, sdd: str, jitter: int) -> dict:
             "components_absent": absent}
 
 
+DIVERGENCE_PCT = 15   # ~15% of criteria differ by judge in dual-judge mode (T-5)
+
+
+def _dual_ctx(packet: dict) -> tuple[bool, str, str]:
+    """(is_dual, judge, base_pid): dual-judge packets carry meta.judge and a
+    judge-suffixed packet id. base_pid strips the judge so BOTH judges derive
+    the same baseline verdicts — the seeded divergence is then applied as a
+    deterministic perturbation on the gemini side only."""
+    meta = packet.get("meta") or {}
+    judge = meta.get("judge")
+    pid = packet.get("packet_id", "")
+    if judge and pid.endswith(":" + judge):
+        return True, judge, pid.rsplit(":", 1)[0]
+    return False, judge or "claude-code", pid
+
+
+def _perturb_verdict(rec: dict, crit: dict, sdd: str) -> dict:
+    """Deterministic gemini-side disagreement (T-5 seeded divergence): shift
+    the verdict one step and re-anchor, keeping the result schema-correct and
+    R25-survivable (anchors stay verbatim SDD slices)."""
+    out = dict(rec)
+    v = rec.get("verdict")
+    if v == "Present":
+        out["verdict"] = "Partial"
+        if out.get("components_present"):
+            moved = out["components_present"][-1]
+            out["components_present"] = out["components_present"][:-1]
+            out["components_partial"] = list(out.get("components_partial", [])) + [moved]
+    elif v == "Partial":
+        out["verdict"] = "Absent"
+        out["evidence_anchor"] = "topic absent from SDD"
+        out["components_absent"] = sorted(set(
+            list(out.get("components_absent", []))
+            + list(out.get("components_partial", []))))
+        out["components_partial"] = []
+    elif v == "Absent":
+        # Absent -> Partial needs a genuine anchor; if the SDD offers none,
+        # the honest perturbation is no perturbation.
+        kw = re.findall(r"[a-zA-Z]{5,}", crit.get("name", ""))[:6]
+        anchor, ref = _anchor(sdd, kw)
+        if anchor:
+            out["verdict"] = "Partial"
+            out["evidence_anchor"] = anchor
+            out["sdd_ref"] = ref or out.get("sdd_ref") or "SDD body"
+            if out.get("components_absent"):
+                moved = out["components_absent"][-1]
+                out["components_absent"] = out["components_absent"][:-1]
+                out["components_partial"] = list(out.get("components_partial", [])) + [moved]
+    return out
+
+
 def scoring_pass(packet: dict) -> dict:
     meta = packet.get("meta") or {}
-    label, group, n = packet["label"], meta.get("dim_group", "1-3"), int(meta.get("pass_n", 1))
+    label, group, n = packet["label"], meta.get("dim_group", "1-3"), int(meta.get("pass_n", 1) or 1)
+    dual, judge, base_pid = _dual_ctx(packet)
     prompt = packet["prompt"]
     sdd = _section(prompt, f"SDD ({label})") or _section(prompt, "SDD")
     slice_txt = _section(prompt, f"ZMS CALIBRATION SLICE (dims {group})")
@@ -219,9 +271,16 @@ def scoring_pass(packet: dict) -> dict:
     rr = abs(float(meta.get("rr_capped_total") or 0))
 
     verdicts, per_sub_scoreable = {}, {}
-    for c in crits:
-        j = _seed(packet["packet_id"], c["id"]) + n
+    for idx, c in enumerate(crits):
+        # Seed on the JUDGE-NEUTRAL packet id so both judges share a baseline;
+        # divergence is then a deliberate gemini-side perturbation.
+        j = _seed(base_pid, c["id"]) + n
         rec = _verdict_for(c, sdd, j)
+        if dual and judge == "gemini":
+            forced_first = (idx == 0)  # >=1 guaranteed divergence per group
+            seeded = _seed("divergence", base_pid, c["id"]) % 100 < DIVERGENCE_PCT
+            if forced_first or seeded:
+                rec = _perturb_verdict(rec, c, sdd)
         verdicts[c["id"]] = rec
         sub = SUB_BY_PARENT.get(c.get("parent_sub_criterion", ""), None)
         if sub:
@@ -238,21 +297,111 @@ def scoring_pass(packet: dict) -> dict:
                 continue
             cov = per_sub_scoreable.get(sub)
             base = (sum(cov) / len(cov)) if cov else 0.72
-            wob = ((_seed(label, group, sub, n) % 9) - 4) / 100.0
+            wob_seed = (_seed(label, group, sub, judge) if dual
+                        else _seed(label, group, sub, n))
+            wob = ((wob_seed % 9) - 4) / 100.0
             ss[sub] = round(max(0.0, min(1.0, base + wob)) * SUB_MAX[sub], 1)
         raw = round(sum(ss.values()), 1)
-        if d == "3" and rr:
-            net = max(0.0, raw - rr)
-            scale = (net / raw) if raw else 0
-            ss = {k: round(v * scale, 1) for k, v in ss.items()}
-            raw = round(sum(ss.values()), 1)
-        if d == "4" and floor_cap is not None and raw > floor_cap:
-            scale = floor_cap / raw
-            ss = {k: round(v * scale, 1) for k, v in ss.items()}
-            raw = round(sum(ss.values()), 1)
+        if not dual:
+            # five-pass legacy convention: the pass reports NET dim scores.
+            # Dual-judge judges report RAW scores; the engine nets/floors once
+            # post-merge (TR-14) — mirroring the v2.0 pass prompt exactly.
+            if d == "3" and rr:
+                net = max(0.0, raw - rr)
+                scale = (net / raw) if raw else 0
+                ss = {k: round(v * scale, 1) for k, v in ss.items()}
+                raw = round(sum(ss.values()), 1)
+            if d == "4" and floor_cap is not None and raw > floor_cap:
+                scale = floor_cap / raw
+                ss = {k: round(v * scale, 1) for k, v in ss.items()}
+                raw = round(sum(ss.values()), 1)
         sub_scores[d] = ss
         dim_scores[d] = raw
     return {"dim_scores": dim_scores, "sub_scores": sub_scores, "verdicts": verdicts}
+
+
+def reconcile(packet: dict) -> dict:
+    """Reconciliation handler (T-5): evidence-cited rulings over the divergent
+    items. The FIRST divergent criterion (sorted) returns `dissent` — the
+    forced, deterministic >=1 dissent per run the smoke asserts — and every
+    other item is ruled with a verbatim SDD citation that survives R25."""
+    prompt = packet["prompt"]
+    label = packet.get("label", "Output A")
+    sdd = _section(prompt, f"SDD ({label})") or _section(prompt, "SDD")
+
+    def _first_json(text: str) -> dict:
+        """Parse the first balanced JSON object in a section — robust to any
+        trailing prose that shares the section (raw_decode, not loads)."""
+        t = (text or "").strip()
+        if not t.startswith("{"):
+            i = t.find("{")
+            if i < 0:
+                return {}
+            t = t[i:]
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(t)
+            return obj if isinstance(obj, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+    crit_items = _first_json(_section(prompt, "VERDICT ITEMS"))
+    sub_items = _first_json(_section(prompt, "SCORE ITEMS"))
+    order = {"Present": 3, "Partial": 2, "Absent": 1, "NA": 0,
+             "risk": 3, "gap": 2, "strength": 1}
+
+    def _sdd_citation(*cands) -> str:
+        for cand in cands:
+            if isinstance(cand, str) and len(cand) >= 20 and cand in sdd:
+                return cand
+        anchor, _ = _anchor(sdd, ["integration", "apex", "flow", "sharing", "object"])
+        return anchor
+
+    rulings = {}
+    for i, key in enumerate(sorted(crit_items)):
+        pair = crit_items[key] or {}
+        ea = pair.get("claude-code") or {}
+        eb = pair.get("gemini") or {}
+        va, vb = ea.get("verdict", ""), eb.get("verdict", "")
+        if i == 0:
+            rulings[key] = {
+                "ruling": "dissent", "value": None, "citation": None,
+                "rationale": ("Both readings are genuinely supported by the "
+                              "cited passages; no single quote settles the "
+                              "depth question for this criterion.")}
+            continue
+        # adopt the side whose claim is STRONGER when its anchor genuinely
+        # resolves in the SDD; otherwise adopt the other side.
+        stronger_is_a = order.get(va, 0) >= order.get(vb, 0)
+        first, second = ((ea, "adopt_claude"), (eb, "adopt_gemini")) if stronger_is_a \
+            else ((eb, "adopt_gemini"), (ea, "adopt_claude"))
+        pick, ruling = first
+        anchor = pick.get("evidence_anchor", "")
+        if not (isinstance(anchor, str) and len(anchor) >= 20 and anchor in sdd):
+            pick, ruling = second
+        citation = _sdd_citation(pick.get("evidence_anchor", ""),
+                                 ea.get("evidence_anchor", ""),
+                                 eb.get("evidence_anchor", ""))
+        rulings[key] = {
+            "ruling": ruling, "value": None, "citation": citation,
+            "rationale": ("The cited passage substantiates this reading of the "
+                          "depth components against the calibration bar.")}
+    for key in sorted(sub_items):
+        item = sub_items[key] or {}
+        sa, sb = item.get("claude-code"), item.get("gemini")
+        nums = [x for x in (sa, sb) if isinstance(x, (int, float))]
+        if len(nums) == 2:
+            mid = round((nums[0] + nums[1]) / 2.0, 1)
+            rulings[key] = {
+                "ruling": "meet_between", "value": {"score": mid},
+                "citation": _sdd_citation(),
+                "rationale": ("The evidence supports depth between the two "
+                              "readings; the cited passage anchors the midpoint.")}
+        else:
+            ruling = "adopt_claude" if isinstance(sa, (int, float)) else "adopt_gemini"
+            rulings[key] = {
+                "ruling": ruling, "value": None, "citation": _sdd_citation(),
+                "rationale": "Only one judge produced a score for this sub-criterion."}
+    return {"rulings": rulings}
 
 
 def narrative(packet: dict) -> dict:
@@ -330,8 +479,11 @@ def exec_narrative(packet: dict) -> dict:
 
 def review(packet: dict) -> dict:
     prompt = packet["prompt"]
-    group = (packet["packet_id"].split(":")[-1]
-             if ":" in packet.get("packet_id", "") else "1-3")
+    meta = packet.get("meta") or {}
+    dual, judge, base_pid = _dual_ctx(packet)
+    group = meta.get("dim_group") or (
+        packet["packet_id"].split(":")[1]
+        if packet.get("packet_id", "").count(":") >= 1 else "1-3")
     sdd = _section(prompt, "SDD")
     sl = json.loads(_section(prompt, f"ZMS CALIBRATION SLICE (dims {group})") or "{}")
     crits = sl.get("criteria") or sl.get("applicable_criteria") or []
@@ -341,6 +493,14 @@ def review(packet: dict) -> dict:
         fid = f"F-{group.replace('-', '')}{i:02d}"
         verdict = {"Present": "strength", "Partial": "gap", "Absent": "gap"}[
             rec["verdict"]] if rec["verdict"] != "NA" else "gap"
+        if dual and judge == "gemini":
+            # Seeded divergence for Mode B (T-5), applied in the FINDING
+            # verdict space (strength/gap/risk) — a Partial->Absent shift is
+            # invisible there (both map to gap), so perturb the finding
+            # verdict itself: first criterion always (guaranteed >=1
+            # divergent lens per group), ~15% elsewhere.
+            if i == 1 or _seed("divergence", base_pid, c["id"]) % 100 < DIVERGENCE_PCT:
+                verdict = {"strength": "gap", "gap": "risk", "risk": "gap"}[verdict]
         f = {"id": fid, "dimension": c.get("dimension", int(group[0])),
              "zms_lens": c["id"], "verdict": verdict, "is_blocking": False,
              "requires": None, "brd_ref": None, "salesforce_source": None}
@@ -350,7 +510,7 @@ def review(packet: dict) -> dict:
         else:
             f["evidence_anchor"] = rec["evidence_anchor"]
         findings.append(f)
-        if verdict == "gap" and len(recs) < 8:
+        if verdict in ("gap", "risk") and len(recs) < 8:
             recs.append({
                 "id": f"R-{len(recs)+1:02d}", "traces_to_finding": fid,
                 "what_to_change": f"Add the missing depth for {c.get('name', c['id'])} "
@@ -372,8 +532,18 @@ def evidence(packet: dict) -> dict:
 
 HANDLERS = {"components": components, "features": features, "pass": scoring_pass,
             "narrative": narrative, "exec_narrative": exec_narrative,
-            "review": review, "evidence": evidence}
+            "review": review, "evidence": evidence, "reconcile": reconcile}
 
 
 def execute(packet: dict) -> dict:
     return HANDLERS[packet["kind"]](packet)
+
+
+def usage_for(packet: dict) -> dict:
+    """Mock usage ledger entry. Reports the judge the packet was ADDRESSED to,
+    so the server's TR-8 provenance check exercises the same path it guards
+    for real runners. Zero cost, zero tokens — no model was called."""
+    meta = packet.get("meta") or {}
+    return {"engine": "mock", "judge": meta.get("judge") or "claude-code",
+            "model": "mock", "input_tokens": 0, "output_tokens": 0,
+            "total_cost_usd": 0.0}

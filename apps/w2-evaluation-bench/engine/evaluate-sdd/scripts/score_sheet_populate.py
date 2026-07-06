@@ -970,7 +970,20 @@ def validate_bundle_v47(bundle: dict, blinding_label: str, source_index: dict = 
             errors.append(f"R3: judge_runs_by_dimension[consensus][{k}] = {cons_run} "
                           f"disagrees with per_dim_mean[{k}] = {got}")
 
-    # ---- R4: per-judge totals present, numeric, and enveloping the consensus
+    # ---- R4: per-judge totals — present, numeric, each judge's dim total
+    # recomputes from ITS OWN sub-scores (with the same Dim-3/Dim-4
+    # adjustments), and the consensus sits inside the per-sub envelope sum
+    # (the true by-construction bound: adopting different judges' higher
+    # readings on different sub-criteria may exceed either judge's TOTAL,
+    # but never the sum of per-sub maxima of the pair).
+    def _r4_adjust(raw, k):
+        if k == "3":
+            return round(max(0.0, raw + capped_rr + trust_total), 1)
+        if k == "4":
+            cap = sub4.get("floor_cap")
+            return round(min(raw, cap) if cap is not None else raw, 1)
+        return round(raw, 1)
+
     for k in ("1", "2", "3", "4", "5", "6", "7"):
         ja = (judge_runs.get(_JUDGE_A47) or {}).get(k)
         jb = (judge_runs.get(_JUDGE_B47) or {}).get(k)
@@ -978,13 +991,30 @@ def validate_bundle_v47(bundle: dict, blinding_label: str, source_index: dict = 
             if not isinstance(v, (int, float)):
                 errors.append(f"R4: judge_runs_by_dimension[{judge}][{k}] missing or "
                               f"non-numeric: {v!r}")
+        sc = bundle.get("dim_%s_sub_criteria" % k) or {}
+        pairs = []
+        for _sid, _key in SUBCRIT[k]:
+            e = sc.get(_key)
+            if isinstance(e, dict) and isinstance(e.get(_JUDGE_A47), (int, float)) \
+                    and isinstance(e.get(_JUDGE_B47), (int, float)):
+                pairs.append((float(e[_JUDGE_A47]), float(e[_JUDGE_B47])))
+        if not pairs:
+            continue  # R8c reports the structural gap
+        for judge, total, idx in ((_JUDGE_A47, ja, 0), (_JUDGE_B47, jb, 1)):
+            if isinstance(total, (int, float)):
+                expected = _r4_adjust(sum(p[idx] for p in pairs), k)
+                if abs(float(total) - expected) > 0.05:
+                    errors.append(
+                        f"R4: judge_runs_by_dimension[{judge}][{k}] = {total}, expected "
+                        f"{expected} (Σ that judge's sub-scores, adjusted)")
         cons = (judge_runs.get("consensus") or {}).get(k)
-        if all(isinstance(x, (int, float)) for x in (ja, jb, cons)):
-            lo, hi = min(ja, jb), max(ja, jb)
+        if isinstance(cons, (int, float)):
+            lo = _r4_adjust(sum(min(p) for p in pairs), k)
+            hi = _r4_adjust(sum(max(p) for p in pairs), k)
             if not (lo - 0.05 <= cons <= hi + 0.05):
-                errors.append(f"R4: consensus dim {k} total {cons} outside the judges' "
-                              f"envelope [{lo}, {hi}] — a consensus value must trace to "
-                              f"an agreed value, a ruling, or a conservative resolution")
+                errors.append(f"R4: consensus dim {k} total {cons} outside the per-sub "
+                              f"envelope sum [{lo}, {hi}] — a consensus value must trace "
+                              f"to an agreed value, a ruling, or a conservative resolution")
 
     # ---- R5: agreement fields consistent with judge values
     for k in ("1", "2", "3", "4", "5", "6", "7"):

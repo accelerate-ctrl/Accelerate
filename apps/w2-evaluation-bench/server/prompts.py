@@ -117,6 +117,112 @@ Use the exact sub_criterion keys from the scoring reference.{JSON_ONLY}
 """
 
 
+def pass_prompt_dual(*, run_id: str, label: str, dim_group: str,
+                     sdd_path: Path, slice_path: Path, playbook_path: Path,
+                     core_ref: Path, dims_ref: Path, plan: dict,
+                     mapping_digest: dict, release_digest: dict) -> str:
+    """v2.0 dual-judge scoring prompt. BYTE-IDENTICAL for both judges of a
+    (lane, dim-group): the judge is selected by packet meta only, never named
+    in the prompt (judge independence, PRD G2). Differences from the five-pass
+    prompt: no pass numbering, and the judge reports RAW sub-scores — the
+    engine applies Dim-3 deductions and the Dim-4 floor once, after the merge,
+    identically for both judges and the consensus (TR-14)."""
+    dims = [d.strip() for d in dim_group.split("-")]
+    return f"""You are ONE INDEPENDENT JUDGE on a two-judge blinded panel of the Zennify W2
+Section D evaluator, scoring lane "{label}" on dimensions {dims[0]}-{dims[1]}
+against the frozen ZMS calibration. You have NO knowledge of the other judge
+and NO knowledge of which methodology produced this SDD. Never use the tokens
+ZenAgent/ZennAgent/ZA/off-the-shelf/OTS anywhere in your output.
+
+Follow the scoring discipline and the SA reasoning playbook below. Truth-source
+firewall: the operator BRD owns requirements; ZMS is the calibration bar only -
+never write "ZMS requires/states/specifies/mandates". Score substance, not
+length or polish. Reset between criteria.
+
+READING PLAN (score criteria in exactly this order; adopt the framing):
+{json.dumps(plan, indent=1)}
+
+For EVERY criterion in the calibration slice: code it Present/Partial/Absent/NA
+against its depth_indicator_components, with a VERBATIM <=25-word evidence
+anchor copied exactly from the SDD (or "topic absent from SDD" for Absent), the
+SDD section ref, and the component names present/partial/absent. Then derive
+each sub-criterion score (0..max, one decimal allowed) and each dimension score
+as the plain sum of its sub-criterion scores.
+Content-mapping context (informational): {json.dumps(mapping_digest)}
+Release-currency context (informational): {json.dumps(release_digest)}
+IMPORTANT: report RAW scores. Do NOT subtract release-currency deductions and
+do NOT apply the Dimension-4 floor cap yourself - the deterministic engine
+applies both once, downstream, identically for both judges.
+
+Return:
+{{"dim_scores": {{"{dims[0]}": 0.0, ...}},
+ "sub_scores": {{"<dim>": {{"<sub_key>": 0.0}}}},
+ "verdicts": {{"<zms_criterion_id>": {{"verdict": "Present|Partial|Absent|NA",
+   "evidence_anchor": "<verbatim from SDD>", "sdd_ref": "...",
+   "components_present": [], "components_partial": [], "components_absent": []}}}}}}
+Use the exact sub_criterion keys from the scoring reference.{JSON_ONLY}
+
+=== SCORING DISCIPLINE (section-d-core) ===
+{_read(core_ref)}
+=== DIMENSION REFERENCE ===
+{_read(dims_ref)}
+=== SA REASONING PLAYBOOK ===
+{_read(playbook_path)}
+=== ZMS CALIBRATION SLICE (dims {dim_group}) ===
+{_read(slice_path)}
+=== SDD ({label}) ===
+{_read(sdd_path)}
+"""
+
+
+def reconcile_prompt(*, label: str, dim_group: str, crit_items: dict,
+                     sub_items: dict, sdd_path: Path) -> str:
+    """The reconciliation packet (PRD D3/FR-4): executed by Judge A, still
+    blinded, over ONLY the divergent items. Both judges' entries are embedded
+    verbatim; every ruling must point at what the SDD actually says."""
+    judges_note = ("Judge entries are labelled by engine id (claude-code / "
+                   "gemini) purely as identifiers of the two independent "
+                   "readings; treat them symmetrically on the evidence.")
+    return f"""You are the RECONCILIATION judge of the Zennify W2 dual-judge panel for lane
+"{label}", dimensions {dim_group}. Two independent judges scored this SDD from
+identical blinded packets; the items below are their ONLY divergences. You are
+still blinded: you have NO knowledge of which methodology produced this SDD.
+Never use the tokens ZenAgent/ZennAgent/ZA/off-the-shelf/OTS anywhere.
+
+Rule on EVERY item by pointing at what the SDD below actually says:
+- "adopt_claude" or "adopt_gemini": that judge's reading is the one the SDD
+  supports. Cite the deciding passage.
+- "meet_between": both readings capture part of the truth. For a verdict item
+  this is only possible between Present and Absent (the middle is Partial);
+  for a score item the value MUST lie between the two judges' scores. State
+  the cause and cite the passage.
+- "dissent": the SDD genuinely supports both readings and no citation can
+  settle it. Say why in the rationale. The engine will resolve conservatively
+  (weaker verdict / lower score) and PRESERVE your dissent verbatim in the
+  report annex - a dissent is signal, never failure.
+{judges_note}
+Citations must be VERBATIM <=25-word substrings of the SDD. Rationales are 1-2
+sentences, blinded. Never invent content; if a field is unknowable, use null.
+
+Return:
+{{"rulings": {{"<item_key>": {{
+   "ruling": "adopt_claude|adopt_gemini|meet_between|dissent",
+   "value": {{"verdict": "...", "evidence_anchor": "...", "sdd_ref": "..."}} | {{"score": 0.0}} | null,
+   "citation": "<verbatim SDD substring, <=25 words>" | null,
+   "rationale": "<1-2 sentences>"}}}}}}
+"value" is REQUIRED for meet_between (the middle verdict, or the score);
+optional for adopt_* (the adopted judge's entry is used verbatim); null for
+dissent. "citation" is REQUIRED unless the ruling is dissent.{JSON_ONLY}
+
+=== VERDICT ITEMS (key = zms_criterion_id) ===
+{_json_fit(crit_items, 24000)}
+=== SCORE ITEMS (key = sub:<dim>:<sub_key>; "max" is the sub-criterion maximum) ===
+{_json_fit(sub_items, 12000)}
+=== SDD ({label}) ===
+{_read(sdd_path)}
+"""
+
+
 def narrative_prompt(*, label: str, aggregate: dict, coding_digest: dict,
                      brd_path: Path) -> str:
     return f"""You are writing the per-dimension narrative layer for lane "{label}" of a

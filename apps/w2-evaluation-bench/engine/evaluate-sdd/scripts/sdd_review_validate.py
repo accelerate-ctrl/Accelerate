@@ -143,6 +143,52 @@ def validate_review(bundle: dict, source_index: dict = None,
                 (errors if not legacy else warnings).append(
                     f"{rid}: recommendation missing required field '{req}'.")
 
+    # ---- v4.7 dual-judge review deltas (Backend Schema §11; ADDITIVE —
+    # legacy single-judge bundles carry none of these fields and skip) ----
+    PROVENANCE = {"agreed", "adopt_claude", "adopt_gemini", "meet_between", "dissent"}
+    dissent_lenses = set()
+    for i, f in enumerate(findings or []):
+        prov = f.get("judge_provenance")
+        if prov is None:
+            continue
+        fid = f.get("id", f"finding[{i}]")
+        if prov not in PROVENANCE:
+            errors.append(f"{fid}: judge_provenance '{prov}' not in {sorted(PROVENANCE)}")
+        if prov == "dissent":
+            dissent_lenses.add(f.get("zms_lens"))
+            if not f.get("contested"):
+                errors.append(f"{fid}: judge_provenance=dissent but contested flag "
+                              "missing — dissent-derived findings must be marked "
+                              "contested for the report")
+            if not f.get("judge_entries"):
+                errors.append(f"{fid}: judge_provenance=dissent but judge_entries "
+                              "missing — both judges' findings must be preserved")
+        elif prov != "agreed" and not f.get("judge_entries"):
+            errors.append(f"{fid}: judge_provenance={prov} but judge_entries "
+                          "missing — non-agreed findings must retain both sides")
+    dissents = bundle.get("dissents")
+    if dissents is not None:
+        if not isinstance(dissents, list):
+            errors.append("dissents must be a list (Backend Schema §11)")
+        else:
+            recorded = {d.get("zms_lens") for d in dissents if isinstance(d, dict)}
+            missing_d = dissent_lenses - recorded
+            if missing_d:
+                errors.append(f"{len(missing_d)} dissent finding(s) missing from the "
+                              f"top-level dissents list "
+                              f"(sample: {sorted(str(x) for x in missing_d)[:3]})")
+            for i, d in enumerate(dissents):
+                if isinstance(d, dict) and not d.get("why_unresolved"):
+                    errors.append(f"dissents[{i}]: missing why_unresolved — every "
+                                  "preserved dissent must say why it could not be "
+                                  "reconciled")
+    contested_fids = {f.get("id") for f in (findings or []) if f.get("contested")}
+    for i, r in enumerate(recs or []):
+        if r.get("contested") and contested_fids and \
+                r.get("traces_to_finding") not in contested_fids:
+            errors.append(f"{r.get('id', f'rec[{i}]')}: contested=true but traces to a "
+                          "non-contested finding")
+
     # ---- build-readiness coherence ----
     br = bundle.get("build_ready")
     if br == "build_ready" and blocking_unresolved:

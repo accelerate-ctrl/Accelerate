@@ -31,6 +31,37 @@ class GeminiJudgeError(RuntimeError):
     pass
 
 
+# Free-tier markers in Google error payloads (quota ids / messages). The API
+# exposes no clean "tier" field, so detection is BEST-EFFORT and the policy is
+# FAIL-CLOSED (PRD D8, TRD TR-10, errata Q3): a positively-detected free-tier
+# key is refused; an unverifiable key is refused UNLESS the operator declares
+# the tier (W2_GEMINI_TIER=paid — the installer writes this for the verified
+# org key) or sets the pilot override W2_ALLOW_GEMINI_FREE_TIER=1.
+_FREE_TIER_MARKERS = ("freetier", "free_tier", "free tier",
+                      "generaterequestsperminuteperprojectpermodel-freetier")
+
+
+def _probe_tier(key: str, model: str) -> str:
+    """'free' on a positive free-tier signal, else 'unverified'. One
+    ~1-output-token probe call; quota errors carry the clearest tier signal."""
+    body = {"contents": [{"parts": [{"text": "OK"}]}],
+            "generationConfig": {"maxOutputTokens": 1}}
+    req = urllib.request.Request(
+        ENDPOINT.format(model=model, key=key),
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            payload = r.read().decode()
+    except Exception as e:
+        payload = (getattr(e, "read", lambda: b"")().decode(errors="replace")
+                   if hasattr(e, "read") else str(e))
+    low = payload.lower()
+    if any(m in low for m in _FREE_TIER_MARKERS):
+        return "free"
+    return "unverified"
+
+
 def preflight() -> dict:
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
@@ -38,7 +69,28 @@ def preflight() -> dict:
             "GEMINI_API_KEY is not set. Create a key in Google AI Studio "
             "(paid tier for client/commercial material — free-tier prompts may "
             "be used for training) and export it for panel mode.")
-    return {"gemini_model": DEFAULT_MODEL}
+    declared = os.environ.get("W2_GEMINI_TIER", "").strip().lower()
+    allow_free = os.environ.get("W2_ALLOW_GEMINI_FREE_TIER") == "1"
+    if declared == "paid":
+        return {"gemini_model": DEFAULT_MODEL, "tier": "paid (declared)"}
+    tier = _probe_tier(key, DEFAULT_MODEL)
+    if tier == "free" and not allow_free:
+        raise GeminiJudgeError(
+            "GEMINI_API_KEY appears to be a FREE-TIER key (quota metadata "
+            "matched the free tier). Free-tier prompts may be used for "
+            "training and commercial use is excluded — client SDDs must not "
+            "run on it. Use the org's paid-tier key (set W2_GEMINI_TIER=paid "
+            "once verified), or for non-client pilots only set "
+            "W2_ALLOW_GEMINI_FREE_TIER=1.")
+    if tier == "unverified" and not allow_free:
+        raise GeminiJudgeError(
+            "Could not verify the GEMINI_API_KEY's billing tier. This bench "
+            "fails closed on tier uncertainty (client material must never run "
+            "on a training-eligible free key): set W2_GEMINI_TIER=paid after "
+            "confirming the key is billed (the installer writes this for the "
+            "org key), or for non-client pilots set W2_ALLOW_GEMINI_FREE_TIER=1.")
+    return {"gemini_model": DEFAULT_MODEL,
+            "tier": "free (allowed by override)" if tier == "free" else tier}
 
 
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)

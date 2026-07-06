@@ -13,13 +13,20 @@ import subprocess
 import traceback
 from pathlib import Path
 
-from .config import SCRIPTS, ZMS_ROOT, PYTHON, ESCROW_NAME
+from .config import SCRIPTS, ZMS_ROOT, PYTHON, ESCROW_NAME, EVAL_PROTOCOL
 from . import prompts, packets, bundle_assemble
+from . import consensus as consensus_mod
 from .storage import run_dir, load_state, save_state
 
 import contracts
-import pass_accumulate
+import pass_accumulate      # five-pass legacy path (frozen; EVAL_PROTOCOL=five-pass)
+import judge_accumulate
 import source_index_build
+
+DUAL = (EVAL_PROTOCOL == "dual-judge")
+GROUP_DIMS = {"1-3": ("1", "2", "3"), "4-7": ("4", "5", "6", "7")}
+SUB_MAX_BY_KEY = {k: float(mx) for subs in bundle_assemble.SUBS.values()
+                  for k, mx in subs}
 
 
 # ------------------------------------------------------------------ helpers
@@ -177,6 +184,171 @@ def _release_digest(rd: Path, label: str) -> dict:
 
 
 def stage_scoring_packets(rd: Path, st: dict) -> bool:
+    """Scoring packets, protocol-dispatched: dual-judge (v2.0 product) or the
+    frozen five-pass legacy path (EVAL_PROTOCOL=five-pass)."""
+    if DUAL:
+        return stage_scoring_packets_dual(rd, st)
+    return stage_scoring_packets_fivepass(rd, st)
+
+
+def _integration_heavy(st: dict) -> bool:
+    return bool((st.get("digests", {}).get("intake") or {}).get("run_integration_heavy"))
+
+
+def _group_ctx(rd: Path, st: dict, group: str) -> dict:
+    """Per (dim-group) consensus context: the calibration slice's criteria,
+    the sub maxima, the group dims, and integration-aware dim maxima."""
+    criteria = _j(rd / f"zms-calibration-dims-{group}.json")["applicable_criteria"]
+    dims = list(GROUP_DIMS[group])
+    ih = _integration_heavy(st)
+    return {"criteria": criteria, "dims": dims,
+            "sub_max": dict(SUB_MAX_BY_KEY),
+            "dim_max": {d: contracts.dim_max(int(d), ih) for d in dims}}
+
+
+def _lane_rr_floor(rd: Path, st: dict, label: str) -> tuple[float, object]:
+    """The lane's capped RR total and Dim-4 floor cap — the same values the
+    v1.1 path carried in pass-packet meta; under dual-judge they are applied
+    once, post-merge, by the consensus engine (TR-14)."""
+    lane = "A" if label.endswith("A") else "B"
+    mapping = st["digests"]["mapping"][label]
+    rap = rd / f"release-awareness-{lane}.json"
+    rr = (_j(rap).get("summary", {}).get("rr_deductions_capped_total", 0)
+          if rap.exists() else 0)
+    return float(rr or 0), mapping.get("dim_4_floor_cap")
+
+
+def stage_scoring_packets_dual(rd: Path, st: dict) -> bool:
+    """8 pass packets (2 lanes x 2 dim-groups x 2 judges). The two packets of
+    a (lane, group) are BYTE-IDENTICAL in prompt — the judge lives only in
+    packet meta (PRD FR-3). True when all results are in."""
+    import pass_plan as pp
+    need = False
+    for label in _labels(st):
+        lane = "A" if label.endswith("A") else "B"
+        mapping = st["digests"]["mapping"][label]
+        rel = _release_digest(rd, label)
+        rr, floor_cap = _lane_rr_floor(rd, st, label)
+        for group in ("1-3", "4-7"):
+            slice_ids = [c["id"] for c in
+                         _j(rd / f"zms-calibration-dims-{group}.json")["applicable_criteria"]]
+            plans = pp.pass_plan(st["run_id"] + f":{lane}:{group}", slice_ids)
+            plan = plans[0] if isinstance(plans, list) and plans else {}
+            prompt = None
+            for judge in contracts.JUDGES:
+                pid = f"pass:{label}:{group}:{judge}"
+                if packets.result_path(rd, pid).exists():
+                    continue
+                need = True
+                if not packets.exists(rd, pid):
+                    if prompt is None:  # built once -> byte-identical across judges
+                        prompt = prompts.pass_prompt_dual(
+                            run_id=st["run_id"], label=label, dim_group=group,
+                            sdd_path=_lane_sdd(st, label),
+                            slice_path=rd / f"zms-calibration-dims-{group}.json",
+                            playbook_path=Path(_j(rd / "zms-calibration-content.json")
+                                               ["sa_reasoning_playbook_path"]),
+                            core_ref=SCRIPTS.parent / "references" / "section-d-core.md",
+                            dims_ref=SCRIPTS.parent / "references" / f"section-d-dims-{group}.md",
+                            plan=plan, mapping_digest=mapping, release_digest=rel)
+                    packets.create(rd, pid, kind="pass", label=label, prompt=prompt,
+                                   meta={"lane": lane, "dim_group": group,
+                                         "judge": judge, "floor_cap": floor_cap,
+                                         "rr_capped_total": rr})
+    return not need
+
+
+def batch_consensus(rd: Path, st: dict) -> bool:
+    """S3.5 (Application Flow §4): persist both scorecards verbatim, diff,
+    reconcile divergences via ONE blinded Judge-A packet per (lane, group),
+    merge deterministically, write consensus/<lane>_<group>.json. True when
+    every group's consensus record exists."""
+    done = True
+    for label in _labels(st):
+        lane = "A" if label.endswith("A") else "B"
+        rr, floor_cap = _lane_rr_floor(rd, st, label)
+        for group in ("1-3", "4-7"):
+            cpath = judge_accumulate.consensus_path(rd, lane, group)
+            if cpath.exists():
+                continue
+            # 1. persist scorecards VERBATIM before any diff (Backend §5)
+            cards = {}
+            for judge in contracts.JUDGES:
+                res = packets.result(rd, f"pass:{label}:{group}:{judge}")
+                judge_accumulate.persist_scorecard(rd, lane, group, judge, res)
+            cards = judge_accumulate.load_scorecards(rd, lane, group)
+            ctx = _group_ctx(rd, st, group)
+            d = consensus_mod.diff(cards, ctx["criteria"], ctx["sub_max"],
+                                   ctx["dims"], ctx["dim_max"])
+            divergent = bool(d["criteria"] or d["subs"])
+            rulings = None
+            rpid = f"reconcile:{label}:{group}"
+            if divergent:
+                if not packets.result_path(rd, rpid).exists():
+                    if not packets.exists(rd, rpid):
+                        sub_items = {ik: {contracts.JUDGES[0]: v[contracts.JUDGES[0]],
+                                          contracts.JUDGES[1]: v[contracts.JUDGES[1]],
+                                          "max": v.get("_max")}
+                                     for ik, v in d["subs"].items()}
+                        packets.create(
+                            rd, rpid, kind="reconcile", label=label,
+                            prompt=prompts.reconcile_prompt(
+                                label=label, dim_group=group,
+                                crit_items=d["criteria"], sub_items=sub_items,
+                                sdd_path=_lane_sdd(st, label)),
+                            meta={"lane": lane, "dim_group": group,
+                                  "judge": contracts.JUDGES[0]})
+                    done = False
+                    continue
+                rulings = packets.result(rd, rpid).get("rulings") or {}
+            try:
+                rec = consensus_mod.merge(
+                    cards, rulings, criteria=ctx["criteria"],
+                    sub_max=ctx["sub_max"], dims=ctx["dims"],
+                    dim_max=ctx["dim_max"], lane=lane, dim_group=group,
+                    rr_capped_total=rr, floor_cap=floor_cap)
+            except ValueError as e:
+                # Semantically invalid rulings (unknown ruling, out-of-bounds
+                # meet_between, missing item): reopen the reconcile packet for
+                # a fresh judged attempt; after 3 invalid attempts, halt loudly.
+                key = f"{lane}:{group}"
+                retries = st.setdefault("reconcile_retries", {})
+                n = int(retries.get(key, 0)) + 1
+                retries[key] = n
+                if n >= 3:
+                    raise RuntimeError(
+                        f"reconcile for {label} dims {group} produced invalid "
+                        f"rulings {n} times; last error: {e}")
+                packets.result_path(rd, rpid).unlink(missing_ok=True)
+                done = False
+                continue
+            cpath.parent.mkdir(parents=True, exist_ok=True)
+            cpath.write_text(consensus_mod.to_json(rec))
+    return done
+
+
+def batch_judge_aggregate(rd: Path, st: dict) -> None:
+    """Collapse each lane's two consensus records into the bundle-facing
+    aggregate + lane-level agreement stats (TR-21: merged, never recomputed)."""
+    for label in _labels(st):
+        lane = "A" if label.endswith("A") else "B"
+        agg_path = rd / f"lane-{lane}-judge-aggregate.json"
+        if agg_path.exists():
+            continue
+        agg = judge_accumulate.aggregate(lane, rd, _integration_heavy(st))
+        agg["agreement_stats"] = consensus_mod.merge_lane_stats(agg["group_stats"])
+        agg_path.write_text(json.dumps(agg, indent=2, sort_keys=True))
+        s = agg["agreement_stats"]
+        st["digests"].setdefault("consensus", {})[label] = {
+            "verdict_agreement_rate": s.get("verdict_agreement_rate"),
+            "score_concordance": s.get("score_concordance"),
+            "agreement_overall": s.get("agreement_overall"),
+            "divergences": s.get("divergence_count"),
+            "dissents": s.get("dissent_count"),
+            "reliability": s.get("reliability_label")}
+
+
+def stage_scoring_packets_fivepass(rd: Path, st: dict) -> bool:
     """20 pass packets (A/B x 1-3/4-7 x 5) + 2 narrative packets. Mode A only."""
     import pass_plan as pp
     need = False
@@ -266,30 +438,73 @@ def stage_narrative_packets(rd: Path, st: dict) -> bool:
             continue
         need = True
         if not packets.exists(rd, pid):
-            agg = _j(rd / f"lane-{lane}-pass-aggregate.json")
             # Per-dimension digest: up to 3 criteria per dim so every dimension is
             # represented regardless of prompt-size trimming (the narrative needs
             # breadth across dims, not exhaustiveness — the bundle carries that).
             by_dim: dict[str, dict] = {str(d): {} for d in range(1, 8)}
-            for group in ("1-3", "4-7"):
-                res = packets.result(rd, f"pass:{label}:{group}:1")
-                for cid, rec in (res.get("verdicts") or {}).items():
+            if DUAL:
+                # v4.7: the digest comes from the CONSENSUS records — the
+                # narrative must cite anchors that actually entered the
+                # consensus, or R12/R13/R25 validate against ghosts (C-4).
+                agg = _j(rd / f"lane-{lane}-judge-aggregate.json")
+                for cid, rec in (agg.get("consensus_verdicts") or {}).items():
                     dim = cid[0]
-                    if len(by_dim.get(dim, {})) >= 3:
+                    if not rec or len(by_dim.get(dim, {})) >= 3:
                         continue
                     by_dim.setdefault(dim, {})[cid] = {
-                        "verdict": agg.get("modal_verdicts", {}).get(cid, rec.get("verdict")),
+                        "verdict": rec.get("verdict"),
                         "evidence_anchor": (rec.get("evidence_anchor") or "")[:140],
-                        "sdd_ref": rec.get("sdd_ref")}
+                        "sdd_ref": rec.get("sdd_ref"),
+                        "provenance": (agg.get("consensus_provenance") or {}).get(cid)}
+                aggregate_digest = {
+                    "per_dim_mean": agg["per_dim_mean"],
+                    "per_dim_agreement": agg["per_dim_agreement"],
+                    "agreement_stats": {k: agg["agreement_stats"].get(k) for k in
+                                        ("verdict_agreement_rate", "score_concordance",
+                                         "agreement_overall", "dissent_count",
+                                         "reliability_label")}}
+            else:
+                agg = _j(rd / f"lane-{lane}-pass-aggregate.json")
+                for group in ("1-3", "4-7"):
+                    res = packets.result(rd, f"pass:{label}:{group}:1")
+                    for cid, rec in (res.get("verdicts") or {}).items():
+                        dim = cid[0]
+                        if len(by_dim.get(dim, {})) >= 3:
+                            continue
+                        by_dim.setdefault(dim, {})[cid] = {
+                            "verdict": agg.get("modal_verdicts", {}).get(cid, rec.get("verdict")),
+                            "evidence_anchor": (rec.get("evidence_anchor") or "")[:140],
+                            "sdd_ref": rec.get("sdd_ref")}
+                aggregate_digest = {k: agg[k] for k in ("per_dim_mean", "per_dim_stddev",
+                                                        "per_dim_variance_flag")}
             coding_digest = {cid: rec for dim in sorted(by_dim) for cid, rec in by_dim[dim].items()}
             prompt = prompts.narrative_prompt(
                 label=label,
-                aggregate={k: agg[k] for k in ("per_dim_mean", "per_dim_stddev",
-                                               "per_dim_variance_flag")},
+                aggregate=aggregate_digest,
                 coding_digest=coding_digest,
                 brd_path=rd / "inputs" / st["files"]["brd"])
             packets.create(rd, pid, kind="narrative", label=label, prompt=prompt)
     return not need
+
+
+def _judge_models_from_packets(rd: Path, label: str) -> dict:
+    """Judge model ids for header.judge_models, read from the pass packets'
+    usage ledger entries (the runner reports the model per call)."""
+    out = {}
+    for judge in contracts.JUDGES:
+        for group in ("1-3", "4-7"):
+            p = packets.result_path(rd, f"pass:{label}:{group}:{judge}")
+            if not p.exists():
+                continue
+            u = (_j(p).get("usage") or {})
+            m = u.get("model")
+            if isinstance(m, list):
+                m = m[0] if m else None
+            if m:
+                out[judge] = m
+                break
+        out.setdefault(judge, judge)
+    return out
 
 
 def batch_assemble_bundles(rd: Path, st: dict) -> None:
@@ -301,25 +516,37 @@ def batch_assemble_bundles(rd: Path, st: dict) -> None:
         bpath = rd / f"output-{suffix}-scoring-bundle.json"
         if bpath.exists():
             continue
-        agg = _j(rd / f"lane-{lane}-pass-aggregate.json")
-        pass_results = [packets.result(rd, f"pass:{label}:{g}:{n}")
-                        for g in ("1-3", "4-7") for n in range(1, 6)]
         release = {}
         rp = rd / f"release-awareness-{lane}.json"
         if rp.exists():
             release = _j(rp)
         mapping = _j(rd / f"section-c-output-{suffix}.json")
-        bundle = bundle_assemble.assemble(
-            run_id=st["run_id"], label=label, aggregate=agg,
-            pass_results=pass_results, narrative=packets.result(rd, f"narrative:{label}"),
-            calibration=calibration, mapping=mapping, release=release,
-            run_record=run_record)
+        if DUAL:
+            agg = _j(rd / f"lane-{lane}-judge-aggregate.json")
+            bundle = bundle_assemble.assemble_v47(
+                run_id=st["run_id"], label=label, aggregate=agg,
+                agreement_stats=agg["agreement_stats"],
+                narrative=packets.result(rd, f"narrative:{label}"),
+                calibration=calibration, mapping=mapping, release=release,
+                run_record=run_record,
+                judge_models=_judge_models_from_packets(rd, label))
+        else:
+            agg = _j(rd / f"lane-{lane}-pass-aggregate.json")
+            pass_results = [packets.result(rd, f"pass:{label}:{g}:{n}")
+                            for g in ("1-3", "4-7") for n in range(1, 6)]
+            bundle = bundle_assemble.assemble(
+                run_id=st["run_id"], label=label, aggregate=agg,
+                pass_results=pass_results, narrative=packets.result(rd, f"narrative:{label}"),
+                calibration=calibration, mapping=mapping, release=release,
+                run_record=run_record)
         bundle_assemble.write_bundle(bpath, bundle)
-    st["stage"] = "S3"
+    st["stage"] = "S3.5" if DUAL else "S3"
 
 
 def build_checkpoint(rd: Path, st: dict) -> dict:
-    """The blinded D.5 panel (procedures section D.5)."""
+    """The blinded D.5 panel (procedures section D.5). v4.7 (Backend §8): the
+    five-pass variance flags and pass-timing flags are replaced by the
+    dual-judge signals — agreement rate, dissent count, dissent-touched dims."""
     zs = _j(rd / "zms-calibration-summary.json")
     panel = {"zms": {k: zs.get(k) for k in ("zms_version", "zms_frozen_at",
                                             "applicable_criteria_count", "criteria_by_source")},
@@ -331,18 +558,37 @@ def build_checkpoint(rd: Path, st: dict) -> dict:
         rp = rd / f"release-awareness-{lane}.json"
         if rp.exists():
             rel = _j(rp).get("summary", {})
-        panel["lanes"][label] = {
+        entry = {
             "total": round(sum(b["per_dim_mean"].values()), 1),
             "per_dim_mean": b["per_dim_mean"],
-            "variance_flags": [d for d, f in b["per_dim_variance_flag"].items() if f],
             "trust_deductions": sum(1 for x in b["deductions"] if x["id"].startswith("TRUST")),
             "rr_deductions": sum(1 for x in b["deductions"] if x["id"].startswith("RR")),
             "mapping": st["digests"]["mapping"][label],
             "release_summary": {k: rel.get(k) for k in ("findings_total", "by_status",
                                                         "rr_deductions_capped_total")},
-            "pass_timing_flags": st["digests"].get("aggregate", {}).get(label, {})
-                                  .get("pass_timing_flags", []),
         }
+        if DUAL:
+            cons = st["digests"].get("consensus", {}).get(label, {})
+            dissent_dims = sorted({(d.get("criterion_id") or
+                                    (d.get("sub_key") or "sub::").split(":")[1] or "?")[0]
+                                   if d.get("criterion_id") else
+                                   (d.get("sub_key") or "sub:?:").split(":")[1]
+                                   for d in (b.get("dissents") or [])})
+            entry.update({
+                "agreement_rate": cons.get("verdict_agreement_rate"),
+                "score_concordance": cons.get("score_concordance"),
+                "agreement_overall": cons.get("agreement_overall"),
+                "dissent_count": cons.get("dissents"),
+                "dissent_dims": dissent_dims,
+                "reliability": cons.get("reliability"),
+            })
+        else:
+            entry.update({
+                "variance_flags": [d for d, f in b["per_dim_variance_flag"].items() if f],
+                "pass_timing_flags": st["digests"].get("aggregate", {}).get(label, {})
+                                      .get("pass_timing_flags", []),
+            })
+        panel["lanes"][label] = entry
     return panel
 
 
@@ -377,10 +623,21 @@ def batch_lift(rd: Path, st: dict) -> None:
     out = rd / "lift-calc.json"
     if out.exists():
         return
-    _sh([PYTHON, _script("lift_calculate.py"),
-         "--output-a-score-sheet", str(rd / "output-a-score-sheet.xlsx"),
-         "--output-b-score-sheet", str(rd / "output-b-score-sheet.xlsx"),
-         "--output", str(out)])
+    if DUAL:
+        # v4.7: lift reads the scoring BUNDLES (consensus headline + per-judge
+        # lifts + band; TR-19). The sheet is presentation-only (errata V-2).
+        args = [PYTHON, _script("lift_calculate.py"),
+                "--bundle-a", str(rd / "output-a-scoring-bundle.json"),
+                "--bundle-b", str(rd / "output-b-scoring-bundle.json"),
+                "--output", str(out)]
+        if _integration_heavy(st):
+            args.append("--integration-heavy")
+        _sh(args)
+    else:
+        _sh([PYTHON, _script("lift_calculate.py"),
+             "--output-a-score-sheet", str(rd / "output-a-score-sheet.xlsx"),
+             "--output-b-score-sheet", str(rd / "output-b-score-sheet.xlsx"),
+             "--output", str(out)])
 
 
 def stage_exec_narrative_packet(rd: Path, st: dict) -> bool:
@@ -395,6 +652,15 @@ def stage_exec_narrative_packet(rd: Path, st: dict) -> bool:
                   "release": {lab: _release_digest(rd, lab) for lab in _labels(st)},
                   "note": "labels still blinded; write lane-neutral prose about Output A/B; "
                           "the reveal orients the lift."}
+        if DUAL:
+            # Concurrence context for the executive narrative (still blinded:
+            # judge lifts are lane-neutral A-minus-B figures pre-reveal).
+            digest["cross_model_concurrence"] = {
+                "agreement_overall": lift.get("agreement_overall"),
+                "per_lane": st["digests"].get("consensus", {}),
+                "note": "two independent model families scored from identical "
+                        "blinded packets; dissents were resolved conservatively "
+                        "and are preserved in the report annex."}
         packets.create(rd, pid, kind="exec_narrative", label="run",
                        prompt=prompts.exec_narrative_prompt(digest))
     return False
@@ -421,7 +687,11 @@ def batch_reveal_and_report(rd: Path, st: dict) -> None:
             "za_total": s1.get("za_total"), "ots_total": s1.get("ots_total"),
             "lift_uncertainty": s1.get("lift_uncertainty"),
             "za_label": db.get("za_label"),
-            "lift_interpretation_band": d.get("lift_interpretation_band")}
+            "lift_interpretation_band": d.get("lift_interpretation_band"),
+            # v4.7 (Backend §2/§9): per-judge lifts, band, run agreement
+            "judge_lifts": s1.get("judge_lifts"),
+            "lift_band": s1.get("lift_band"),
+            "agreement_overall": s1.get("agreement_overall")}
     report = rd / "diagnostic-report.docx"
     if not report.exists():
         db = _j(diag)
@@ -440,43 +710,220 @@ def batch_reveal_and_report(rd: Path, st: dict) -> None:
 
 # ---------------- Mode B ----------------
 def stage_review_packets(rd: Path, st: dict) -> bool:
+    """Mode B review packets. Dual-judge: 2 groups x 2 judges = 4 packets,
+    byte-identical prompts per group, judge in meta (PRD FR-7). Five-pass
+    legacy: the original 2 single-judge packets."""
     need = False
+    judges = list(contracts.JUDGES) if DUAL else [None]
     for group in ("1-3", "4-7"):
-        pid = f"review:{group}"
-        if packets.result_path(rd, pid).exists():
-            continue
-        need = True
-        if not packets.exists(rd, pid):
-            prompt = prompts.review_prompt(
-                dim_group=group, sdd_path=_lane_sdd(st, "Output A"),
-                slice_path=rd / f"zms-calibration-dims-{group}.json",
-                playbook_path=Path(_j(rd / "zms-calibration-content.json")
-                                   ["sa_reasoning_playbook_path"]),
-                brd_path=rd / "inputs" / st["files"]["brd"],
-                release_digest=_release_digest(rd, "Output A"))
-            packets.create(rd, pid, kind="review", label="Output A", prompt=prompt)
+        prompt = None
+        for judge in judges:
+            pid = f"review:{group}:{judge}" if judge else f"review:{group}"
+            if packets.result_path(rd, pid).exists():
+                continue
+            need = True
+            if not packets.exists(rd, pid):
+                if prompt is None:  # built once -> byte-identical across judges
+                    prompt = prompts.review_prompt(
+                        dim_group=group, sdd_path=_lane_sdd(st, "Output A"),
+                        slice_path=rd / f"zms-calibration-dims-{group}.json",
+                        playbook_path=Path(_j(rd / "zms-calibration-content.json")
+                                           ["sa_reasoning_playbook_path"]),
+                        brd_path=rd / "inputs" / st["files"]["brd"],
+                        release_digest=_release_digest(rd, "Output A"))
+                meta = {"dim_group": group}
+                if judge:
+                    meta["judge"] = judge
+                packets.create(rd, pid, kind="review", label="Output A",
+                               prompt=prompt, meta=meta)
     return not need
+
+
+# Conservative order for Mode B finding verdicts (errata Q4): the MORE
+# critical claim survives a dissent — risk > gap > strength.
+_FINDING_SEVERITY = {"risk": 2, "gap": 1, "strength": 0}
+
+
+def _mode_b_pool(rd: Path) -> dict:
+    """Pool each judge's findings/recommendations/clarifications across both
+    groups, keyed by judge. Returns {judge: {"findings": {zms_lens: finding},
+    "recs_by_lens": {zms_lens: [rec,...]}, "clarifications": [...]}}."""
+    pool = {}
+    for judge in contracts.JUDGES:
+        findings_by_lens, recs_by_lens, clar = {}, {}, []
+        fid_to_lens = {}
+        for group in ("1-3", "4-7"):
+            r = packets.result(rd, f"review:{group}:{judge}")
+            for f in r.get("findings", []):
+                lens = f.get("zms_lens") or f.get("id")
+                findings_by_lens[lens] = f
+                if f.get("id"):
+                    fid_to_lens[f["id"]] = lens
+            for rec in r.get("recommendations", []):
+                lens = fid_to_lens.get(rec.get("traces_to_finding"))
+                if lens:
+                    recs_by_lens.setdefault(lens, []).append(rec)
+            clar += r.get("clarifications", [])
+        pool[judge] = {"findings": findings_by_lens, "recs_by_lens": recs_by_lens,
+                       "clarifications": clar}
+    return pool
+
+
+def batch_mode_b_consensus(rd: Path, st: dict) -> bool:
+    """Mode B S3.5 (Application Flow §5, errata Q4): findings matched by
+    zms_lens; matched-different AND one-sided findings all go to ONE
+    reconcile:review packet; dissents resolve to the more critical verdict and
+    flag the finding contested. Writes review-consensus.json; True when done."""
+    out = rd / "review-consensus.json"
+    if out.exists():
+        return True
+    ja, jb = contracts.JUDGES
+    pool = _mode_b_pool(rd)
+    lenses = sorted(set(pool[ja]["findings"]) | set(pool[jb]["findings"]))
+
+    divergent = {}
+    for lens in lenses:
+        fa, fb = pool[ja]["findings"].get(lens), pool[jb]["findings"].get(lens)
+        if fa is None or fb is None or fa.get("verdict") != fb.get("verdict"):
+            divergent[lens] = {ja: fa, jb: fb}
+
+    rulings = {}
+    rpid = "reconcile:review"
+    if divergent:
+        if not packets.result_path(rd, rpid).exists():
+            if not packets.exists(rd, rpid):
+                packets.create(
+                    rd, rpid, kind="reconcile", label="Output A",
+                    prompt=prompts.reconcile_prompt(
+                        label="Output A", dim_group="review",
+                        crit_items=divergent, sub_items={},
+                        sdd_path=_lane_sdd(st, "Output A")),
+                    meta={"judge": ja, "dim_group": "review"})
+            return False
+        rulings = packets.result(rd, rpid).get("rulings") or {}
+
+    findings, recs, dissents = [], [], []
+    seq_by_dim: dict[str, int] = {}
+    for lens in lenses:
+        fa, fb = pool[ja]["findings"].get(lens), pool[jb]["findings"].get(lens)
+        base, prov, judge_entries, contested = None, "agreed", None, False
+        if lens not in divergent:
+            base, prov = dict(fa), "agreed"
+            src_judge = ja
+        else:
+            ruling = rulings.get(lens) or {}
+            r = ruling.get("ruling")
+            judge_entries = {ja: fa, jb: fb}
+            if r == "adopt_claude" and fa is not None:
+                base, prov, src_judge = dict(fa), "adopt_claude", ja
+            elif r == "adopt_gemini" and fb is not None:
+                base, prov, src_judge = dict(fb), "adopt_gemini", jb
+            elif r == "meet_between" and (fa is not None or fb is not None):
+                # meet_between on findings: the middle of risk/strength is gap
+                base = dict(fa or fb)
+                base["verdict"] = "gap"
+                prov, src_judge = "meet_between", ja
+            else:
+                # dissent, missing ruling, or an adopt_* pointing at a side
+                # that reported nothing: conservative — the MORE critical
+                # claim survives (Q4); an absent side is least critical.
+                sa = _FINDING_SEVERITY.get((fa or {}).get("verdict", ""), -1)
+                sb = _FINDING_SEVERITY.get((fb or {}).get("verdict", ""), -1)
+                base = dict(fa if sa >= sb else fb)
+                src_judge = ja if sa >= sb else jb
+                prov, contested = "dissent", True
+                dissents.append({
+                    "zms_lens": lens, ja: fa, jb: fb,
+                    "conservative_resolution": {"verdict": base.get("verdict")},
+                    "why_unresolved": ruling.get("rationale")
+                    or "judges could not be reconciled on the cited evidence"})
+        if base is None:
+            continue
+        if fa is not None and fb is not None and base.get("is_blocking") is not None:
+            base["is_blocking"] = bool((fa or {}).get("is_blocking")
+                                       or (fb or {}).get("is_blocking"))
+        dim = str(base.get("dimension", lens[0] if lens else "0"))
+        seq_by_dim[dim] = seq_by_dim.get(dim, 0) + 1
+        new_id = f"F-{dim}{seq_by_dim[dim]:02d}"
+        base["id"] = new_id
+        base["zms_lens"] = lens
+        base["judge_provenance"] = prov
+        if judge_entries:
+            base["judge_entries"] = judge_entries
+        if contested:
+            base["contested"] = True
+        findings.append(base)
+        # recommendations follow the judge whose finding text was kept
+        for rec in pool[src_judge]["recs_by_lens"].get(lens, []):
+            rec = dict(rec)
+            rec["traces_to_finding"] = new_id
+            if contested:
+                rec["contested"] = True
+            recs.append(rec)
+
+    for i, rec in enumerate(recs, 1):
+        rec["id"] = f"R-{i:02d}"
+    clar = pool[ja]["clarifications"] + [
+        c for c in pool[jb]["clarifications"] if c not in pool[ja]["clarifications"]]
+
+    non_na = len(lenses) or 1
+    agreed_n = sum(1 for f in findings if f.get("judge_provenance") == "agreed")
+    consensus_doc = {
+        "findings": findings, "recommendations": recs, "clarifications": clar,
+        "dissents": dissents,
+        "stats": {"verdict_agreement_rate": round(agreed_n / non_na, 3),
+                  "score_concordance": None,
+                  "agreement_overall": round(agreed_n / non_na, 3),
+                  "divergence_count": len(divergent),
+                  "dissent_count": len(dissents),
+                  "non_na_criteria": len(lenses),
+                  "note": ("Mode B carries no scores, so agreement_overall is "
+                           "the verdict agreement rate alone (errata Q4).")},
+    }
+    out.write_text(json.dumps(consensus_doc, indent=2, sort_keys=True))
+    return True
 
 
 def batch_mode_b_report(rd: Path, st: dict) -> None:
     bpath = rd / "sdd-review-bundle.json"
     if not bpath.exists():
-        findings, recs, clar = [], [], []
-        for group in ("1-3", "4-7"):
-            r = packets.result(rd, f"review:{group}")
-            findings += r.get("findings", [])
-            recs += r.get("recommendations", [])
-            clar += r.get("clarifications", [])
+        dissents = []
+        stats = None
+        if DUAL:
+            doc = _j(rd / "review-consensus.json")
+            findings = doc["findings"]
+            recs = doc["recommendations"]
+            clar = doc["clarifications"]
+            dissents = doc["dissents"]
+            stats = doc["stats"]
+        else:
+            findings, recs, clar = [], [], []
+            for group in ("1-3", "4-7"):
+                r = packets.result(rd, f"review:{group}")
+                findings += r.get("findings", [])
+                recs += r.get("recommendations", [])
+                clar += r.get("clarifications", [])
         blocking = [f for f in findings if f.get("is_blocking")]
         build_ready = ("not_build_ready" if blocking else
                        "build_ready_with_conditions" if any(f.get("requires") for f in findings)
                        else "build_ready")
         bundle = {"mode": "B", "run_id": st["run_id"], "build_ready": build_ready,
                   "findings": findings, "recommendations": recs, "clarifications": clar}
+        if DUAL:
+            # Backend Schema §11: dual-judge review deltas — dissents at top
+            # level, judge provenance on findings (already stamped by the
+            # consensus batch), agreement stats block, panel label.
+            bundle["dissents"] = dissents
+            bundle["agreement_stats"] = stats
+            bundle["evaluator_model"] = st.get("evaluator_model")
         bpath.write_text(json.dumps(bundle, indent=2))
         _sh([PYTHON, _script("sdd_review_validate.py"), "--bundle", str(bpath)])
         st["digests"]["review"] = {"build_ready": build_ready,
-                                   "findings": len(findings), "recommendations": len(recs)}
+                                   "findings": len(findings), "recommendations": len(recs),
+                                   **({"dissents": len(dissents),
+                                       "verdict_agreement_rate":
+                                           (stats or {}).get("verdict_agreement_rate")}
+                                      if DUAL else {})}
     report = rd / "sdd-review-report.docx"
     if not report.exists():
         args = [PYTHON, _script("report_build_sdd_review.py"), "--bundle", str(bpath),
@@ -507,7 +954,13 @@ def advance(run_id: str) -> dict:
         if st["mode"] == "A":
             if not stage_scoring_packets(rd, st):
                 st["status"] = "awaiting_packets"; save_state(run_id, st); return st
-            batch_record_and_aggregate(rd, st)
+            if DUAL:
+                # S3.5 — evidence-ruled consensus; may create reconcile packets
+                if not batch_consensus(rd, st):
+                    st["status"] = "awaiting_packets"; save_state(run_id, st); return st
+                batch_judge_aggregate(rd, st)
+            else:
+                batch_record_and_aggregate(rd, st)
             if not stage_narrative_packets(rd, st):
                 st["status"] = "awaiting_packets"; save_state(run_id, st); return st
             batch_assemble_bundles(rd, st)
@@ -530,6 +983,9 @@ def advance(run_id: str) -> dict:
             batch_reveal_and_report(rd, st)
         else:
             if not stage_review_packets(rd, st):
+                st["status"] = "awaiting_packets"; save_state(run_id, st); return st
+            if DUAL and not batch_mode_b_consensus(rd, st):
+                # divergent findings -> one reconcile:review packet round-trip
                 st["status"] = "awaiting_packets"; save_state(run_id, st); return st
             batch_mode_b_report(rd, st)
 

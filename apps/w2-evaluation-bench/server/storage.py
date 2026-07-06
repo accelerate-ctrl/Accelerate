@@ -54,7 +54,7 @@ def list_runs() -> list[dict]:
             s = json.loads(sp.read_text())
             out.append({k: s.get(k) for k in
                         ("run_id", "mode", "status", "created_at", "updated_at",
-                         "stage", "error", "usage")})
+                         "stage", "error", "usage", "owner", "protocol")})
     return out
 
 

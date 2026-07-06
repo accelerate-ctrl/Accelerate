@@ -291,11 +291,30 @@ def relabel_lift_for_za(lift_calc: dict, lane_mapping: dict) -> dict:
                            key=lambda e: (priority_order.get(e.get("priority"), 99),
                                           e.get("source_dim", 99)))
 
+    # --- v4.7 dual-judge metrics (Backend Schema §9): per-judge lifts and the
+    # [min, max] band reorient with the reveal exactly like the headline —
+    # when Output B is ZA each judge lift negates and the band negates AND
+    # swaps ends (lift_calculate.flip_judge_metrics). agreement_overall is
+    # sign-agnostic and carries unchanged.
+    judge_lifts = lift_metrics.get("judge_lifts_output_a_minus_b")
+    lift_band = lift_metrics.get("lift_band_output_a_minus_b")
+    if judge_lifts is not None and not a_is_za:
+        import lift_calculate as _LJ
+        _flipped = _LJ.flip_judge_metrics({
+            "judge_lifts_output_a_minus_b": judge_lifts,
+            "lift_band_output_a_minus_b": lift_band})
+        judge_lifts = _flipped["judge_lifts_output_a_minus_b"]
+        lift_band = _flipped["lift_band_output_a_minus_b"]
+
     return {
         "za": za, "ots": ots,
         "za_final_score": za_score, "ots_final_score": ots_score,
         "headline_lift_za_minus_ots": headline,
         "lift_uncertainty_za_minus_ots": uncertainty,
+        "judge_lifts_za_minus_ots": judge_lifts,
+        "lift_band_za_minus_ots": lift_band,
+        "agreement_overall": lift_calc.get("agreement_overall"),
+        "protocol": lift_calc.get("protocol", "five-pass"),
         "per_dim_gap_za": za_gap, "per_dim_gap_ots": ots_gap,
         "per_dim_lift_za_minus_ots": per_dim_lift_za_ots,
         "underperformance_flags_za": underperformance,
@@ -441,6 +460,13 @@ def build_diagnostic_bundle(revealed: dict, run_record: dict,
             "ots_total": revealed["ots_final_score"],
             "methodology_lift": revealed["headline_lift_za_minus_ots"],
             "lift_uncertainty": revealed.get("lift_uncertainty_za_minus_ots"),
+            # v4.7 dual-judge (Backend Schema §9): per-judge lifts, the
+            # [min, max] band over the three lifts, and the run-level
+            # cross-model agreement. None under the frozen five-pass path.
+            "judge_lifts": revealed.get("judge_lifts_za_minus_ots"),
+            "lift_band": revealed.get("lift_band_za_minus_ots"),
+            "agreement_overall": revealed.get("agreement_overall"),
+            "protocol": revealed.get("protocol", "five-pass"),
             "input_artefact_sha256": run_record.get("input_artefact_sha256"),
             "model_version": run_record.get("model_version", ""),
             "methodology_version": run_record.get("methodology_version", ""),
