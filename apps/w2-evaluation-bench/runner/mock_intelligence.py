@@ -460,6 +460,16 @@ def exec_narrative(packet: dict) -> dict:
     d = json.loads(_section(packet["prompt"], "REVEALED RUN DIGEST") or "{}")
     lm = d.get("lift_metrics") or {}
     lift = lm.get("headline_lift_output_a_minus_b")
+    conc = d.get("cross_model_concurrence") or {}
+    if conc:
+        confidence = (f"Each lane was scored once by each of two independent model "
+                      f"families from identical blinded packets; cross-model agreement "
+                      f"{conc.get('agreement_overall', 'n/a')} and the inter-judge lift "
+                      "band qualify the headline number. Dissents were resolved "
+                      "conservatively and are preserved in the annex.")
+    else:
+        confidence = ("Five independent scoring passes per lane; variance flags "
+                      "and the correlation-adjusted band qualify the headline number.")
     return {"exec_narrative": {
         "what_we_evaluated": "Two solution designs for the same BRD, scored blind across "
                              "the seven W2 dimensions against the frozen ZMS calibration.",
@@ -471,9 +481,8 @@ def exec_narrative(packet: dict) -> dict:
                          "per-dimension lift table for review.",
         "release_currency": "Release-currency findings and their deductions are itemised "
                             "in Appendix B with Salesforce sources.",
-        "confidence_caveats": "Five independent scoring passes per lane; variance flags "
-                              "and the correlation-adjusted band qualify the headline number.",
-        "what_next": "Address the prioritised actions, then re-run to confirm closure.",
+        "confidence_caveats": confidence,
+        "what_next": "Address the prioritised refinement areas, then re-run to confirm closure.",
     }}
 
 

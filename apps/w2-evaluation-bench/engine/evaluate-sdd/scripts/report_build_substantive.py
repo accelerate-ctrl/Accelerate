@@ -185,6 +185,28 @@ def main():
     ots = json.load(open(args.ots_bundle))
     t, review_lists, lists = D.build_diag_tokens(bundle, za, ots)
 
+    # ---- v4.7 dual-judge context (None/False on frozen five-pass runs) ----
+    import contracts as _contracts
+    _s1 = bundle.get("section_1") or {}
+    dual = bool(_s1.get("judge_lifts")) or _s1.get("protocol") == "dual-judge"
+    _JA, _JB = _contracts.JUDGES
+
+    def _dissent_dims(b):
+        dims = set()
+        for dd in (b.get("dissents") or []):
+            cid = dd.get("criterion_id") or ""
+            sk = dd.get("sub_key") or ""
+            if cid:
+                dims.add(int(cid[0]))
+            elif sk.startswith("sub:"):
+                dims.add(int(sk.split(":")[1]))
+        return dims
+
+    dis_dims_za = _dissent_dims(za) if dual else set()
+    dis_dims_ots = _dissent_dims(ots) if dual else set()
+    agg_za = (za.get("agreement_stats") or {}) if dual else {}
+    agg_ots = (ots.get("agreement_stats") or {}) if dual else {}
+
     # Guardrail 3: fail-loud on cross-script handoffs. Centralized integrity
     # checks so a hollow report is never produced silently (catches the QA-02/04
     # class: scoring bundles present but missing content_coding, etc.).
@@ -313,7 +335,30 @@ def main():
     if rho != "" and neff != "":
         corr_txt = (f" Pass correlation ICC ρ̂={rho} implies {neff} effective passes "
                     f"(of five); the band above is widened by that design effect.")
-    if ci_lo != "" and ci_hi != "":
+    if dual:
+        # v4.7: uncertainty IS the inter-judge spread (TR-19, Backend §9). The
+        # per-lane reliability labels come from the bundles' own agreement
+        # stats (computed once in the consensus engine — TR-21; no threshold
+        # copies here).
+        _jl = _s1.get("judge_lifts") or {}
+        _band = _s1.get("lift_band") or [None, None]
+        _ao = _s1.get("agreement_overall")
+        _sign_holds = (isinstance(_band[0], (int, float)) and isinstance(_band[1], (int, float))
+                       and (_band[0] > 0 or _band[1] < 0))
+        unc_txt = (f" Per-judge lifts: Claude {fmt(_jl.get(_JA))} / Gemini {fmt(_jl.get(_JB))}; "
+                   f"inter-judge band [{fmt(_band[0])}, {fmt(_band[1])}] spans the two judges' "
+                   "fully independent reads"
+                   + (" — the sign holds across both model families, so the lift is "
+                      "directionally robust." if _sign_holds else
+                      " — the band crosses zero, so the two model families do not agree on "
+                      "the lift's direction; treat it as contested and read the annex.")
+                   + (f" Cross-model agreement {_ao}"
+                      f" (ZenAgent lane: {agg_za.get('reliability_label', 'n/a')}; "
+                      f"off-the-shelf lane: {agg_ots.get('reliability_label', 'n/a')})."
+                      if _ao is not None else "")
+                   + " The band excludes errors shared by both models and cross-session "
+                     "variance; prefer band-level over point comparisons.")
+    elif ci_lo != "" and ci_hi != "":
         unc_txt = (f" Correlation-adjusted pass-noise band [{ci_lo}, {ci_hi}] over the five passes, "
                    f"P(lift>0) = {p_gt0}"
                    + (". This band spans zero, so the lift is within scoring noise and is "
@@ -364,13 +409,25 @@ def main():
 
     section_head(doc, "At a glance")
     _lift_cell = (f"{lift} (within noise)" if str(within_noise).lower() == "true" else lift)
-    data_table(doc, ["Measure", "ZenAgent", "Off-the-shelf", "Lift"],
-               [["Total score (of 100)", fmt(za_total), fmt(ots_total), _lift_cell],
-                ["Quality band (rubric section 3)", za_band, ots_band, ""],
-                ["Qualification gate (rubric s.8, four-band)", za_gate or "n/a", ots_gate or "n/a", ""],
-                ["Disposition", disp, GATE_DISPOSITION.get(ots_gate, ("", ""))[0], ""],
-                ["Estimation handoff", t.get("za_handoff_status", t.get("handoff_status", "")),
-                 t.get("ots_handoff_status", ""), ""]])
+    _glance_rows = [["Total score (of 100)", fmt(za_total), fmt(ots_total), _lift_cell],
+                    ["Quality band (rubric section 3)", za_band, ots_band, ""],
+                    ["Qualification gate (rubric s.8, four-band)", za_gate or "n/a", ots_gate or "n/a", ""],
+                    ["Disposition", disp, GATE_DISPOSITION.get(ots_gate, ("", ""))[0], ""],
+                    ["Estimation handoff", t.get("za_handoff_status", t.get("handoff_status", "")),
+                     t.get("ots_handoff_status", ""), ""]]
+    if dual:
+        _jl = _s1.get("judge_lifts") or {}
+        _band = _s1.get("lift_band") or [None, None]
+        _glance_rows.append(["Per-judge lift (Claude / Gemini)", "", "",
+                             f"{fmt(_jl.get(_JA))} / {fmt(_jl.get(_JB))}  band [{fmt(_band[0])}, {fmt(_band[1])}]"])
+        _glance_rows.append(["Cross-model agreement (per lane)",
+                             f"{fmt(agg_za.get('agreement_overall'))} · {agg_za.get('reliability_label', '')}",
+                             f"{fmt(agg_ots.get('agreement_overall'))} · {agg_ots.get('reliability_label', '')}",
+                             ""])
+        _glance_rows.append(["Dissents preserved (see annex)",
+                             str(agg_za.get("dissent_count", len(za.get("dissents") or []))),
+                             str(agg_ots.get("dissent_count", len(ots.get("dissents") or []))), ""])
+    data_table(doc, ["Measure", "ZenAgent", "Off-the-shelf", "Lift"], _glance_rows)
     body(doc, "Four-band quality model (rubric section 3), read on the overall total and per dimension; "
               "each band carries its disposition: STRONG >=80 (Accept) | GOOD 70-79 (Accept with changes) | "
               "ADEQUATE 65-69 (Rework) | WEAK <65 (Redo).", 9.5, BLUE)
@@ -488,6 +545,11 @@ def main():
                 flag = "UNDERPERFORMANCE"
             else:
                 flag = "n/a"
+        # v4.7: a recorded cross-judge dissent on this dimension is flagged in
+        # the value table too — the score stands (conservative consensus) but
+        # the reader is pointed at the annex (judge provenance, FR-6/SM-4).
+        if dual and d in (dis_dims_za | dis_dims_ots):
+            flag = "DISSENT" if flag in ("n/a", "") else f"{flag} +DISSENT"
         lift_rows.append([f"D{d}", DIMNAMES[d], fmt(za_m), fmt(ots_m),
                           ("+%.1f" % diff if isinstance(diff, float) and diff >= 0 else fmt(diff)), flag])
     lift_rows.append(["", "Total", fmt(za_total), fmt(ots_total), lift, ""])
@@ -561,28 +623,98 @@ def main():
     ip = lists.get("in_house_ip_gaps", []) or []
     body(doc, f"Zennify-source criteria where ZenAgent scored Partial or Absent ({len(ip)} found). "
               f"Each names the evidence anchor (what the SDD did say) and the ZMS depth bar (what good requires).")
+    _prov_za = (za.get("consensus_provenance") or {}) if dual else {}
     for r in ip:
         cid = r.get("zms_criterion_id", "")
         dimn = r.get("dimension", "")
         zav = r.get("za_verdict", ""); otsv = r.get("ots_verdict", "")
         sev = r.get("severity", "")
+        fields = [("Evidence anchor.", r.get("za_anchor") or r.get("evidence_anchor") or "Not specified in the SDD.", DARK),
+                  ("ZMS depth bar.", r.get("depth_indicator") or r.get("depth_bar") or "", TEAL)]
+        # v4.7: judge provenance on the claim (FR-6/SM-4). Only non-agreed
+        # criteria carry a badge line — agreed is the norm and stays quiet.
+        _p = _prov_za.get(cid)
+        if dual and _p and _p != "agreed":
+            fields.append(("Judge provenance.",
+                           f"{_p} — both judges' entries and the ruling evidence are in "
+                           "Appendix D (Dissent & Reconciliation).", BLUE))
         card(doc, f"{cid}      Dimension {dimn}  .  ZenAgent {zav}  .  off-the-shelf {otsv}  .  severity {sev}",
-             [("Evidence anchor.", r.get("za_anchor") or r.get("evidence_anchor") or "Not specified in the SDD.", DARK),
-              ("ZMS depth bar.", r.get("depth_indicator") or r.get("depth_bar") or "", TEAL)])
+             fields)
     if not ip:
         body(doc, "No in-house IP gaps: ZenAgent met every applicable Zennify-source criterion.", color=GRAY)
 
-    # ---- 6. Variance / confidence ----
-    section_head(doc, "6. Score variance and confidence across the five scoring passes")
-    vflags = lists.get("variance_flags", []) or t.get("variance_flag_list", [])
-    if vflags:
-        body(doc, "Variance flags (sample stddev > 1.0 across the five passes): " +
-                  ", ".join(str(v) for v in vflags) + ". A flag marks a dimension whose score was "
-                  "less stable across passes and warrants a confirming read.")
+    # ---- 6. Agreement (dual-judge) / Variance (frozen five-pass) ----
+    if dual:
+        section_head(doc, "6. Cross-model agreement and confidence across the two judges")
+        body(doc, "Each dimension was scored once by each judge — Claude and Gemini, two "
+                  "unrelated model families — from byte-identical blinded packets. Agreement "
+                  "between them is the reliability evidence: score concordance is 1 − |A−B| / "
+                  "dimension max; the verdict agreement rate is matched verdicts over non-NA "
+                  "criteria; a DISSENT marks a criterion the evidence-ruled reconciliation "
+                  "could not settle (resolved conservatively; preserved verbatim in Appendix D).")
+        for lane_name, b, agg in (("ZenAgent", za, agg_za), ("Off-the-shelf", ots, agg_ots)):
+            body(doc, lane_name, 11, DARK, after=2)
+            jr = b.get("judge_runs_by_dimension") or {}
+            pda = b.get("per_dim_agreement") or {}
+            rpd = agg.get("verdict_agreement_rate_per_dim") or {}
+            ddims = _dissent_dims(b)
+            rows = []
+            for d in range(1, 8):
+                ds = str(d)
+                rows.append([f"D{d}", DIMNAMES[d],
+                             fmt(_num((jr.get(_JA) or {}).get(ds))),
+                             fmt(_num((jr.get(_JB) or {}).get(ds))),
+                             fmt(_num((jr.get("consensus") or {}).get(ds))),
+                             fmt(_num(pda.get(ds))), fmt(_num(rpd.get(ds))),
+                             "DISSENT" if d in ddims else "clear"])
+            data_table(doc, ["Dim", "Dimension", "Claude", "Gemini", "Consensus",
+                             "Concordance", "Verdict agr.", "Dissent"],
+                       rows, widths=[0.4, 1.5, 0.7, 0.7, 0.8, 0.9, 0.85, 0.75],
+                       flag_col=7)
+            body(doc, f"Lane summary: verdict agreement {fmt(_num(agg.get('verdict_agreement_rate')))} · "
+                      f"score concordance {fmt(_num(agg.get('score_concordance')))} · "
+                      f"agreement overall {fmt(_num(agg.get('agreement_overall')))} — "
+                      f"{agg.get('reliability_label', '')} · "
+                      f"{agg.get('divergence_count', 0)} divergence(s) reconciled · "
+                      f"{agg.get('dissent_count', 0)} dissent(s) preserved.", 9.5, BLUE)
     else:
-        body(doc, "Variance flags (sample stddev > 1.0 across the five T=0.3 passes): none. All "
-                  "dimension scores were stable across the five passes, so the bands are reported "
-                  "with normal confidence.")
+        section_head(doc, "6. Score variance and confidence across the five scoring passes")
+        vflags = lists.get("variance_flags", []) or t.get("variance_flag_list", [])
+        if vflags:
+            body(doc, "Variance flags (sample stddev > 1.0 across the five passes): " +
+                      ", ".join(str(v) for v in vflags) + ". A flag marks a dimension whose score was "
+                      "less stable across passes and warrants a confirming read.")
+        else:
+            body(doc, "Variance flags (sample stddev > 1.0 across the five T=0.3 passes): none. All "
+                      "dimension scores were stable across the five passes, so the bands are reported "
+                      "with normal confidence.")
+
+    # ---- 7. Refinement areas by lane (dual-judge; the review deliverable) ----
+    # ADDITIVE section (operator direction, errata Q10): the report's actionable
+    # spine — where each design needs refinement, on what evidence. The full
+    # prioritized worklists remain verbatim in Appendix A; the priority cards
+    # above carry the how-to-close depth. Nothing existing is reduced.
+    if dual:
+        section_head(doc, "7. Refinement areas by lane")
+        body(doc, "Every dimension-level signal that calls for refinement work, per lane: "
+                  "gate failures, below-baseline dimensions, release-currency deductions, "
+                  "and cross-judge dissents (contested areas needing SA adjudication). Each "
+                  "item traces to the scored evidence above; the prioritised worklist in "
+                  "Appendix A carries the full audit trail.")
+        for lane_name, key in (("ZenAgent", "section_5_2_za_review"),
+                               ("Off-the-shelf", "section_5_2_ots_review")):
+            items = bundle.get(key) or []
+            body(doc, lane_name, 11, DARK, after=2)
+            if not items:
+                body(doc, "No refinement areas: every gated dimension cleared and no dissent, "
+                          "deduction, or baseline regression touched this lane.", 9.5, GRAY)
+                continue
+            rows = [[r.get("priority", ""),
+                     r.get("dim_name") or r.get("section", ""),
+                     r.get("issue_type", ""),
+                     str(r.get("notes") or "")[:110]] for r in items]
+            data_table(doc, ["Priority", "Area", "Signal", "What the evidence says"],
+                       rows, widths=[0.7, 1.6, 1.4, 3.1])
 
     # ---- APPENDIX (reference only) ----
     doc.add_paragraph().paragraph_format.space_before = Pt(8)
@@ -630,6 +762,80 @@ def main():
                      r.get("ots_verdict", "—")] for r in cov]
         data_table(doc, ["Criterion", "Source", "Dim", "ZenAgent", "Off-the-shelf"],
                    cov_rows, widths=[1.7, 1.6, 0.5, 1.3, 1.3])
+
+    # ---- Appendix D. Dissent & Reconciliation annex (dual-judge; FR-6) ----
+    # EVERY divergence between the two judges, per lane: both judges' verdicts
+    # and verbatim anchors, the evidence-ruled outcome, its SDD citation, and —
+    # for dissents — why it could not be settled plus the conservative
+    # resolution that stands in the scores. SM-4: 100% of divergences appear
+    # here (validated upstream by R26/R27).
+    if dual:
+        section_head(doc, "Appendix D. Dissent & Reconciliation annex")
+        body(doc, "The complete reconciliation record. Two independent judges scored every "
+                  "criterion from byte-identical blinded packets; the items below are the ONLY "
+                  "places they diverged. Rulings adopt one judge, meet between with stated "
+                  "cause, or record a dissent — dissents resolve conservatively (weaker "
+                  "verdict / lower score) and stand in the scores above. Nothing here was "
+                  "averaged away.", 9.5, GRAY)
+        for lane_name, b in (("ZenAgent", za), ("Off-the-shelf", ots)):
+            entries = []
+            for sub_key, blk in (b.get("content_coding") or {}).items():
+                for comp in (blk.get("zms_components") or []):
+                    if isinstance(comp, dict) and comp.get("provenance", "agreed") != "agreed":
+                        entries.append(comp)
+            dissents = b.get("dissents") or []
+            why_by_cid = {dd.get("criterion_id"): dd.get("why_unresolved")
+                          for dd in dissents if dd.get("criterion_id")}
+            body(doc, f"{lane_name} — {len(entries)} reconciled criterion divergence(s), "
+                      f"{len(dissents)} dissent record(s).", 11, DARK, after=2)
+            if not entries and not dissents:
+                body(doc, "The two judges agreed on every criterion and sub-criterion score "
+                          "for this lane.", 9.5, GRAY)
+                continue
+            for comp in sorted(entries, key=lambda c: c.get("zms_criterion_id", "")):
+                cid = comp.get("zms_criterion_id", "")
+                prov = comp.get("provenance", "")
+                je = comp.get("judge_entries") or {}
+                ea, eb = je.get(_JA) or {}, je.get(_JB) or {}
+                fields = [
+                    ("Judge A (Claude).",
+                     f"{ea.get('verdict', 'n/a')} — “{ea.get('evidence_anchor', '') or 'no anchor'}”"
+                     f" ({ea.get('sdd_ref', '') or 'no ref'})", DARK),
+                    ("Judge B (Gemini).",
+                     f"{eb.get('verdict', 'n/a')} — “{eb.get('evidence_anchor', '') or 'no anchor'}”"
+                     f" ({eb.get('sdd_ref', '') or 'no ref'})", DARK),
+                ]
+                if prov == "dissent":
+                    fields.append(("Why unresolved.",
+                                   why_by_cid.get(cid) or comp.get("ruling_rationale")
+                                   or "recorded dissent", NEG))
+                    fields.append(("Conservative resolution.",
+                                   f"{comp.get('verdict', '')} — “{comp.get('evidence_anchor', '')}”",
+                                   NEG))
+                else:
+                    fields.append(("Ruling.", f"{prov} — {comp.get('ruling_rationale') or ''}", TEAL))
+                    if comp.get("ruling_citation"):
+                        fields.append(("Ruling evidence (verbatim SDD).",
+                                       f"“{comp.get('ruling_citation')}”", TEAL))
+                    fields.append(("Consensus.",
+                                   f"{comp.get('verdict', '')} — “{comp.get('evidence_anchor', '')}”",
+                                   DARK))
+                card(doc, f"{cid}   ·   {prov.upper()}", fields,
+                     fill="fbf0ec" if prov == "dissent" else CARD_FILL)
+            # sub-score level divergences (reconciled or dissented)
+            sub_rows = []
+            for d in range(1, 8):
+                for key, e in (b.get(f"dim_{d}_sub_criteria") or {}).items():
+                    if isinstance(e, dict) and e.get("provenance") not in (None, "agreed"):
+                        sub_rows.append([f"D{d}", key.replace("_", " "),
+                                         fmt(_num(e.get(_JA))), fmt(_num(e.get(_JB))),
+                                         fmt(_num(e.get("consensus"))),
+                                         e.get("provenance", "")])
+            if sub_rows:
+                body(doc, "Sub-criterion score divergences (beyond the 20%-of-max threshold):",
+                     9.5, GRAY, after=2)
+                data_table(doc, ["Dim", "Sub-criterion", "Claude", "Gemini", "Consensus", "Outcome"],
+                           sub_rows, widths=[0.5, 2.1, 0.8, 0.8, 0.9, 1.3], flag_col=5)
 
     doc.save(args.output)
     print(json.dumps({"output": args.output, "za_band": za_band, "ots_band": ots_band,

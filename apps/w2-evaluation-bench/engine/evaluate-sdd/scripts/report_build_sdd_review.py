@@ -180,11 +180,46 @@ def build(bundle: dict, release: dict, out_path: str, top_n: int = 8, engagement
     origin = bundle.get("origin_label", "unspecified")
     origin_disp = {"zenagent": "ZenAgent", "off_the_shelf": "Off-the-shelf",
                    "unspecified": "Unspecified"}.get(origin, origin)
-    verdict_key = bundle.get("verdict", "needs_targeted_refinement")
+    # The orchestrator's bundle carries build_ready; map it to the verdict
+    # vocabulary when no explicit verdict was set (v1.1 always fell through to
+    # the default here — errata V-6 fidelity fix).
+    verdict_key = bundle.get("verdict") or {
+        "build_ready": "build_ready",
+        "build_ready_with_conditions": "build_ready_with_conditions",
+        "not_build_ready": "not_ready",
+    }.get(bundle.get("build_ready", ""), "needs_targeted_refinement")
     vlabel, vmeaning = VERDICTS.get(verdict_key, VERDICTS["needs_targeted_refinement"])
     eng = engagement or bundle.get("engagement") or "(engagement)"
     fbd = bundle.get("findings_by_dimension", {}) or {}
     recs = bundle.get("recommendations", []) or []
+    structured = bundle.get("findings") or []
+    agg = bundle.get("agreement_stats") or {}
+    dissents = bundle.get("dissents") or []
+    dual = bool(agg) or any(f.get("judge_provenance") for f in structured)
+
+    # Derive the per-dimension prose blocks from the STRUCTURED findings when
+    # findings_by_dimension is absent (the orchestrator emits structured
+    # findings; v1.1 left these sections empty — comprehensive-report fix).
+    # Every line names its ZMS lens and quotes its anchor / negative evidence;
+    # contested (dissent-derived) findings are marked for the annex.
+    if not fbd and structured:
+        fbd = {}
+        for f in structured:
+            dim = str(f.get("dimension") or (f.get("zms_lens") or "0")[0])
+            blk = fbd.setdefault(dim, {"strengths": [], "gaps": []})
+            lens = f.get("zms_lens", "")
+            ev = f.get("evidence_anchor") or f.get("negative_evidence") or ""
+            marker = ""
+            if f.get("contested"):
+                marker = " [CONTESTED — cross-judge dissent; see Appendix D]"
+            elif dual and f.get("judge_provenance") not in (None, "agreed"):
+                marker = f" [{f.get('judge_provenance')}]"
+            line = f"{lens}: {ev}".strip(": ") + marker
+            if f.get("verdict") == "strength":
+                blk["strengths"].append(line)
+            else:
+                pre = "RISK — " if f.get("verdict") == "risk" else ""
+                blk["gaps"].append(pre + line)
 
     # ---- canonical branded cover (shared with the Mode A Diagnostic Report) ----
     try:
@@ -251,6 +286,21 @@ def build(bundle: dict, release: dict, out_path: str, top_n: int = 8, engagement
     body(doc, "Verdict scale:  Build-ready  .  Build-ready with conditions  .  Needs targeted "
               "refinement  .  Not yet build-ready.", 9, GRAY)
 
+    # ---- Cross-model agreement summary (v4.7 dual-judge review; FR-7) ----
+    if dual and agg:
+        section_head(doc, "Cross-model agreement")
+        n_contested = sum(1 for f in structured if f.get("contested"))
+        body(doc, f"Two independent model families (Claude and Gemini) reviewed this design "
+                  f"from byte-identical blinded packets and their findings were merged by "
+                  f"evidence-ruled consensus. Verdict agreement: "
+                  f"{agg.get('verdict_agreement_rate', 'n/a')} across "
+                  f"{agg.get('non_na_criteria', '?')} criteria lenses · "
+                  f"{agg.get('divergence_count', 0)} divergence(s) reconciled on cited "
+                  f"evidence · {agg.get('dissent_count', 0)} dissent(s) preserved "
+                  f"({n_contested} finding(s) marked CONTESTED — they need SA adjudication "
+                  f"and are itemised in Appendix D). Mode B carries no scores, so the "
+                  f"agreement figure is the verdict agreement rate alone.")
+
     # ---- PRIORITY RECOMMENDATIONS (cards) ----
     label(doc, "Priority recommendations")
     order = {"High": 0, "Medium": 1, "Low": 2}
@@ -272,15 +322,26 @@ def build(bundle: dict, release: dict, out_path: str, top_n: int = 8, engagement
             done = r.get("done_when") or ""
             where = r.get("where") or _join(r.get("evidence_refs"))
             ref = r.get("lens_ref") or r.get("zms_ref") or _join(r.get("affected_zms_refs"))
+            contested = bool(r.get("contested"))
             fields = [("The gap.", gap, DARK), ("Why it matters.", why, DARK),
                       ("How to close it.", how, TEAL)]
             if done:
                 fields.append(("Done when.", done, DARK))
             if where:
                 fields.append(("Where in the SDD.", where, DARK))
+            if contested:
+                # v4.7 (Backend §11): dissent-derived recommendation — the two
+                # judges did not agree on the underlying finding; the more
+                # critical reading stands (conservative rule) pending SA review.
+                fields.append(("Contested.",
+                               "The two judges did not agree on the underlying finding; the "
+                               "conservative (more critical) reading stands. Both judges' "
+                               "positions are preserved in Appendix D — adjudicate before "
+                               "descoping this refinement.", NEG))
             fields.append(("Grounding.",
                            f"{ref} . {_dim_from_ref(ref)} . {r.get('priority','Medium')} priority", BLUE))
-            card(doc, f"#{i}  {title}", fields)
+            card(doc, ("CONTESTED · " if contested else "") + f"#{i}  {title}", fields,
+                 fill="fbf0ec" if contested else "f2f6fb")
 
     # ---- BODY ----
     # 1. Findings by dimension (prose; analog of Mode A per-dimension reading)
@@ -354,6 +415,44 @@ def build(bundle: dict, release: dict, out_path: str, top_n: int = 8, engagement
     body(doc, "Critical-floor criteria (story coverage, record/sharing access, external-user exposure, "
               "data model, capability decomposition, security and sharing model) are treated as "
               "build-blocking when absent, consistent with the frozen ZMS standard.", 9, GRAY)
+
+    # ---- Appendix D. Dissent & Reconciliation annex (dual-judge; FR-6/FR-7) ----
+    if dual and (dissents or any(f.get("judge_provenance") not in (None, "agreed")
+                                 for f in structured)):
+        section_head(doc, "Appendix D. Dissent & Reconciliation annex")
+        body(doc, "Every finding on which the two judges diverged, with each judge's reading "
+                  "preserved verbatim. Dissents resolve conservatively — the more critical "
+                  "claim stands — and their findings are marked CONTESTED in the body. "
+                  "Nothing here was averaged away.", 9.5, GRAY)
+        _ja, _jb = contracts.JUDGES
+        why_by_lens = {d.get("zms_lens"): d.get("why_unresolved") for d in dissents}
+        for f in structured:
+            prov = f.get("judge_provenance")
+            if prov in (None, "agreed"):
+                continue
+            je = f.get("judge_entries") or {}
+            fa, fb = je.get(_ja) or {}, je.get(_jb) or {}
+
+            def _side(x):
+                if not x:
+                    return "no finding reported for this lens"
+                ev = x.get("evidence_anchor") or x.get("negative_evidence") or "no evidence recorded"
+                return f"{x.get('verdict', 'n/a')} — “{ev}”"
+
+            fields = [("Judge A (Claude).", _side(fa), DARK),
+                      ("Judge B (Gemini).", _side(fb), DARK)]
+            if prov == "dissent":
+                fields.append(("Why unresolved.",
+                               why_by_lens.get(f.get("zms_lens"))
+                               or "judges could not be reconciled on the cited evidence", NEG))
+                fields.append(("Conservative resolution.",
+                               f"{f.get('verdict', '')} (the more critical reading stands)", NEG))
+            else:
+                fields.append(("Outcome.", f"{prov} — this side's reading is carried in the "
+                                           "findings above.", TEAL))
+            card(doc, f"{f.get('zms_lens', '')}   ·   {str(prov).upper()}   ·   "
+                      f"finding {f.get('id', '')}",
+                 fields, fill="fbf0ec" if prov == "dissent" else "f2f6fb")
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     doc.save(out_path)
