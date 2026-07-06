@@ -240,6 +240,7 @@ def stage_scoring_packets_dual(rd: Path, st: dict) -> bool:
                 if packets.result_path(rd, pid).exists():
                     continue
                 need = True
+                st["stage"] = "S3"  # dual scoring in flight (console stage rail)
                 if not packets.exists(rd, pid):
                     if prompt is None:  # built once -> byte-identical across judges
                         prompt = prompts.pass_prompt_dual(
@@ -271,6 +272,7 @@ def batch_consensus(rd: Path, st: dict) -> bool:
             cpath = judge_accumulate.consensus_path(rd, lane, group)
             if cpath.exists():
                 continue
+            st["stage"] = "S3.5"  # consensus/reconciliation in flight
             # 1. persist scorecards VERBATIM before any diff (Backend §5)
             cards = {}
             for judge in contracts.JUDGES:
