@@ -1,0 +1,42 @@
+{
+  "profile_id": "sales-cloud",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "opportunity",
+      "lead",
+      "pipeline"
+    ],
+    "optional_terms": [
+      "forecast",
+      "quote",
+      "CPQ"
+    ]
+  },
+  "expected_design_areas": [
+    "data_model",
+    "automation",
+    "reporting"
+  ],
+  "common_failure_modes": [
+    "stage model undefined",
+    "forecast category unmapped"
+  ],
+  "zms_emphasis": [
+    "2",
+    "3",
+    "4"
+  ],
+  "tests": [
+    "test_detect_sales_cloud"
+  ]
+}

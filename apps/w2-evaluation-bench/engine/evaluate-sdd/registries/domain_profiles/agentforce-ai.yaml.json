@@ -1,0 +1,42 @@
+{
+  "profile_id": "agentforce-ai",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "agentforce",
+      "agent",
+      "prompt"
+    ],
+    "optional_terms": [
+      "einstein copilot",
+      "atlas",
+      "topic"
+    ]
+  },
+  "expected_design_areas": [
+    "agent_design",
+    "grounding",
+    "guardrails"
+  ],
+  "common_failure_modes": [
+    "grounding source undefined",
+    "guardrails missing"
+  ],
+  "zms_emphasis": [
+    "3",
+    "4",
+    "5"
+  ],
+  "tests": [
+    "test_detect_agentforce_ai"
+  ]
+}

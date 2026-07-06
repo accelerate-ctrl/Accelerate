@@ -1,0 +1,28 @@
+{
+  "schema": "feasibility-logic/v1",
+  "note": "Holds the CHECK LOGIC and taxonomy only. Whether a feature is licensed/current is resolved LIVE via the Salesforce-source path (Docs MCP / scoped web_search under R23) + the operator-supplied org-context pack. No static fact matrix is stored, so nothing goes stale on a Salesforce release.",
+  "feasibility_status_taxonomy": [
+    "CONFIRMED_FEASIBLE",
+    "PLAUSIBLE_UNCONFIRMED",
+    "LICENSE_UNKNOWN",
+    "ENVIRONMENT_UNKNOWN",
+    "CONSTRAINT_CONFLICT",
+    "NOT_FEASIBLE",
+    "SA_CONFIRMATION_REQUIRED"
+  ],
+  "checks": [
+    "release_currentness",
+    "license_availability",
+    "edition_enablement",
+    "environment_readiness",
+    "data_volume_limit",
+    "integration_dependency",
+    "deployment_feasibility",
+    "security_compliance"
+  ],
+  "deduction_policy": {
+    "current_feature_unknown_license": "no deduction; SA_CONFIRMATION_REQUIRED",
+    "org_context_disproves_claim": "finding/deduction applies",
+    "missing_assumption_in_sdd": "score under dependencies/assumptions, not platform correctness"
+  }
+}

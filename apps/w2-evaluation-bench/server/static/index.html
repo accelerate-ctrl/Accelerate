@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>W2 Evaluation Bench</title>
+<style>
+/* Palette lifted from the Diagnostic Report's own styler (report_style.py):
+   dark teal 1c4a4d · brand teal 139f94 · sub teal 22bcad · muted blue 8094c0
+   pos 059669 · neg c25008 — the console wears the deliverable's identity. */
+:root{
+  --ink:#10282a; --deep:#1c4a4d; --teal:#139f94; --sub:#22bcad;
+  --blue:#8094c0; --pos:#059669; --neg:#c25008; --paper:#f2f5f4;
+  --card:#ffffff; --line:#d8e2e0; --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+  --sans:"Avenir Next","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box} body{margin:0;background:var(--paper);color:var(--ink);
+  font:15px/1.5 var(--sans)}
+header{background:var(--deep);color:#eaf4f3;padding:18px 28px;display:flex;
+  align-items:baseline;gap:14px}
+header h1{font-size:19px;margin:0;letter-spacing:.4px;font-weight:600}
+header .tag{font:12px var(--mono);color:var(--sub)}
+header .guard{margin-left:auto;font:11px var(--mono);color:#bfe5e1;
+  border:1px solid #2b6a6c;border-radius:4px;padding:4px 10px}
+main{max-width:1100px;margin:26px auto;padding:0 20px;display:grid;
+  grid-template-columns:340px 1fr;gap:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:18px 20px;margin-bottom:18px}
+h2{font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:var(--deep);
+  margin:0 0 12px;font-weight:700}
+label{display:block;font:12px var(--mono);color:#4a6a68;margin:10px 0 4px}
+input[type=file],select{width:100%;font:13px var(--mono);padding:7px;border:1px solid var(--line);
+  border-radius:6px;background:#fbfdfd}
+.row{display:flex;gap:10px}.row>*{flex:1}
+button{background:var(--teal);border:0;color:#fff;font:600 13px var(--sans);
+  padding:10px 16px;border-radius:7px;cursor:pointer;margin-top:14px}
+button.ghost{background:transparent;color:var(--deep);border:1px solid var(--line)}
+button.stop{background:var(--neg)}
+button:disabled{opacity:.45;cursor:default}
+.runs button{margin:0;padding:6px 10px;font-size:12px}
+.run-item{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+.run-item:hover{background:#f4faf9}
+.run-item .id{font:12px var(--mono)}
+.badge{font:10px var(--mono);padding:2px 8px;border-radius:10px;color:#fff;
+  background:var(--blue)}
+.badge.done{background:var(--pos)} .badge.awaiting_checkpoint{background:var(--neg)}
+.badge.awaiting_packets{background:var(--teal)} .badge.error,.badge.stopped{background:#7a2e10}
+/* Stage rail — the run's spine */
+.rail{display:flex;gap:0;margin:8px 0 18px}
+.rail .st{flex:1;text-align:center;font:11px var(--mono);color:#7b9391;position:relative;
+  padding-top:16px}
+.rail .st::before{content:"";position:absolute;top:4px;left:0;right:0;height:3px;
+  background:var(--line)}
+.rail .st.hit{color:var(--deep)} .rail .st.hit::before{background:var(--sub)}
+.rail .st.now{color:var(--neg);font-weight:700} .rail .st.now::before{background:var(--neg)}
+table{width:100%;border-collapse:collapse;font:12px var(--mono)}
+td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:#4a6a68;font-weight:600}
+.blind{font:11px var(--mono);color:var(--blue);letter-spacing:1px}
+.arts a{display:inline-block;margin:4px 8px 0 0;font:12px var(--mono);color:var(--deep);
+  border:1px solid var(--line);border-radius:6px;padding:6px 10px;text-decoration:none}
+.arts a:hover{border-color:var(--teal);color:var(--teal)}
+.hint{font:12px var(--mono);color:#6d8886;background:#eef6f5;border-radius:6px;
+  padding:10px 12px;white-space:pre-wrap}
+.err{color:var(--neg);font:12px var(--mono);white-space:pre-wrap}
+.flag{color:var(--neg)}
+footer{max-width:1100px;margin:8px auto 40px;padding:0 20px;font:11px var(--mono);color:#7b9391}
+</style>
+</head>
+<body>
+<header>
+  <h1>W2 Evaluation Bench</h1><span class="tag">Solutioning Evaluation Framework v4.6</span>
+  <span class="guard">runner: subscription-only · API keys refused · billing tripwire armed</span>
+</header>
+<main>
+  <section>
+    <div class="card">
+      <h2>New run</h2>
+      <form id="f">
+        <label>BRD (requirements truth)</label><input type="file" name="brd" required>
+        <label>SDD 1 <span id="l1">(candidate A)</span></label><input type="file" name="sdd_1" required>
+        <label>SDD 2 — leave empty for Mode B review</label><input type="file" name="sdd_2">
+        <div class="row" id="modeA">
+          <div><label>ZenAgent lane</label>
+            <select name="zenagent_is"><option value="a">SDD 1 is ZenAgent</option>
+              <option value="b">SDD 2 is ZenAgent</option></select></div>
+          <div><label>Release evidence</label>
+            <select name="live_evidence"><option value="false">Register (offline)</option>
+              <option value="true">Live via runner (web)</option></select></div>
+        </div>
+        <div class="row">
+          <div><label>Judging</label>
+            <select name="evaluator_model">
+              <option value="claude-code-subscription">Claude Code (single judge)</option>
+              <option value="panel:claude-code+gemini">Panel: Claude + Gemini co-judge</option>
+            </select></div>
+          <div><label>D.5 checkpoint</label>
+            <select name="auto_approve_checkpoint">
+              <option value="">Pause for operator (default)</option>
+              <option value="true">Hands-free (pre-approve)</option>
+            </select></div>
+        </div>
+        <button>Start evaluation</button>
+      </form>
+      <p class="hint" id="modehint">Three files → Mode A (blinded comparative, methodology lift).
+Two files → Mode B (qualitative SDD review).</p>
+    </div>
+    <div class="card runs"><h2>Runs</h2><div id="runs"></div></div>
+    <div class="card"><h2>Runner</h2>
+      <p class="hint">On your machine, with your Claude subscription logged in:
+
+python3 runner/w2_runner.py \
+  --server <this URL> --token <W2APP_TOKEN>
+
+Runs as a daemon; add --engine panel
+(+ GEMINI_API_KEY) for the multi-LLM
+judge. Headless boxes: claude setup-token
+→ CLAUDE_CODE_OAUTH_TOKEN. The guard
+refuses ANTHROPIC_API_KEY / apiKeyHelper,
+preflights plan auth, and halts on any
+billable cost.</p></div>
+  </section>
+
+  <section id="detail"><div class="card"><h2>Run detail</h2>
+    <p class="hint">Select a run.</p></div></section>
+</main>
+<footer>Blinding holds until batch 7: lanes are Output A / Output B everywhere in this
+console until the reveal. The escrow is never served.</footer>
+<script>
+const $=q=>document.querySelector(q); let current=null, timer=null;
+let TOKEN=localStorage.getItem('w2token')||'';
+const api=(url,opts={})=>{opts.headers=Object.assign({},opts.headers,
+  TOKEN?{'X-W2-Token':TOKEN}:{}); return fetch(url,opts).then(async r=>{
+  if(r.status===401){TOKEN=prompt('Server token (W2APP_TOKEN):')||'';
+    localStorage.setItem('w2token',TOKEN); return api(url,opts);} return r;});};
+const STAGES=[["S0","intake"],["S1","setup"],["S2","mapping"],["S3","scoring"],
+  ["D5","checkpoint"],["S4","sheets+lift"],["S5","reveal+report"]];
+
+document.querySelector('[name=sdd_2]').addEventListener('change',e=>{
+  $('#modeA').style.display = e.target.files.length? 'flex':'none';
+});
+$('#f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  if(!fd.get('sdd_2')||!fd.get('sdd_2').name) fd.delete('sdd_2');
+  const r=await api('/api/runs',{method:'POST',body:fd});
+  const d=await r.json();
+  if(!r.ok){alert(JSON.stringify(d));return}
+  await loadRuns(); select(d.run_id);
+});
+
+async function loadRuns(){
+  const runs=await (await api('/api/runs')).json();
+  $('#runs').innerHTML=runs.map(r=>`<div class="run-item" onclick="select('${r.run_id}')">
+    <span class="id">${r.run_id}</span>
+    <span class="badge ${r.status}">${r.status.replace(/_/g,' ')}</span></div>`).join('')
+    ||'<p class="hint">No runs yet.</p>';
+}
+window.select=async id=>{current=id; await refresh(); clearInterval(timer);
+  timer=setInterval(refresh,4000);}
+
+function railHTML(st){
+  const order={S0:0,S1:1,S2:2,S3:3,"D5":4,S4:5,S5:6};
+  let nowIdx=order[st.stage]??0;
+  if(st.status==='awaiting_checkpoint')nowIdx=4;
+  if(st.status==='done')nowIdx=7;
+  return '<div class="rail">'+STAGES.map((s,i)=>
+    `<div class="st ${i<nowIdx?'hit':''} ${i===nowIdx?'now':''}">${s[1]}</div>`).join('')+'</div>';
+}
+
+async function refresh(){
+  if(!current)return;
+  const st=await (await api('/api/runs/'+current)).json();
+  let h=`<div class="card"><h2>${st.run_id} · Mode ${st.mode}
+    <span class="badge ${st.status}" style="float:right">${st.status.replace(/_/g,' ')}</span></h2>`;
+  h+=railHTML(st);
+  if(st.error) h+=`<p class="err">${st.error}</p>`;
+  if(st.open_packets&&st.open_packets.length){
+    h+=`<h2>Open work packets (${st.open_packets.length}) — start the runner</h2>
+    <table><tr><th>packet</th><th>kind</th><th>lane</th><th>claimed</th></tr>`+
+    st.open_packets.slice(0,12).map(p=>`<tr><td>${p.packet_id}</td><td>${p.kind}</td>
+      <td class="blind">${p.label}</td><td>${p.claimed_by||'—'}</td></tr>`).join('')+
+    (st.open_packets.length>12?`<tr><td colspan=4>… ${st.open_packets.length-12} more</td></tr>`:'')+
+    '</table>';
+  }
+  if(st.usage&&st.usage.packets)
+    h+=`<p class="hint">subscription usage · ${st.usage.packets} packets · `+
+       `${st.usage.input_tokens||0} in / ${st.usage.output_tokens||0} out tokens · `+
+       `reported API cost $${(st.usage.cost_usd_reported||0).toFixed(2)} (must stay 0.00)</p>`;
+  h+='</div>';
+
+  if(st.status==='awaiting_checkpoint'&&st.checkpoint){
+    const c=st.checkpoint;
+    h+=`<div class="card"><h2>D.5 operator checkpoint — blinded</h2>
+      <p class="blind">ZMS ${c.zms.zms_version} · ${c.zms.applicable_criteria_count} criteria ·
+      frozen ${c.zms.zms_frozen_at||''}</p>
+      <table><tr><th></th>${Object.keys(c.lanes).map(l=>`<th class="blind">${l}</th>`).join('')}</tr>`+
+      ['total','variance_flags','trust_deductions','rr_deductions'].map(k=>
+        `<tr><td>${k.replace(/_/g,' ')}</td>${Object.values(c.lanes).map(v=>
+          `<td>${Array.isArray(v[k])?(v[k].join(', ')||'none'):v[k]}</td>`).join('')}</tr>`).join('')+
+      `<tr><td>mapping (missing/stub · floor)</td>${Object.values(c.lanes).map(v=>
+        `<td>${v.mapping.stub_missing_count_over_8_required} · cap ${v.mapping.dim_4_floor_cap??'none'}</td>`).join('')}</tr>`+
+      `<tr><td>timing flags</td>${Object.values(c.lanes).map(v=>
+        `<td class="flag">${(v.pass_timing_flags||[]).length? 'SINGLE-TURN-SUSPECT':'clean'}</td>`).join('')}</tr>`+
+      '</table>'+
+      `<button onclick="approve(true)">Proceed to score sheets</button>
+       <button class="stop" onclick="approve(false)">Stop with reason</button></div>`;
+  }
+  const arts=st.artifacts||{};
+  if(Object.keys(arts).length){
+    const tq=TOKEN?`?token=${encodeURIComponent(TOKEN)}`:'';
+    h+='<div class="card arts"><h2>Deliverables</h2>'+Object.entries(arts).map(([k,n])=>
+      `<a href="/api/runs/${st.run_id}/download/${k}${tq}">${n}</a>`).join('')+'</div>';
+  }
+  if(st.digests&&st.digests.reveal){
+    const r=st.digests.reveal;
+    h+=`<div class="card"><h2>Revealed result</h2>
+      <p style="font:600 22px var(--mono);color:${r.headline_lift_za_minus_ots>=0?'var(--pos)':'var(--neg)'}">
+      lift ZA − OTS = ${r.headline_lift_za_minus_ots}</p>
+      <p class="hint">${r.za_label} resolved to ZenAgent · band: ${r.lift_interpretation_band||'—'}</p></div>`;
+  }
+  $('#detail').innerHTML=h;
+}
+window.approve=async ok=>{
+  const body={approve:ok}; if(!ok) body.reason=prompt('Stop reason?')||'operator stop';
+  await api('/api/runs/'+current+'/approve',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  refresh();
+};
+loadRuns(); $('#modeA').style.display='none';
+</script>
+</body>
+</html>

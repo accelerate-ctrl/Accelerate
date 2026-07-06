@@ -1,0 +1,1948 @@
+{
+  "zms_version": "4.6",
+  "schema_version": "4.0.0",
+  "frozen_at": "2026-06-17T00:00:00+00:00",
+  "criteria_count": 99,
+  "source_distribution": {
+    "Well-Architected": 41,
+    "Zennify SDD standard": 58
+  },
+  "critical_floor_ids": [
+    "2A.story_coverage_complete",
+    "3B.record",
+    "3B.external_user_exposure",
+    "4A.capability_modules",
+    "4A.data_model",
+    "4A.user_story_coverage",
+    "4A.security_sharing_model"
+  ],
+  "applicability_keys": [
+    "ALL",
+    "API",
+    "AUTOMATION",
+    "CONFIG_DRIVEN",
+    "CUSTOM_BUILD",
+    "DATA_MIGRATION",
+    "EXTERNAL_USERS",
+    "INTEGRATIONS",
+    "MULTI_CLOUD",
+    "REGULATED",
+    "REGULATORY_CITATION",
+    "TRIGGERS",
+    "UI_IN_SCOPE"
+  ],
+  "dimensions": {
+    "1": "BRD Comprehension",
+    "2": "Requirement Coverage",
+    "3": "Salesforce Solution Fit",
+    "4": "Design Specificity",
+    "5": "Dependencies and Assumptions",
+    "6": "Scope Discipline",
+    "7": "Estimation Readiness"
+  },
+  "sub_criteria": {
+    "1A": "Requirement parsing depth",
+    "1B": "Stakeholder / persona recognition",
+    "1C": "Constraint / assumption extraction",
+    "2A": "Functional requirement traceability",
+    "2B": "NFR coverage",
+    "2C": "Gap / risk identification",
+    "3A": "Cloud / module selection",
+    "3B": "Trusted design",
+    "3C": "Easy design",
+    "3D": "Adaptable design",
+    "3E": "Multi-cloud architecture",
+    "4A": "Component presence",
+    "4B": "Architectural decision quality",
+    "5A": "Dependency identification / classification",
+    "5B": "Assumption documentation",
+    "5C": "Integration failure modes",
+    "6A": "In / out delineation",
+    "6B": "Phasing / prioritisation",
+    "6C": "Scope-creep resistance",
+    "7A": "Estimable work units",
+    "7B": "Complexity / effort indicators",
+    "7C": "Delivery-readiness signals"
+  },
+  "criteria": [
+    {
+      "id": "1A.object",
+      "name": "Requirement -> object",
+      "parent_sub_criterion": "1A",
+      "parent_sub_criterion_name": "Requirement parsing depth",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Each capability's business objective resolves to one or more named Salesforce objects (standard or custom; identified by API name where new)",
+      "depth_indicator_components": [
+        "named Salesforce object (standard or custom)",
+        "API name provided for custom objects"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "1A.field",
+      "name": "Requirement -> field",
+      "parent_sub_criterion": "1A",
+      "parent_sub_criterion_name": "Requirement parsing depth",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Requirements resolve to specific field extensions with type and stated purpose",
+      "depth_indicator_components": [
+        "field extension named",
+        "field type specified",
+        "stated purpose for each field"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "1A.sf_mechanism_named",
+      "name": "Requirement -> named SF mechanism",
+      "parent_sub_criterion": "1A",
+      "parent_sub_criterion_name": "Requirement parsing depth",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "SF Mechanism names the actual feature (Scheduled Flow, Approval Process...), never 'automation'/'configuration'",
+      "depth_indicator_components": [
+        "named Salesforce feature (Flow / Approval Process / Validation Rule / Apex / etc.)",
+        "not vague placeholder ('automation' / 'configuration')"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "1A.ac_to_mechanism",
+      "name": "AC -> design element",
+      "parent_sub_criterion": "1A",
+      "parent_sub_criterion_name": "Requirement parsing depth",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Each acceptance criterion is traceable to a design element",
+      "depth_indicator_components": [
+        "traceable to a design element"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "1B.persona_capability",
+      "name": "Persona -> capability",
+      "parent_sub_criterion": "1B",
+      "parent_sub_criterion_name": "Stakeholder / persona recognition",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Personas are tied to the capabilities they interact with",
+      "depth_indicator_components": [
+        "personas are tied to the capabilities they interact with"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "1B.persona_license",
+      "name": "Persona -> license fit",
+      "parent_sub_criterion": "1B",
+      "parent_sub_criterion_name": "Stakeholder / persona recognition",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Each persona mapped to a Salesforce license type; license fit affects solution viability",
+      "depth_indicator_components": [
+        "each persona mapped to a Salesforce license type",
+        "license fit affects solution viability"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "1B.persona_lightning_page",
+      "name": "Persona -> Lightning page",
+      "parent_sub_criterion": "1B",
+      "parent_sub_criterion_name": "Stakeholder / persona recognition",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Personas are mapped to specific Lightning pages or UI experiences they use",
+      "depth_indicator_components": [
+        "personas are mapped to specific Lightning pages or UI experiences they use"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "UI_IN_SCOPE",
+      "beyond_template": false
+    },
+    {
+      "id": "1B.persona_record_visibility",
+      "name": "Persona -> record visibility",
+      "parent_sub_criterion": "1B",
+      "parent_sub_criterion_name": "Stakeholder / persona recognition",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Each persona's record visibility (which records they can see / edit) is explicitly mapped to the technical sharing model",
+      "depth_indicator_components": [
+        "each persona's record visibility scope identified",
+        "visibility tied to the technical sharing model (OWD + sharing mechanism)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "1C.volume",
+      "name": "Volume / LDV",
+      "parent_sub_criterion": "1C",
+      "parent_sub_criterion_name": "Constraint / assumption extraction",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Data volumes surfaced (migration Est. Volume, integration frequency)",
+      "depth_indicator_components": [
+        "data volume surfaced (migration estimated volume)",
+        "integration frequency surfaced where applicable"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "1C.regulatory_citation",
+      "name": "Regulatory citations",
+      "parent_sub_criterion": "1C",
+      "parent_sub_criterion_name": "Constraint / assumption extraction",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Named regulations for the vertical surfaced",
+      "depth_indicator_components": [
+        "named regulations for the vertical surfaced"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "REGULATORY_CITATION",
+      "beyond_template": true
+    },
+    {
+      "id": "1C.quantified_limits",
+      "name": "Quantified limits",
+      "parent_sub_criterion": "1C",
+      "parent_sub_criterion_name": "Constraint / assumption extraction",
+      "dimension": 1,
+      "dimension_name": "BRD Comprehension",
+      "depth_indicator": "Other quantified constraints (SLA, retention) captured",
+      "depth_indicator_components": [
+        "other quantified constraints (SLA, retention) captured"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "2A.story_coverage_complete",
+      "name": "Every story covered",
+      "parent_sub_criterion": "2A",
+      "parent_sub_criterion_name": "Functional requirement traceability",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Every BRD user story has at least one design element addressing it, is deferred with a stated reason, or is explicitly excluded",
+      "depth_indicator_components": [
+        "every BRD user story has at least one design element addressing it",
+        "OR the story is deferred with a stated reason",
+        "OR the story is explicitly excluded"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "2A.coverage_flag",
+      "name": "Covered / not-covered flag",
+      "parent_sub_criterion": "2A",
+      "parent_sub_criterion_name": "Functional requirement traceability",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Each story shows an explicit covered / not-covered flag",
+      "depth_indicator_components": [
+        "each story carries a covered / not-covered flag",
+        "the flag is auditable at a glance"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "2B.performance",
+      "name": "Performance NFR",
+      "parent_sub_criterion": "2B",
+      "parent_sub_criterion_name": "NFR coverage",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Performance NFR addressed with a named SF mechanism",
+      "depth_indicator_components": [
+        "performance NFR addressed",
+        "addressed via a named Salesforce mechanism"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "2B.security_nfr",
+      "name": "Security NFR",
+      "parent_sub_criterion": "2B",
+      "parent_sub_criterion_name": "NFR coverage",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Security NFR addressed with a named SF mechanism",
+      "depth_indicator_components": [
+        "security NFR addressed",
+        "addressed via a named Salesforce mechanism"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "2B.scalability",
+      "name": "Scalability NFR",
+      "parent_sub_criterion": "2B",
+      "parent_sub_criterion_name": "NFR coverage",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Scalability NFR addressed with a named SF mechanism",
+      "depth_indicator_components": [
+        "scalability NFR addressed",
+        "addressed via a named Salesforce mechanism"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "2B.compliance",
+      "name": "Compliance NFR",
+      "parent_sub_criterion": "2B",
+      "parent_sub_criterion_name": "NFR coverage",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Compliance NFR addressed with a named SF mechanism",
+      "depth_indicator_components": [
+        "compliance NFR addressed",
+        "addressed via a named Salesforce mechanism"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "REGULATED",
+      "beyond_template": true
+    },
+    {
+      "id": "2C.complex_flagged_risk",
+      "name": "Complex items flagged as risk",
+      "parent_sub_criterion": "2C",
+      "parent_sub_criterion_name": "Gap / risk identification",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Every Complex configuration item is flagged as a risk",
+      "depth_indicator_components": [
+        "every Complex configuration item is flagged as a risk"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "2C.gap_id",
+      "name": "Requirement gaps flagged",
+      "parent_sub_criterion": "2C",
+      "parent_sub_criterion_name": "Gap / risk identification",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Unmet/ambiguous requirements explicitly flagged",
+      "depth_indicator_components": [
+        "unmet requirements explicitly flagged",
+        "ambiguous requirements explicitly flagged"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "2C.risk_id",
+      "name": "Delivery risks named",
+      "parent_sub_criterion": "2C",
+      "parent_sub_criterion_name": "Gap / risk identification",
+      "dimension": 2,
+      "dimension_name": "Requirement Coverage",
+      "depth_indicator": "Material delivery risks named with impact",
+      "depth_indicator_components": [
+        "material delivery risks named",
+        "each risk has stated impact"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3A.cloud_products",
+      "name": "Cloud + products named",
+      "parent_sub_criterion": "3A",
+      "parent_sub_criterion_name": "Cloud / module selection",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "The SDD names the specific Salesforce clouds, products, and the core data model approach",
+      "depth_indicator_components": [
+        "specific Salesforce clouds named",
+        "specific products named",
+        "core data model approach stated"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "3A.platform_native_first",
+      "name": "Platform-native first",
+      "parent_sub_criterion": "3A",
+      "parent_sub_criterion_name": "Cloud / module selection",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Native capability preferred over custom, justified",
+      "depth_indicator_components": [
+        "platform-native capability preferred over custom build",
+        "the preference is justified for the specific use case"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3A.license_fit",
+      "name": "License fit for solution",
+      "parent_sub_criterion": "3A",
+      "parent_sub_criterion_name": "Cloud / module selection",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Chosen products/edition support the personas and feature set",
+      "depth_indicator_components": [
+        "chosen products and editions support the persona set",
+        "chosen products and editions support the feature set"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.org",
+      "name": "Org-wide security",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "OWD baseline + session/password/login-IP settings addressed",
+      "depth_indicator_components": [
+        "OWD baseline named per applicable object",
+        "session / password / login-IP settings addressed where in scope"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.object",
+      "name": "Object access",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Object CRUD via permission sets, named",
+      "depth_indicator_components": [
+        "object-level permission strategy (CRUD) named",
+        "tied to permission set / profile assignment"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.field",
+      "name": "Field access (FLS)",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "FLS via permission set (not profile), named fields",
+      "depth_indicator_components": [
+        "field-level security strategy named",
+        "FLS configured via permission set (not profile-only)"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.record",
+      "name": "Record access / sharing",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "OWD plus a named sharing mechanism (rule/manual/Apex)",
+      "depth_indicator_components": [
+        "OWD baseline named per object",
+        "named sharing mechanism (criteria-based rule / manual share / Apex managed / team)",
+        "mechanism is specific to the use case, not boilerplate"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.action",
+      "name": "Action / UI-level access",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Which actions/quick-actions each persona may invoke is constrained",
+      "depth_indicator_components": [
+        "which actions/quick-actions each persona may invoke is constrained",
+        "via permission set or layout assignment"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.apex",
+      "name": "Programmatic enforcement",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "with/without sharing + stripInaccessible for code paths",
+      "depth_indicator_components": [
+        "Apex sharing strategy named where Apex DML is in scope",
+        "with-sharing / without-sharing decision rationale present"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.integration_user",
+      "name": "Integration user model",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Named integration user with least-privilege permission set",
+      "depth_indicator_components": [
+        "named integration user identified",
+        "with least-privilege permission set"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.external_user_exposure",
+      "name": "External-user exposure",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Experience Cloud external access model and sharing named",
+      "depth_indicator_components": [
+        "Experience Cloud external access model named",
+        "external-user sharing strategy named (sharing set / share group)",
+        "external surface is bounded explicitly"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "EXTERNAL_USERS",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.encryption_shield",
+      "name": "Encryption / Shield",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Shield/encryption where data sensitivity requires",
+      "depth_indicator_components": [
+        "shield/encryption where data sensitivity requires"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "REGULATED",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.auditability",
+      "name": "Auditability",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "FieldHistory / Shield Event Monitoring named for audit needs",
+      "depth_indicator_components": [
+        "fieldHistory / Shield Event Monitoring named for audit needs"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "REGULATED",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.data_retention",
+      "name": "Data retention",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Retention / archival policy named",
+      "depth_indicator_components": [
+        "retention / archival policy named"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "REGULATED",
+      "beyond_template": true
+    },
+    {
+      "id": "3B.regulatory_control_mapping",
+      "name": "Regulatory control mapping",
+      "parent_sub_criterion": "3B",
+      "parent_sub_criterion_name": "Trusted design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Each cited regulation mapped to a concrete control",
+      "depth_indicator_components": [
+        "each cited regulation mapped to a concrete control"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "REGULATORY_CITATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.sf_mechanism_named",
+      "name": "SF Mechanism names the feature",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Every Configuration row names the actual feature; no 'automation'/'configuration'",
+      "depth_indicator_components": [
+        "every Configuration row names the actual feature",
+        "no 'automation'/'configuration'"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": false
+    },
+    {
+      "id": "3C.declarative_first",
+      "name": "Declarative-first",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Declarative preferred; Apex (Complex) justified",
+      "depth_indicator_components": [
+        "declarative-first approach evident (Flow before Apex)",
+        "Apex selections have explicit justification"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.execution_context",
+      "name": "Execution context/order",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Automation execution context / order-of-execution addressed",
+      "depth_indicator_components": [
+        "automation execution context named (before/after, trigger order)",
+        "order-of-execution implications addressed"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.bulk_behavior",
+      "name": "Bulk behaviour",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Automation designed bulk-safe (no DML/SOQL in loop)",
+      "depth_indicator_components": [
+        "automation designed bulk-safe",
+        "no DML or SOQL inside loops"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.recursion_control",
+      "name": "Recursion control",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Recursion / re-entry guard named",
+      "depth_indicator_components": [
+        "recursion / re-entry guard named"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "TRIGGERS",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.transaction_boundaries",
+      "name": "Transaction boundaries",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Sync vs async and transaction boundaries decided",
+      "depth_indicator_components": [
+        "sync vs async",
+        "transaction boundaries decided"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.error_handling",
+      "name": "Automation error handling",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Error/fault handling designed for automation",
+      "depth_indicator_components": [
+        "error/fault handling designed for automation"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.testability",
+      "name": "Testability",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Test/coverage approach stated for custom work",
+      "depth_indicator_components": [
+        "test/coverage approach stated for custom work"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "CUSTOM_BUILD",
+      "beyond_template": true
+    },
+    {
+      "id": "3C.design_standards_naming",
+      "name": "Design standards / naming",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "AD numbering convention + consistent naming applied",
+      "depth_indicator_components": [
+        "AD numbering convention + consistent naming applied"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Low",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "3C.dynamic_forms",
+      "name": "Dynamic Forms",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Dynamic Forms / Dynamic Actions over static layouts",
+      "depth_indicator_components": [
+        "dynamic Forms / Dynamic Actions over static layouts"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Easy",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "UI_IN_SCOPE",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.separation_of_concerns",
+      "name": "Separation of concerns",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Concerns separated (handler/service/selector or equivalent)",
+      "depth_indicator_components": [
+        "Apex concerns separated (handler / service / selector or equivalent)",
+        "single-trigger-per-object pattern followed"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.custom_metadata_config",
+      "name": "Config via custom metadata",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Variable config externalised to Custom Metadata Type (named in SF Mechanism)",
+      "depth_indicator_components": [
+        "variable configuration externalised to Custom Metadata Type",
+        "Custom Metadata Type named explicitly"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "CONFIG_DRIVEN",
+      "beyond_template": false
+    },
+    {
+      "id": "3D.trigger_framework",
+      "name": "Trigger framework",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "One-trigger-per-object / framework pattern",
+      "depth_indicator_components": [
+        "one-trigger-per-object / framework pattern"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "TRIGGERS",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.platform_events",
+      "name": "Event-driven / Platform Events",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Platform Events / CDC where async decoupling is warranted",
+      "depth_indicator_components": [
+        "platform Events / CDC where async decoupling is warranted"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.upgrade_safe_patterns",
+      "name": "Upgrade-safe patterns",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Patterns chosen to survive package/platform upgrades",
+      "depth_indicator_components": [
+        "patterns chosen to survive package/platform upgrades"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.api_versioning",
+      "name": "API versioning",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "API versions pinned and version strategy stated",
+      "depth_indicator_components": [
+        "API versions pinned",
+        "version strategy stated"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "API",
+      "beyond_template": true
+    },
+    {
+      "id": "3D.platform_error_handling",
+      "name": "Platform error strategy",
+      "parent_sub_criterion": "3D",
+      "parent_sub_criterion_name": "Adaptable design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Design-level error strategy beyond per-integration",
+      "depth_indicator_components": [
+        "integration error handling strategy named",
+        "retry / dead-letter / monitoring approach specified per integration"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "3E.cross_cloud_data_flow",
+      "name": "Cross-cloud data flow",
+      "parent_sub_criterion": "3E",
+      "parent_sub_criterion_name": "Multi-cloud architecture",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Data flow across clouds named with mechanism",
+      "depth_indicator_components": [
+        "data flow across clouds named with mechanism"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "MULTI_CLOUD",
+      "beyond_template": true
+    },
+    {
+      "id": "3E.identity_federation",
+      "name": "Identity federation",
+      "parent_sub_criterion": "3E",
+      "parent_sub_criterion_name": "Multi-cloud architecture",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Identity/SSO across clouds addressed",
+      "depth_indicator_components": [
+        "identity/SSO across clouds addressed"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "MULTI_CLOUD",
+      "beyond_template": true
+    },
+    {
+      "id": "3E.license_optimisation",
+      "name": "Cross-cloud license optimisation",
+      "parent_sub_criterion": "3E",
+      "parent_sub_criterion_name": "Multi-cloud architecture",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "License footprint optimised across clouds",
+      "depth_indicator_components": [
+        "license footprint optimised across clouds"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "MULTI_CLOUD",
+      "beyond_template": true
+    },
+    {
+      "id": "4A.document_overview",
+      "name": "Solution overview",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "A high-level solution overview names the platform/cloud narrative and the integration landscape",
+      "depth_indicator_components": [
+        "a high-level solution overview names the platform/cloud narrative",
+        "the integration landscape"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.capability_modules",
+      "name": "Capability decomposition",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each in-scope capability is broken out as a discrete design unit with a business objective and feature-level breakdown",
+      "depth_indicator_components": [
+        "each in-scope capability is broken out as a discrete design unit",
+        "each capability has a stated business objective",
+        "each capability has a feature-level breakdown"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.config_table",
+      "name": "Feature configuration breakdown",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each capability is decomposed into discrete features, each with implementation detail, named Salesforce mechanism, and complexity rating",
+      "depth_indicator_components": [
+        "each capability decomposed into discrete features",
+        "each feature has implementation detail",
+        "each feature names its Salesforce mechanism",
+        "each feature carries a complexity rating"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.data_model",
+      "name": "Data model specificity",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Custom objects are named (API name, relationships, record types) and field extensions are specified with type and purpose",
+      "depth_indicator_components": [
+        "custom objects named at API-name level",
+        "object relationships specified (Master-Detail vs Lookup)",
+        "record types per object specified where applicable",
+        "field extensions specified with type and stated purpose"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.record_types",
+      "name": "Record type catalog",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Where record types are used, each is named with parent object, business purpose, and the user stories driving it",
+      "depth_indicator_components": [
+        "where record types are used, each is named with parent object, business purpose",
+        "the user stories driving it"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.lightning_pages",
+      "name": "Lightning page mapping",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Where UI is in scope, each Lightning page is named with target persona, purpose, and the user stories driving it",
+      "depth_indicator_components": [
+        "where UI is in scope, each Lightning page is named with target persona, purpose",
+        "the user stories driving it"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "UI_IN_SCOPE",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.user_story_coverage",
+      "name": "Story coverage summary",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "An explicit coverage summary lists every BRD story with its mapped design element(s) and status (covered, deferred, excluded)",
+      "depth_indicator_components": [
+        "explicit coverage summary present in the SDD",
+        "every BRD story listed with its mapped design element(s)",
+        "status per story (covered / deferred / excluded)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.security_sharing_model",
+      "name": "Holistic security & sharing coverage",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "The SDD covers the security and sharing model holistically - record-level access, org-wide settings, field-level security, permission sets, and integration security as applicable to the engagement",
+      "depth_indicator_components": [
+        "record-level access addressed",
+        "org-wide settings addressed",
+        "field-level security addressed",
+        "permission sets addressed",
+        "integration security addressed where applicable"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Trusted",
+      "severity_if_absent": "Critical",
+      "critical_floor": true,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "4A.integration_design",
+      "name": "Integration design specificity",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Per-integration design is present and substantive (mechanism, pattern, frequency, error handling)",
+      "depth_indicator_components": [
+        "per-integration design is present",
+        "substantive (mechanism, pattern, frequency, error handling)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.data_migration_design",
+      "name": "Data migration design",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Where migration is in scope, the SDD addresses load, deduplication, cutover, and external IDs - or explicitly calls for a separate migration assessment",
+      "depth_indicator_components": [
+        "where migration is in scope, the SDD addresses load, deduplication, cutover",
+        "external IDs - or explicitly calls for a separate migration assessment"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "DATA_MIGRATION",
+      "beyond_template": false
+    },
+    {
+      "id": "4B.ad_per_module",
+      "name": "Architectural decisions per capability",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "At least one explicit architectural decision (option, choice, trade-off) is recorded per major capability",
+      "depth_indicator_components": [
+        "at least one architectural decision per major capability",
+        "decision records option(s), choice, trade-off"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4B.decision",
+      "name": "AD: decision stated",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each AD states the decision explicitly",
+      "depth_indicator_components": [
+        "each AD states the decision explicitly",
+        "the choice is named, not just the topic"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4B.rationale",
+      "name": "AD: rationale",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each AD states rationale",
+      "depth_indicator_components": [
+        "each AD states the rationale for the choice",
+        "rationale is specific to engagement context"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4B.options_context",
+      "name": "Decisions show options + context",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each architectural decision records the options considered, the rationale for the choice made, and the engagement context that drove it",
+      "depth_indicator_components": [
+        "options considered named",
+        "rationale for choice stated",
+        "engagement context that drove the decision stated"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "4B.trade_offs",
+      "name": "AD: trade-offs",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Trade-offs of the chosen option acknowledged",
+      "depth_indicator_components": [
+        "trade-offs of the chosen option acknowledged",
+        "what is given up by this choice is named"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "4B.simpler_alternative",
+      "name": "Simpler/safer alternative evaluated",
+      "parent_sub_criterion": "4B",
+      "parent_sub_criterion_name": "Architectural decision quality",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "For Complex items, a simpler declarative/OOTB alternative is evaluated",
+      "depth_indicator_components": [
+        "for Complex items, a simpler declarative/OOTB alternative is evaluated",
+        "rationale for not selecting the simpler path is stated"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "CUSTOM_BUILD",
+      "beyond_template": true
+    },
+    {
+      "id": "5A.cross_module_dependencies",
+      "name": "Cross-capability dependencies",
+      "parent_sub_criterion": "5A",
+      "parent_sub_criterion_name": "Dependency identification / classification",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Dependencies between capabilities are listed with description, impact, and severity",
+      "depth_indicator_components": [
+        "dependencies between capabilities listed",
+        "each with description and impact",
+        "each with severity"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "5A.named_systems",
+      "name": "Named external systems",
+      "parent_sub_criterion": "5A",
+      "parent_sub_criterion_name": "Dependency identification / classification",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Integrations name the external system, direction, purpose",
+      "depth_indicator_components": [
+        "external system named",
+        "integration direction (inbound / outbound / bidirectional)",
+        "purpose of integration stated"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "5A.pattern_frequency",
+      "name": "Integration pattern + frequency",
+      "parent_sub_criterion": "5A",
+      "parent_sub_criterion_name": "Dependency identification / classification",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Integration Summary states Pattern and Frequency (SDD-only, not BRD)",
+      "depth_indicator_components": [
+        "integration Summary states Pattern",
+        "frequency (SDD-only, not BRD)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "5A.api_version_auth_sla",
+      "name": "API version / auth / SLA",
+      "parent_sub_criterion": "5A",
+      "parent_sub_criterion_name": "Dependency identification / classification",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Per integration: API version, auth model, SLA stated",
+      "depth_indicator_components": [
+        "API version stated per integration",
+        "authentication mechanism named",
+        "SLA or rate limit stated"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "API",
+      "beyond_template": true
+    },
+    {
+      "id": "5B.assumed_inplace",
+      "name": "Assumed in-place integrations",
+      "parent_sub_criterion": "5B",
+      "parent_sub_criterion_name": "Assumption documentation",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Existing or assumed-in-place integrations are explicitly stated as assumptions",
+      "depth_indicator_components": [
+        "existing integrations stated as assumptions",
+        "assumed-in-place systems named"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "5B.assumptions_explicit",
+      "name": "Assumptions explicit",
+      "parent_sub_criterion": "5B",
+      "parent_sub_criterion_name": "Assumption documentation",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Material assumptions stated explicitly and testably",
+      "depth_indicator_components": [
+        "material assumptions stated explicitly (not implied)",
+        "each assumption is testable (can be verified true/false)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "5C.retry_fallback",
+      "name": "Retry / fallback narrative",
+      "parent_sub_criterion": "5C",
+      "parent_sub_criterion_name": "Integration failure modes",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Per-integration trigger & flow narrative covers happy path + retry/fallback",
+      "depth_indicator_components": [
+        "per-integration narrative covers the happy path",
+        "the same narrative covers retry / fallback behaviour"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "5C.field_mapping",
+      "name": "Field mapping + transformation",
+      "parent_sub_criterion": "5C",
+      "parent_sub_criterion_name": "Integration failure modes",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Field Mapping table with columns Source, Source System, Target, and Transformation Notes",
+      "depth_indicator_components": [
+        "field mapping table present",
+        "columns: Source, Source System, Target, Transformation Notes"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "5C.integration_ad",
+      "name": "Architectural decisions per integration",
+      "parent_sub_criterion": "5C",
+      "parent_sub_criterion_name": "Integration failure modes",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "At least one explicit architectural decision per integration (pattern choice, error strategy, mapping decision)",
+      "depth_indicator_components": [
+        "at least one architectural decision per integration",
+        "decision covers pattern, error strategy, or mapping"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": false
+    },
+    {
+      "id": "5C.idempotency",
+      "name": "Idempotency",
+      "parent_sub_criterion": "5C",
+      "parent_sub_criterion_name": "Integration failure modes",
+      "dimension": 5,
+      "dimension_name": "Dependencies and Assumptions",
+      "depth_indicator": "Idempotency / duplicate-handling addressed",
+      "depth_indicator_components": [
+        "idempotency or duplicate-handling explicitly addressed per integration"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "INTEGRATIONS",
+      "beyond_template": true
+    },
+    {
+      "id": "6A.out_of_scope_callout",
+      "name": "Out-of-scope callout per module",
+      "parent_sub_criterion": "6A",
+      "parent_sub_criterion_name": "In / out delineation",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "Each module has an OUT OF SCOPE callout naming excluded higher-complexity alternatives",
+      "depth_indicator_components": [
+        "each module has an explicit OUT OF SCOPE callout",
+        "the excluded higher-complexity alternative is named"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6A.exclusion_specificity",
+      "name": "Exclusions named specifically",
+      "parent_sub_criterion": "6A",
+      "parent_sub_criterion_name": "In / out delineation",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "No vague terms ('advanced features'); the excluded alternative is named",
+      "depth_indicator_components": [
+        "no vague exclusion terms ('advanced features')",
+        "excluded alternative is named specifically"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6A.scope_boundary_table",
+      "name": "Scope boundary with story references",
+      "parent_sub_criterion": "6A",
+      "parent_sub_criterion_name": "In / out delineation",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "Scope boundary items are listed with SOW cap and story references aligned to BRD deliverables",
+      "depth_indicator_components": [
+        "in-scope items listed explicitly",
+        "tied to BRD story IDs or capability names"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6B.no_future_phase_creep",
+      "name": "No future-phase creep",
+      "parent_sub_criterion": "6B",
+      "parent_sub_criterion_name": "Phasing / prioritisation",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "No future-phase references; discovery validates, does not expand scope",
+      "depth_indicator_components": [
+        "no future-phase references introducing new scope",
+        "discovery validates rather than expands scope"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6B.coverage_before_handoff",
+      "name": "Coverage complete before hand-off",
+      "parent_sub_criterion": "6B",
+      "parent_sub_criterion_name": "Phasing / prioritisation",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "All stories show coverage before SOW hand-off",
+      "depth_indicator_components": [
+        "all stories show coverage before SOW hand-off",
+        "coverage is auditable, not asserted"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6C.context_not_contractual",
+      "name": "Context not presented as deliverable",
+      "parent_sub_criterion": "6C",
+      "parent_sub_criterion_name": "Scope-creep resistance",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "Assumed business process / background not presented as contractual deliverables",
+      "depth_indicator_components": [
+        "assumed business process / background not presented as contractual deliverables"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "6C.no_unrequested_build",
+      "name": "No unrequested build",
+      "parent_sub_criterion": "6C",
+      "parent_sub_criterion_name": "Scope-creep resistance",
+      "dimension": 6,
+      "dimension_name": "Scope Discipline",
+      "depth_indicator": "No design elements beyond BRD scope without a flag",
+      "depth_indicator_components": [
+        "no design elements beyond BRD scope without a flag"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": true
+    },
+    {
+      "id": "7A.feature_decomposition",
+      "name": "Feature-level decomposition",
+      "parent_sub_criterion": "7A",
+      "parent_sub_criterion_name": "Estimable work units",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Each capability is decomposed into discrete feature-level work units with implementation detail",
+      "depth_indicator_components": [
+        "each design element decomposed into discrete work item",
+        "build-vs-configure distinguished per item"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "7A.mechanism_enables_mapping",
+      "name": "Mechanism enables scope mapping",
+      "parent_sub_criterion": "7A",
+      "parent_sub_criterion_name": "Estimable work units",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Named Salesforce mechanism is specific enough to support downstream scope-item mapping",
+      "depth_indicator_components": [
+        "named Salesforce mechanism is specific",
+        "specificity sufficient for scope-item mapping downstream"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "7B.complexity_rating",
+      "name": "Complexity rating per feature",
+      "parent_sub_criterion": "7B",
+      "parent_sub_criterion_name": "Complexity / effort indicators",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Each feature rated Simple / Moderate / Complex",
+      "depth_indicator_components": [
+        "each work item has Simple / Moderate / Complex rating",
+        "rating basis stated (volume / customisation / integration count)"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "7B.complex_risk_flag",
+      "name": "Complex flagged as risk",
+      "parent_sub_criterion": "7B",
+      "parent_sub_criterion_name": "Complexity / effort indicators",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Complex items explicitly flagged as risks",
+      "depth_indicator_components": [
+        "complex items explicitly flagged as risks"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "7C.boundary_alignment",
+      "name": "Boundaries align to BRD",
+      "parent_sub_criterion": "7C",
+      "parent_sub_criterion_name": "Delivery-readiness signals",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Scope Boundary numbers align with BRD Deliverables table",
+      "depth_indicator_components": [
+        "scope boundary numbers align with BRD Deliverables table",
+        "alignment is one-to-one or explicitly noted"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "7C.migration_external_id_ad",
+      "name": "Migration External-ID + tooling ADs",
+      "parent_sub_criterion": "7C",
+      "parent_sub_criterion_name": "Delivery-readiness signals",
+      "dimension": 7,
+      "dimension_name": "Estimation Readiness",
+      "depth_indicator": "Data Migration has an AD for tooling and one for External ID strategy",
+      "depth_indicator_components": [
+        "Data Migration has an AD for tooling choice",
+        "Data Migration has an AD for External ID strategy"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "DATA_MIGRATION",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.reporting_analytics",
+      "name": "Reporting and analytics design",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Reporting and analytics needs are designed: report types, key reports/dashboards, and the audience and access model for analytics are named",
+      "depth_indicator_components": [
+        "report types or reporting objects named",
+        "key reports and/or dashboards named with their purpose",
+        "analytics audience and access/folder-sharing model addressed"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.business_process_flows",
+      "name": "Business process flows",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Each in-scope business process is described end-to-end: trigger, the sequence of steps, the persona/system performing each, and the outcome",
+      "depth_indicator_components": [
+        "in-scope business processes identified",
+        "each process described as an ordered sequence of steps (trigger to outcome)",
+        "persona or system responsible for each step named"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.open_decisions_log",
+      "name": "Open decisions log",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Unresolved design decisions and open questions are surfaced with the decision owner and the impact if unresolved",
+      "depth_indicator_components": [
+        "open decisions or open questions surfaced explicitly",
+        "owner named for each open item",
+        "impact or what-it-blocks stated for each open item"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "High",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "4A.confidence_annotations",
+      "name": "Confidence annotations",
+      "parent_sub_criterion": "4A",
+      "parent_sub_criterion_name": "Component presence",
+      "dimension": 4,
+      "dimension_name": "Design Specificity",
+      "depth_indicator": "Assumption-based or provisional design elements carry a confidence/certainty marker tied to the specific section, so the reader can distinguish firm design from provisional design",
+      "depth_indicator_components": [
+        "confidence or certainty markers present on provisional design elements",
+        "markers tied to specific sections or decisions (not a blanket caveat)",
+        "at least the high-risk / low-confidence areas explicitly flagged"
+      ],
+      "source": "Zennify SDD standard",
+      "well_architected_pillar": null,
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "ALL",
+      "beyond_template": false
+    },
+    {
+      "id": "3C.async_volume_strategy",
+      "name": "Async / volume processing strategy",
+      "parent_sub_criterion": "3C",
+      "parent_sub_criterion_name": "Easy design",
+      "dimension": 3,
+      "dimension_name": "Salesforce Solution Fit",
+      "depth_indicator": "Where data volume or long-running work warrants it, an asynchronous processing mechanism (Batch / Queueable / Scheduled Apex or async Flow path) is chosen and justified over synchronous execution",
+      "depth_indicator_components": [
+        "high-volume or long-running work identified where present",
+        "asynchronous mechanism named (Batch Apex / Queueable / Scheduled / async path)",
+        "the sync-vs-async choice is justified for the workload"
+      ],
+      "source": "Well-Architected",
+      "well_architected_pillar": "Adaptable",
+      "severity_if_absent": "Medium",
+      "critical_floor": false,
+      "applicability": "AUTOMATION",
+      "beyond_template": true
+    }
+  ]
+}

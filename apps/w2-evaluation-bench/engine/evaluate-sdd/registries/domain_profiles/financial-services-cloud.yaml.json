@@ -1,0 +1,47 @@
+{
+  "profile_id": "financial-services-cloud",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "household",
+      "financial account",
+      "relationship group"
+    ],
+    "optional_terms": [
+      "FSC",
+      "actionable relationship center",
+      "ARC"
+    ]
+  },
+  "expected_design_areas": [
+    "data_model",
+    "householding",
+    "security_and_sharing",
+    "integration",
+    "reporting",
+    "migration"
+  ],
+  "common_failure_modes": [
+    "household rollup logic missing",
+    "financial account ownership unclear",
+    "relationship visibility not tied to sharing model"
+  ],
+  "zms_emphasis": [
+    "2",
+    "3",
+    "4",
+    "5"
+  ],
+  "tests": [
+    "test_detect_financial_services_cloud"
+  ]
+}

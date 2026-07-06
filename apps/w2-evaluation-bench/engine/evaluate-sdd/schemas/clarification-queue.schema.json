@@ -1,0 +1,10 @@
+{
+  "title": "clarification-queue/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "clarification_status",
+    "questions"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

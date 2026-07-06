@@ -1,0 +1,9 @@
+{
+  "title": "feasibility-result/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "feasibility_findings"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -1,0 +1,11 @@
+{
+  "title": "ood-result/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "ood_status",
+    "ood_reasons",
+    "allowed_actions"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

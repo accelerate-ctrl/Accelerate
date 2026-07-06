@@ -1,0 +1,44 @@
+{
+  "profile_id": "integration-heavy",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "integration",
+      "api",
+      "middleware"
+    ],
+    "optional_terms": [
+      "mulesoft",
+      "named credential",
+      "platform event",
+      "oauth"
+    ]
+  },
+  "expected_design_areas": [
+    "integration",
+    "error_handling",
+    "auth",
+    "idempotency"
+  ],
+  "common_failure_modes": [
+    "failure modes undefined",
+    "auth model vague",
+    "no idempotency"
+  ],
+  "zms_emphasis": [
+    "3",
+    "5"
+  ],
+  "tests": [
+    "test_detect_integration_heavy"
+  ]
+}

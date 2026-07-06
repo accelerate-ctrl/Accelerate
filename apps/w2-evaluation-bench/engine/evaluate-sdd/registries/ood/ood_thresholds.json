@@ -1,0 +1,15 @@
+{
+  "schema": "ood-thresholds/v1",
+  "status": "active",
+  "review_by": "dynamic",
+  "thresholds": {
+    "in_distribution_min_benchmark_coverage": 0.5,
+    "out_of_distribution_max_domain_confidence": 0.3,
+    "not_assessable_max_extraction_coverage": 0.4,
+    "near_distribution_band": [
+      0.3,
+      0.5
+    ]
+  },
+  "note": "A WEAK in-domain SDD is NOT OOD. OOD = calibration/domain assumptions do not apply, not that the SDD is poor."
+}

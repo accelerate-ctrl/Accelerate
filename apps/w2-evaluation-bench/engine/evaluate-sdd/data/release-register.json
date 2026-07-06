@@ -1,0 +1,97 @@
+{
+  "register_version": "1.0.0",
+  "frozen_at": "2026-06-12T00:00:00+00:00",
+  "policy": "MINIMAL BY DESIGN. This register is a backstop, not the primary source. The live search path (release_crosswalk resolve) is authoritative; entries here only seed offline/low-signal runs and supply Salesforce-named successors when live capture misses. Every entry MUST carry a Salesforce-controlled salesforce_source (R23), an as_of date, and a review_by date. Do NOT grow this into an exhaustive catalogue — add an entry only when a mechanism is both (a) commonly named in SDDs and (b) has a confirmed Salesforce lifecycle event. Stale entries are auto-flagged when live evidence contradicts them (register_stale).",
+  "status_values": [
+    "retired",
+    "end_of_support",
+    "superseded",
+    "in_force",
+    "in_force_unverified"
+  ],
+  "entries": [
+    {
+      "mechanism": "Workflow Rules",
+      "match_keys": [
+        "workflow_rules"
+      ],
+      "status": "end_of_support",
+      "as_of": "2025-12-31",
+      "salesforce_source": "https://help.salesforce.com/s/articleView?id=001096524&type=1",
+      "supersession": "Migrate to Flow Builder (Record-Triggered Flow). Existing Workflow Rules continue to run after 2025-12-31, but Salesforce no longer provides support or bug fixes.",
+      "consequence": "Unsupported technical debt: continues running, but no support or bug fixes. Not a deployment blocker.",
+      "evidence_note": "Salesforce KB: End of Support 2025-12-31 — explicitly NOT a retirement. Processes keep running.",
+      "review_by": "2026-12-31"
+    },
+    {
+      "mechanism": "Process Builder",
+      "match_keys": [
+        "process_builder"
+      ],
+      "status": "end_of_support",
+      "as_of": "2025-12-31",
+      "salesforce_source": "https://help.salesforce.com/s/articleView?id=001096524&type=1",
+      "supersession": "Migrate to Flow Builder (Record-Triggered Flow). Existing processes continue to run after 2025-12-31 without support or bug fixes.",
+      "consequence": "Unsupported technical debt: continues running, but no support or bug fixes. Not a deployment blocker.",
+      "evidence_note": "Salesforce KB: End of Support 2025-12-31 alongside Workflow Rules — NOT a retirement.",
+      "review_by": "2026-12-31"
+    },
+    {
+      "mechanism": "Salesforce Platform API versions 21.0 through 30.0",
+      "match_keys": [
+        "api_version_explicit"
+      ],
+      "status": "retired",
+      "as_of": "2025-06-01",
+      "salesforce_source": "https://help.salesforce.com/s/articleView?id=000389618&type=1",
+      "supersession": "Upgrade to a supported (current GA) API version. Resolve the current GA version live at run time rather than hardcoding a number.",
+      "consequence": "Blocking: calls on these versions fail (REST 410 GONE / SOAP 500 UNSUPPORTED_API_VERSION / Bulk 400 InvalidVersion). The design will not function.",
+      "version_rule": {
+        "type": "api_floor",
+        "retired_at_or_below": 30,
+        "recommend": "in_force"
+      },
+      "evidence_note": "Retired in the Summer '25 release (previously deprecated Summer '22). Versions 7.0-20.0 retired Summer '22.",
+      "review_by": "2027-06-01"
+    },
+    {
+      "mechanism": "SOAP API login() operation",
+      "match_keys": [
+        "soap_login"
+      ],
+      "status": "superseded",
+      "as_of": "2026-06-12",
+      "salesforce_source": "https://help.salesforce.com/s/articleView?id=release-notes.rn_api_soap_login_retirement.htm&type=5",
+      "supersession": "Migrate to OAuth 2.0 with Named Credentials. The username-password login() operation is scheduled to be retired 2027-06-01 across all API versions.",
+      "consequence": "Scheduled retirement 2027-06-01: username-password authentication will cease to function for all API versions. Plan migration before the sunset.",
+      "evidence_note": "Announced SOAP login() retirement; affects all API versions, not only legacy ones.",
+      "review_by": "2027-06-01"
+    },
+    {
+      "mechanism": "Aura Components",
+      "match_keys": [
+        "aura_component"
+      ],
+      "status": "superseded",
+      "as_of": "2026-06-01",
+      "salesforce_source": "https://developer.salesforce.com/docs/platform/lwc/guide/get-started-introduction.html",
+      "supersession": "Build new components as Lightning Web Components (LWC). Aura is in maintenance mode; LWC is the recommended path for new development.",
+      "consequence": "Outdated pattern for greenfield: Aura still works but new components should be LWC. Not a deployment blocker.",
+      "evidence_note": "Salesforce Developer guidance: LWC is the modern, recommended component model; Aura is maintenance-mode.",
+      "review_by": "2027-06-01"
+    },
+    {
+      "mechanism": "Salesforce Classic UI",
+      "match_keys": [
+        "classic_ui"
+      ],
+      "status": "superseded",
+      "as_of": "2026-06-01",
+      "salesforce_source": "https://help.salesforce.com/s/articleView?id=sf.lex_migration_introduction.htm&type=5",
+      "supersession": "Design for Lightning Experience. Salesforce Classic is in long-term wind-down; new design should target Lightning Experience.",
+      "consequence": "Outdated UI target: design against Lightning Experience rather than Classic.",
+      "evidence_note": "Lightning Experience is the current and recommended UI; Classic is being phased out.",
+      "review_by": "2027-06-01"
+    }
+  ]
+}

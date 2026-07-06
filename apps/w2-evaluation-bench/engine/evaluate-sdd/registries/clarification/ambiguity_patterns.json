@@ -1,0 +1,35 @@
+{
+  "schema": "ambiguity-patterns/v1",
+  "patterns": [
+    {
+      "id": "missing_volume",
+      "area": "Integration",
+      "trigger": "integration named without transaction volume/SLA",
+      "severity": "Blocking"
+    },
+    {
+      "id": "missing_actor",
+      "area": "BRD",
+      "trigger": "capability without named actor/persona",
+      "severity": "High"
+    },
+    {
+      "id": "missing_ac",
+      "area": "BRD",
+      "trigger": "requirement without acceptance criteria",
+      "severity": "High"
+    },
+    {
+      "id": "missing_security_model",
+      "area": "Security",
+      "trigger": "records described without sharing/visibility model",
+      "severity": "Blocking"
+    },
+    {
+      "id": "missing_migration_recon",
+      "area": "Migration",
+      "trigger": "migration without reconciliation approach",
+      "severity": "High"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# systemd unit for the hands-free W2 runner (operator machine / personal VM).
+#   sudo cp examples/w2-runner.service /etc/systemd/system/
+#   sudo systemctl edit w2-runner   # to add Environment= overrides securely
+#   sudo systemctl enable --now w2-runner
+[Unit]
+Description=W2 Evaluation Bench runner (Claude subscription intelligence layer)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Run as your normal user so ~/.claude subscription credentials are visible.
+User=%i
+Environment=W2_SERVER=https://YOUR-CLOUD-RUN-URL
+Environment=W2APP_TOKEN=YOUR-SHARED-SECRET
+# Headless auth (from `claude setup-token`, subscription-billed):
+# Environment=CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...
+# Panel mode co-judge:
+# Environment=GEMINI_API_KEY=...
+ExecStart=/usr/bin/python3 /opt/w2app/runner/w2_runner.py --engine claude-code
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
