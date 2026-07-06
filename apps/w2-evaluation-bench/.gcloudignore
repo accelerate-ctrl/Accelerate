@@ -1,0 +1,14 @@
+# Files NOT uploaded to Cloud Build when deploying with `--source .`.
+# Keeps the build context small and guarantees local run data (which can
+# contain client documents and the blinding escrow) never leaves the machine.
+.gcloudignore
+.git
+.gitignore
+data/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+docs/
+*.zip
+*.bundle

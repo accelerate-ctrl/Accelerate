@@ -1,5 +1,24 @@
 # Changelog — W2 Evaluation Bench
 
+## v2.0.1 (2026-07-06) — QA hardening + deployment kit
+
+Post-release QA & security audit (`docs/qa-report.md`). Fixes:
+- **Dockerfile**: image now includes `runner/` + `examples/` — the payload
+  behind `/runner.zip` and `/install.sh`. Without this, Cloud Run deployments
+  served an empty runner (production-blocking; local trees masked it).
+- **Prompt-injection guard**: explicit instruction-hierarchy line (`DOC_GUARD`)
+  in every v2.0 document-bearing packet prompt; dual scoring prompts remain
+  byte-identical; frozen five-pass prompt untouched.
+- **Server hardening**: 25 MiB upload ceiling (413; `W2_MAX_UPLOAD_MB`),
+  constant-time member-token comparison, `X-Content-Type-Options` /
+  `X-Frame-Options` / `Referrer-Policy` headers, `GET /healthz` probe.
+- **Deployment kit**: `scripts/remote_smoke.sh` (16 read-only live-service
+  checks; auto-run by `deploy_cloudrun.sh`), `.gcloudignore` (client documents
+  never ride a source upload), `deploy/cloudbuild.yaml` (GitHub → Cloud Run
+  pipeline: unit gate → build → SHA-tagged push → image-only deploy →
+  remote smoke), docs 08 (OAuth-first deployment plan) and 09 (GitHub deploy
+  user guide).
+
 ## v2.0 (2026-07-06) — dual-judge consensus (engine v4.6 → v4.7)
 
 Built to the seven-document v2.0 spec set (`docs/00`–`07`; conflicts and

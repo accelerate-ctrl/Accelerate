@@ -103,7 +103,14 @@ W2APP_TOKENS="alice:$(openssl rand -hex 16),bob:$(openssl rand -hex 16)" \
 ```
 
 Builds from source, mounts a GCS bucket at `/data`, pins `--max-instances=1`
-(single-writer file store), and protects every `/api` route with per-member
+(single-writer file store), protects every `/api` route with per-member
+tokens, and finishes by running `scripts/remote_smoke.sh` against the live
+URL (health, auth walls, traversal block, runner payload — the deploy fails
+loudly if the service isn't the one the release gate certified). Full
+component-by-component plan: `docs/08-cloud-run-deployment-guide.md`;
+deploying straight from GitHub (Cloud Shell first deploy + push-to-deploy
+Cloud Build trigger): `docs/09-github-deploy-user-guide.md`; QA & security
+audit: `docs/qa-report.md`. The bench protects itself with per-member
 tokens (`W2APP_TOKENS="member:token,..."`; the single `W2APP_TOKEN` is still
 honoured as member "operator"). **Owner-pays affinity (FR-13):** each run is
 stamped with the uploading member's id, and only that member's runner is

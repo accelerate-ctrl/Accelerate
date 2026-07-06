@@ -18,6 +18,15 @@ the rest as references; start at Phase 0.
 | 6 | 06-implementation-plan.md | Phases 0–6 with tasks, acceptance criteria, sequencing, risk register |
 | 7 | 07-installation-guide.md | Per-member runner setup (one command or manual), weekly-cadence usage, troubleshooting |
 
+Post-build documents (added after the build shipped):
+
+| # | File | Role |
+|---|---|---|
+| 8 | 08-cloud-run-deployment-guide.md | Complete Cloud Run deployment plan: OAuth client → every component → verified live service → member onboarding → operations |
+| 9 | 09-github-deploy-user-guide.md | Operator guide: first deploy from GitHub via Cloud Shell, then push-to-deploy via the Cloud Build trigger (`deploy/cloudbuild.yaml`) |
+| — | qa-report.md | v2.0 QA & security audit: completeness matrix, E2E functionality evidence, security + prompt-injection review, hardening fixes |
+| — | errata.md | Every doc-vs-code conflict found during the build, with its ruling |
+
 Precedence on conflict (also stated in the plan): Backend Schema wins on data
 shapes, Application Flow on behavior, PRD on scope; record any found conflict
 as an erratum.

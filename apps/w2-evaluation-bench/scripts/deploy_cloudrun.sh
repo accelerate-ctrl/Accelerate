@@ -40,6 +40,14 @@ gcloud run deploy "$SERVICE" \
 
 URL=$(gcloud run services describe "$SERVICE" --project "$PROJECT" \
       --region "$REGION" --format 'value(status.url)')
+
+# Post-deploy verification (read-only): health, auth walls, runner payload.
+echo
+echo "== verifying the live service =="
+bash "$(dirname "$0")/remote_smoke.sh" "$URL" || {
+  echo "remote smoke FAILED - the service is up but not healthy; see above." >&2
+  exit 1
+}
 echo
 echo "Deployed: $URL"
 echo "Console:  open $URL and paste the token when prompted."

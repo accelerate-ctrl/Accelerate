@@ -15,6 +15,7 @@ The server never calls a model. Billing safety lives in the runner
 no Anthropic client here to bill anything.
 """
 from __future__ import annotations
+import hmac
 import json
 import shutil
 import time
@@ -89,7 +90,16 @@ def _heartbeat(member: str | None, runner_id: str, engine: str | None) -> None:
 def _member_of(request: Request) -> str | None:
     supplied = (request.headers.get("x-w2-token")
                 or request.query_params.get("token", ""))
-    return MEMBER_BY_TOKEN.get(supplied)
+    if not supplied:
+        return None
+    # Constant-time comparison against every registered token: a plain dict
+    # lookup would let response timing leak prefix matches. The registry is a
+    # handful of members, so scanning it is free.
+    member = None
+    for tok, m in MEMBER_BY_TOKEN.items():
+        if hmac.compare_digest(supplied, tok):
+            member = m
+    return member
 
 
 @app.middleware("http")
@@ -106,12 +116,29 @@ async def token_auth(request: Request, call_next):
             return Response('{"detail": "missing or bad X-W2-Token"}', 401,
                             media_type="application/json")
         request.state.member = member
-    return await call_next(request)
+    response = await call_next(request)
+    # Baseline hardening headers on every response. A strict CSP is deliberately
+    # NOT set: the console/landing use inline scripts and styles by design
+    # (single-file surfaces); the app serves no third-party content.
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
+
+
+# Upload ceiling (QA hardening): SDDs/BRDs are documents, not datasets. Cloud
+# Run already caps HTTP/1 requests at 32 MiB; this enforces the same class of
+# bound everywhere (local/dev included) instead of buffering arbitrary bytes.
+MAX_UPLOAD_BYTES = int(os.environ.get("W2_MAX_UPLOAD_MB", "25")) * 1024 * 1024
 
 
 def _save_upload(dest: Path, f: UploadFile) -> str:
     name = Path(f.filename or "upload.md").name
-    (dest / name).write_bytes(f.file.read())
+    data = f.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"{name} exceeds the "
+                            f"{MAX_UPLOAD_BYTES // (1024*1024)} MiB upload limit")
+    (dest / name).write_bytes(data)
     return name
 
 
@@ -319,6 +346,15 @@ def runner_zip(request: Request):
                 z.write(p, f"runner/examples/{name}")
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": "attachment; filename=runner.zip"})
+
+
+@app.get("/healthz")
+def healthz():
+    """Liveness/startup probe for Cloud Run (and uptime checks). Token-exempt
+    by design; reveals nothing beyond what the landing page already states."""
+    return {"ok": True, "service": "w2-eval-bench", "version": "2.0",
+            "protocol": EVAL_PROTOCOL,
+            "data_dir_writable": os.access(DATA_DIR, os.W_OK)}
 
 
 @app.get("/bench")
