@@ -278,6 +278,49 @@ def post_result(run_id: str, pid: str, body: dict):
     return {"status": st["status"], "stage": st.get("stage")}
 
 
+@app.get("/install.sh")
+def install_script(request: Request):
+    """Personalized per-member installer (TR-30, FR-12). Auth: member token via
+    header or ?token= (the guide's canonical command passes the token as a
+    bash argument instead, keeping it out of request logs — errata E-2; the
+    query form is honoured for convenience). The script itself never logs the
+    token, and this route is excluded from app-level logging."""
+    if MEMBER_BY_TOKEN:
+        member = _member_of(request)
+        if member is None:
+            return Response("# 401: supply your bench token (?token=... or "
+                            "X-W2-Token) to fetch the personalized installer.\n",
+                            401, media_type="text/x-shellscript")
+    supplied = (request.headers.get("x-w2-token")
+                or request.query_params.get("token", ""))
+    tpl = (Path(__file__).parent / "install_template.sh").read_text()
+    base = str(request.base_url).rstrip("/")
+    script = tpl.replace("__W2_SERVER__", base).replace("__W2_TOKEN__", supplied or "")
+    return Response(script, media_type="text/x-shellscript")
+
+
+@app.get("/runner.zip")
+def runner_zip(request: Request):
+    """The runner payload for the installer / manual installs (doc 07 Option
+    B): runner/*.py + the service templates, zipped on the fly."""
+    if MEMBER_BY_TOKEN and _member_of(request) is None:
+        raise HTTPException(401, "missing or bad token")
+    import io
+    import zipfile
+    app_root = Path(__file__).parent.parent
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted((app_root / "runner").glob("*.py")):
+            z.write(f, f"runner/{f.name}")
+        for name in ("com.zennify.w2runner.plist", "w2-runner.user.service",
+                     "w2-runner.service"):
+            p = app_root / "examples" / name
+            if p.exists():
+                z.write(p, f"runner/examples/{name}")
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": "attachment; filename=runner.zip"})
+
+
 @app.get("/bench")
 def bench_console():
     """The operator console (UI/UX brief §3). `/` serves the landing page

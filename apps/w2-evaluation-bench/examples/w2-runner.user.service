@@ -1,0 +1,20 @@
+# W2 runner — USER-level systemd unit (Linux/WSL, per-member; TR-30).
+# Installed by install.sh to ~/.config/systemd/user/w2-runner.service with
+# __W2_HOME__ / __PYTHON__ templated in. Runs in the member's user session so
+# the Claude subscription credential (~/.claude or CLAUDE_CODE_OAUTH_TOKEN in
+# ~/.w2/env) is visible. NOT the system unit (examples/w2-runner.service is
+# the v1.1 system-level variant, kept for VM installs).
+#   systemctl --user enable --now w2-runner
+[Unit]
+Description=W2 Evaluation Bench runner (dual-judge intelligence layer)
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.w2/env
+ExecStart=__PYTHON__ __W2_HOME__/runner/w2_runner.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

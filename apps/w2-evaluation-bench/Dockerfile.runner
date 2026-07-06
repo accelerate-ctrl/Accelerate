@@ -8,4 +8,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-cert
     && npm install -g @anthropic-ai/claude-code
 WORKDIR /opt/w2app
 COPY runner/ runner/
-CMD ["python3", "runner/w2_runner.py", "--engine", "claude-code"]
+CMD ["python3", "runner/w2_runner.py", "--engine", "panel"]

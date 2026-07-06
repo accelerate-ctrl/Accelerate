@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- W2 runner launchd agent (macOS, per-member; installed by install.sh with
+     __W2_HOME__ / __PYTHON__ templated in). Runs as the member's user so the
+     Claude subscription credential in ~/.claude is visible (TR-30). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.zennify.w2runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>set -a; . __W2_HOME__/env; set +a; exec __PYTHON__ __W2_HOME__/runner/w2_runner.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>__W2_HOME__/runner.log</string>
+  <key>StandardErrorPath</key><string>__W2_HOME__/runner.log</string>
+</dict>
+</plist>
