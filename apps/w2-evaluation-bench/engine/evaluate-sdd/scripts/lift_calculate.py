@@ -177,13 +177,27 @@ def derive_priority_review(extracted: dict, integration_heavy: bool,
     for dim in range(1, 8):
         if extracted["per_dim_variance_flag"].get(str(dim)):
             stddev = extracted["per_dim_stddev"].get(str(dim))
-            entries.append({
-                "priority": "Medium",
-                "section": f"Dim {dim} (variance)",
-                "issue_type": "Variance",
-                "source_dim": dim,
-                "notes": f"stddev = {stddev} > 1.0",
-            })
+            if stddev is None:
+                # Dual-judge protocol (v4.7): the flag carries a recorded
+                # cross-judge DISSENT, not pass stddev (errata Q6). Same
+                # OH §3.9 slot, honest v4.7 wording.
+                entries.append({
+                    "priority": "Medium",
+                    "section": f"Dim {dim} (judge dissent)",
+                    "issue_type": "Judge dissent",
+                    "source_dim": dim,
+                    "notes": ("a recorded cross-judge dissent touches this "
+                              "dimension; the conservative consensus stands — "
+                              "see the Dissent & Reconciliation annex"),
+                })
+            else:
+                entries.append({
+                    "priority": "Medium",
+                    "section": f"Dim {dim} (variance)",
+                    "issue_type": "Variance",
+                    "source_dim": dim,
+                    "notes": f"stddev = {stddev} > 1.0",
+                })
 
     for d in extracted["deductions"]:
         if isinstance(d.get("id"), str) and d["id"].startswith("RR-"):
@@ -239,13 +253,21 @@ def derive_estimation_handoff_status(extracted: dict, integration_heavy: bool) -
             # cleared AND Dim 7 variance flag NOT set. When Dim 7 ≥ threshold AND gate
             # clears AND variance flag IS set, the status downgrades to Conditional
             # with the variance flag surfaced in basis text for the methodology lead.
+            # Dual-judge (v4.7): the flag carries a recorded cross-judge dissent
+            # (errata Q6) — same Table-29 downgrade, honest wording.
+            dual_judge = extracted["per_dim_stddev"].get("7") is None
+            signal = ("a recorded cross-judge dissent touches Dim 7 (conservative "
+                      "consensus applied — see the Dissent & Reconciliation annex)"
+                      if dual_judge else
+                      "Dim 7 variance flag is set (stddev > 1.0)")
+            flag_name = "dissent flag" if dual_judge else "variance flag"
             return {
                 "status": "Conditional",
                 "basis": (
                     f"Dim 7 mean {dim7_mean} ≥ threshold {dim7_threshold} and overall gate cleared, "
-                    f"but Dim 7 variance flag is set (stddev > 1.0). Ready requires the variance flag "
+                    f"but {signal}. Ready requires the {flag_name} "
                     f"NOT set per OH §3.9 Table 29; the run is downgraded to Conditional and the "
-                    f"variance signal is surfaced for review."
+                    f"signal is surfaced for review."
                 ),
             }
         return {
@@ -467,12 +489,148 @@ def lift_uncertainty(extracted_a: dict, extracted_b: dict,
     }
 
 
+# ===========================================================================
+# v4.7 DUAL-JUDGE PATH (TR-19, Backend Schema §9, errata V-2/C-1): lift is
+# computed from the two lanes' SCORING BUNDLES, not by screen-scraping the
+# populated XLSX — the sheet is presentation-only under dual-judge. The
+# headline is the consensus lift; per-judge lifts (each judge's own A-total
+# minus B-total) form the uncertainty band [min, max] of the three. The
+# bootstrap/ICC machinery above is BYPASSED: with n=2 judges you report the
+# spread, you don't model it. The v4.6 five-pass path is frozen verbatim.
+# ===========================================================================
+
+def _dissent_dims_of(bundle: dict) -> set:
+    dims = set()
+    for d in (bundle.get("dissents") or []):
+        cid = d.get("criterion_id") or ""
+        sk = d.get("sub_key") or ""
+        if cid:
+            dims.add(cid[0])
+        elif sk.startswith("sub:"):
+            dims.add(sk.split(":")[1])
+        elif d.get("dim"):
+            dims.add(str(d["dim"]))
+    return dims
+
+
+def extract_from_bundle_v47(bundle: dict) -> dict:
+    """Build the same 'extracted' shape the derivation helpers consume, from a
+    v4.7 scoring bundle. per_dim_variance_flag carries the DISSENT flag
+    (stddev None marks the dual-judge protocol for the wording switches)."""
+    means = {str(d): bundle.get("per_dim_mean", {}).get(str(d)) for d in range(1, 8)}
+    bands = {str(d): bundle.get("per_dim_band", {}).get(str(d)) for d in range(1, 8)}
+    dissent_dims = _dissent_dims_of(bundle)
+    judge_runs = bundle.get("judge_runs_by_dimension", {}) or {}
+
+    means_present = [m for m in means.values() if isinstance(m, (int, float))]
+    final_score = (int(Decimal(str(sum(means_present))).quantize(
+        Decimal('1'), rounding=ROUND_HALF_UP)) if len(means_present) == 7 else None)
+
+    judge_totals = {}
+    for judge in contracts.JUDGES:
+        vals = [(judge_runs.get(judge) or {}).get(str(d)) for d in range(1, 8)]
+        judge_totals[judge] = (int(Decimal(str(sum(vals))).quantize(
+            Decimal('1'), rounding=ROUND_HALF_UP))
+            if all(isinstance(v, (int, float)) for v in vals) else None)
+
+    return {
+        "path": "(scoring bundle, dual-judge)",
+        "per_dim_runs": {},
+        "per_dim_mean": means,
+        "per_dim_stddev": {str(d): None for d in range(1, 8)},
+        "per_dim_variance_flag": {str(d): (str(d) in dissent_dims) for d in range(1, 8)},
+        "per_dim_band": bands,
+        "final_score": final_score,
+        "judge_totals": judge_totals,
+        "deductions": bundle.get("deductions", []) or [],
+        "agreement_stats": bundle.get("agreement_stats", {}) or {},
+    }
+
+
+def compute_judge_lifts(extracted_a: dict, extracted_b: dict,
+                        headline_consensus) -> tuple[dict, list]:
+    """Per-judge lifts (judge's own A-total minus B-total, blinded orientation)
+    and the band = [min, max] over {lift_cc, lift_gm, lift_consensus}."""
+    judge_lifts = {}
+    for judge in contracts.JUDGES:
+        ta = (extracted_a.get("judge_totals") or {}).get(judge)
+        tb = (extracted_b.get("judge_totals") or {}).get(judge)
+        judge_lifts[judge] = (ta - tb) if isinstance(ta, int) and isinstance(tb, int) else None
+    vals = [v for v in list(judge_lifts.values()) + [headline_consensus]
+            if isinstance(v, (int, float))]
+    band = [min(vals), max(vals)] if vals else [None, None]
+    return judge_lifts, band
+
+
+def judge_spread_uncertainty(judge_lifts: dict, band: list,
+                             agreement_overall) -> dict:
+    """The v4.7 replacement for the bootstrap block (TR-19): report the
+    inter-judge spread, don't model it."""
+    return {
+        "orientation": "output_a_minus_output_b",
+        "judge_lifts": dict(judge_lifts),
+        "band_low": band[0], "band_high": band[1],
+        "agreement_overall": agreement_overall,
+        "method": ("inter-judge spread: the band spans the two judges' fully "
+                   "independent lifts and the consensus lift. No bootstrap or "
+                   "ICC modeling — with two judges the honest statement is the "
+                   "spread itself (TR-19)."),
+        "uncertainty_caveat": (
+            "The band spans the two judges' independent reads; a lift whose "
+            "sign holds across both model families is directionally robust. "
+            "It does not capture errors shared by both models, prompt/"
+            "calibration sensitivity, or cross-session variance. Treat the "
+            "lift as directional and prefer band-level distinctions over "
+            "point scores."),
+    }
+
+
+def flip_judge_metrics(lift_metrics: dict) -> dict:
+    """Reorient the v4.7 judge metrics at lane reveal (B is ZA): negate each
+    judge lift; the band negates AND swaps ends (mirror of flip_uncertainty)."""
+    lm = dict(lift_metrics)
+    jl = lm.get("judge_lifts_output_a_minus_b")
+    if isinstance(jl, dict):
+        lm["judge_lifts_output_a_minus_b"] = {
+            k: (-v if isinstance(v, (int, float)) else v) for k, v in jl.items()}
+    band = lm.get("lift_band_output_a_minus_b")
+    if isinstance(band, list) and len(band) == 2 and \
+            all(isinstance(x, (int, float)) for x in band):
+        lm["lift_band_output_a_minus_b"] = [-band[1], -band[0]]
+    return lm
+
+
+def run_agreement_overall(extracted_a: dict, extracted_b: dict):
+    """Run-level agreement_overall: non-NA-criteria-weighted mean of the two
+    lanes' overalls (errata Q2)."""
+    tot, acc = 0, 0.0
+    for ex in (extracted_a, extracted_b):
+        st = ex.get("agreement_stats") or {}
+        o, n = st.get("agreement_overall"), st.get("non_na_criteria")
+        if isinstance(o, (int, float)) and isinstance(n, (int, float)) and n:
+            acc += o * n
+            tot += n
+    return round(acc / tot, 3) if tot else None
+
+
 def flip_uncertainty(u: dict | None) -> dict | None:
     """Reorient an A-minus-B lift-uncertainty block to the revealed sign.
     Negates the mean, swaps and negates the band bounds, and flips P(lift>0).
-    Carries both the canonical pass_noise_band_* names and the ci95_* aliases."""
+    Carries both the canonical pass_noise_band_* names and the ci95_* aliases.
+
+    v4.7: also handles the dual-judge judge-spread block (judge_lifts +
+    band_low/band_high): each judge lift negates; the band negates and swaps."""
     if not u:
         return u
+    if "judge_lifts" in u:  # v4.7 judge-spread block
+        flipped = dict(u)
+        flipped["orientation"] = "revealed (sign-reassigned at lane reveal)"
+        flipped["judge_lifts"] = {k: (-v if isinstance(v, (int, float)) else v)
+                                  for k, v in (u.get("judge_lifts") or {}).items()}
+        lo, hi = u.get("band_low"), u.get("band_high")
+        if isinstance(lo, (int, float)) and isinstance(hi, (int, float)):
+            flipped["band_low"], flipped["band_high"] = -hi, -lo
+        return flipped
     flipped = dict(u)
     flipped["orientation"] = "revealed (sign-reassigned at lane reveal)"
     flipped["lift_mean_bootstrap"] = round(-u["lift_mean_bootstrap"], 2)
@@ -495,19 +653,54 @@ def flip_uncertainty(u: dict | None) -> dict | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--output-a-score-sheet", required=True, type=Path)
-    ap.add_argument("--output-b-score-sheet", required=True, type=Path)
+    ap.add_argument("--output-a-score-sheet", type=Path,
+                    help="five-pass path input (v4.6, frozen)")
+    ap.add_argument("--output-b-score-sheet", type=Path,
+                    help="five-pass path input (v4.6, frozen)")
+    ap.add_argument("--bundle-a", type=Path,
+                    help="dual-judge path input: Output A scoring bundle (v4.7)")
+    ap.add_argument("--bundle-b", type=Path,
+                    help="dual-judge path input: Output B scoring bundle (v4.7)")
+    ap.add_argument("--protocol", choices=["auto", "dual-judge", "five-pass"],
+                    default="auto",
+                    help="auto: dual-judge when --bundle-a/--bundle-b supplied, "
+                         "else five-pass from the score sheets")
     ap.add_argument("--integration-heavy", action="store_true")
     ap.add_argument("--confidence-high-risk-a", action="store_true")
     ap.add_argument("--confidence-high-risk-b", action="store_true")
     ap.add_argument("--output", type=Path)
     args = ap.parse_args()
 
-    extracted_a = extract_score_sheet(args.output_a_score_sheet)
-    extracted_b = extract_score_sheet(args.output_b_score_sheet)
+    protocol = args.protocol
+    if protocol == "auto":
+        protocol = "dual-judge" if (args.bundle_a and args.bundle_b) else "five-pass"
 
-    lift = compute_lift_metrics(extracted_a, extracted_b, args.integration_heavy)
-    lift["lift_uncertainty"] = lift_uncertainty(extracted_a, extracted_b)
+    if protocol == "dual-judge":
+        if not (args.bundle_a and args.bundle_b):
+            print("ERROR: dual-judge lift requires --bundle-a and --bundle-b", file=sys.stderr)
+            return 12
+        bundle_a = json.loads(args.bundle_a.read_text(encoding="utf-8"))
+        bundle_b = json.loads(args.bundle_b.read_text(encoding="utf-8"))
+        extracted_a = extract_from_bundle_v47(bundle_a)
+        extracted_b = extract_from_bundle_v47(bundle_b)
+        lift = compute_lift_metrics(extracted_a, extracted_b, args.integration_heavy)
+        judge_lifts, band = compute_judge_lifts(
+            extracted_a, extracted_b, lift["headline_lift_output_a_minus_b"])
+        agreement_overall = run_agreement_overall(extracted_a, extracted_b)
+        lift["judge_lifts_output_a_minus_b"] = judge_lifts
+        lift["lift_band_output_a_minus_b"] = band
+        # Bootstrap/ICC bypassed (TR-19): the uncertainty block IS the spread.
+        lift["lift_uncertainty"] = judge_spread_uncertainty(
+            judge_lifts, band, agreement_overall)
+    else:
+        if not (args.output_a_score_sheet and args.output_b_score_sheet):
+            print("ERROR: five-pass lift requires --output-a-score-sheet and "
+                  "--output-b-score-sheet", file=sys.stderr)
+            return 12
+        extracted_a = extract_score_sheet(args.output_a_score_sheet)
+        extracted_b = extract_score_sheet(args.output_b_score_sheet)
+        lift = compute_lift_metrics(extracted_a, extracted_b, args.integration_heavy)
+        lift["lift_uncertainty"] = lift_uncertainty(extracted_a, extracted_b)
     gate_a = derive_overall_gate(extracted_a, args.integration_heavy)
     gate_b = derive_overall_gate(extracted_b, args.integration_heavy)
     handoff_a = derive_estimation_handoff_status(extracted_a, args.integration_heavy)
@@ -516,6 +709,7 @@ def main() -> int:
     review_b = derive_priority_review(extracted_b, args.integration_heavy, args.confidence_high_risk_b)
 
     result = {
+        "protocol": protocol,
         "integration_heavy": args.integration_heavy,
         "output_a": {
             "per_dim_mean": extracted_a["per_dim_mean"],
@@ -544,6 +738,10 @@ def main() -> int:
             },
         },
         "lift_metrics": lift,
+        **({"judge_totals_output_a": extracted_a.get("judge_totals"),
+            "judge_totals_output_b": extracted_b.get("judge_totals"),
+            "agreement_overall": run_agreement_overall(extracted_a, extracted_b)}
+           if protocol == "dual-judge" else {}),
         "gate_pass_output_a": gate_a,
         "gate_pass_output_b": gate_b,
         "estimation_handoff_status_output_a": handoff_a,

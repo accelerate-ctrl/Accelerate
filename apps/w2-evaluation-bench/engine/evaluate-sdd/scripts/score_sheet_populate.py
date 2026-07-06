@@ -857,6 +857,742 @@ def validate_bundle(bundle: dict, blinding_label: str, source_index: dict = None
     return (len(errors) == 0, errors)
 
 
+# ===========================================================================
+# v4.7 — DUAL-JUDGE VALIDATION PATH (R1, R3–R28). The v4.6 five-pass
+# validator above is FROZEN VERBATIM for EVAL_PROTOCOL=five-pass (PRD D6,
+# TRD §4); this path validates the v4.7 bundle shape per Backend Schema §7:
+#   R2 retired · R3 consensus-totals recomputation · R4 per-judge totals ·
+#   R5 agreement-field consistency · R8/R8c three-key sub entries ·
+#   R14 extended over ruling_citation/ruling_rationale/dissents ·
+#   R17 v4.7 required-field set · R25 family applied ALSO to both judges'
+#   retained anchors and every reconcile ruling citation ·
+#   R26/R27/R28 new.
+# Rule text stays verbatim-quotable: failures carry the rule id and the
+# concrete field path, exactly like the v4.6 path.
+# ===========================================================================
+
+PROVENANCE_VALUES = ("agreed", "adopt_claude", "adopt_gemini",
+                     "meet_between", "dissent")
+_JUDGE_A47, _JUDGE_B47 = contracts.JUDGES
+
+
+def _v47_rank(verdict: str) -> int:
+    """Verdict strength (weaker = lower) with the NA-never-wins mapping:
+    NA compares as Absent for the conservative rule."""
+    order = {v: i for i, v in enumerate(reversed(contracts.VERDICT_ORDER))}
+    return order.get("Absent" if verdict == "NA" else verdict, 0)
+
+
+def _v47_sub_consensus(item):
+    if isinstance(item, dict) and isinstance(item.get("consensus"), (int, float)):
+        return float(item["consensus"])
+    return None
+
+
+def _v47_dissent_dims(bundle: dict) -> set:
+    """Dimensions touched by any recorded dissent (criterion, sub, or dim)."""
+    dims = set()
+    for d in (bundle.get("dissents") or []):
+        cid = d.get("criterion_id") or ""
+        sk = d.get("sub_key") or ""
+        if cid:
+            dims.add(cid[0])
+        elif sk.startswith("sub:"):
+            dims.add(sk.split(":")[1])
+        elif d.get("dim"):
+            dims.add(str(d["dim"]))
+    return dims
+
+
+def validate_bundle_v47(bundle: dict, blinding_label: str, source_index: dict = None,
+                        depth_map: dict = None, blinding_extra_terms=None,
+                        integration_heavy: bool = False) -> tuple[bool, list[str]]:
+    """v4.7 validation (R1, R3–R28) per Backend Schema §7. Returns (ok, errors)."""
+    errors = []
+    leak_scanner = contracts.blinding_scanner(blinding_extra_terms)
+
+    # R1
+    if bundle.get("blinding_label") != blinding_label:
+        errors.append(f"R1: blinding_label mismatch: expected {blinding_label!r}, "
+                      f"got {bundle.get('blinding_label')!r}")
+
+    means = bundle.get("per_dim_mean", {})
+    bands = bundle.get("per_dim_band", {})
+    agreement = bundle.get("per_dim_agreement", {})
+    agg_stats = bundle.get("agreement_stats", {}) or {}
+    judge_runs = bundle.get("judge_runs_by_dimension", {}) or {}
+    deductions = bundle.get("deductions", []) or []
+    dissents = bundle.get("dissents", []) or []
+    cons_prov = bundle.get("consensus_provenance", {}) or {}
+
+    # ---- R28 (structure half first: everything below leans on judge_runs)
+    expected_series = set(contracts.JUDGES) | {"consensus"}
+    if set(judge_runs.keys()) != expected_series:
+        errors.append(
+            f"R28: judge_runs_by_dimension must contain exactly the two configured "
+            f"judges + consensus {sorted(expected_series)}; got {sorted(judge_runs.keys())}")
+    for series, vals in judge_runs.items():
+        if not isinstance(vals, dict) or set(vals.keys()) != {"1", "2", "3", "4", "5", "6", "7"}:
+            errors.append(f"R28: judge_runs_by_dimension[{series!r}] keys must be "
+                          f"1..7 strings; got {sorted((vals or {}).keys())}")
+
+    # ---- R3: consensus per-dim recomputation (bottom-up from three-key subs)
+    ded_rr = sum(d.get("deduction", 0) for d in deductions
+                 if str(d.get("id", "")).startswith("RR-"))
+    capped_rr = max(contracts.RR_CUMULATIVE_CAP, ded_rr)
+    trust_total = sum(d.get("deduction", 0) for d in deductions
+                      if str(d.get("id", "")).startswith("TRUST-"))
+    sub4 = bundle.get("dim_4_sub_criteria", {}) or {}
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        sc = bundle.get("dim_%s_sub_criteria" % k) or {}
+        subs = [(_key, _v47_sub_consensus(sc.get(_key)))
+                for _sid, _key in SUBCRIT[k]]
+        vals = [v for _key, v in subs if v is not None]
+        if not vals:
+            continue  # R8c reports the structural gap
+        raw = round(sum(vals), 1)
+        if k == "3":
+            expected = round(max(0.0, raw + capped_rr + trust_total), 1)
+        elif k == "4":
+            cap = sub4.get("floor_cap")
+            expected = round(min(raw, cap) if cap is not None else raw, 1)
+        else:
+            expected = raw
+        got = means.get(k)
+        if got is not None and abs(float(got) - expected) > 0.05:
+            errors.append(f"R3: per_dim_mean[{k}] = {got}, expected {expected} "
+                          f"(Σ consensus sub-scores"
+                          f"{' net of capped deductions' if k == '3' else ''}"
+                          f"{' floored' if k == '4' else ''})")
+        cons_run = (judge_runs.get("consensus") or {}).get(k)
+        if got is not None and isinstance(cons_run, (int, float)) \
+                and abs(float(cons_run) - float(got)) > 0.05:
+            errors.append(f"R3: judge_runs_by_dimension[consensus][{k}] = {cons_run} "
+                          f"disagrees with per_dim_mean[{k}] = {got}")
+
+    # ---- R4: per-judge totals present, numeric, and enveloping the consensus
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        ja = (judge_runs.get(_JUDGE_A47) or {}).get(k)
+        jb = (judge_runs.get(_JUDGE_B47) or {}).get(k)
+        for judge, v in ((_JUDGE_A47, ja), (_JUDGE_B47, jb)):
+            if not isinstance(v, (int, float)):
+                errors.append(f"R4: judge_runs_by_dimension[{judge}][{k}] missing or "
+                              f"non-numeric: {v!r}")
+        cons = (judge_runs.get("consensus") or {}).get(k)
+        if all(isinstance(x, (int, float)) for x in (ja, jb, cons)):
+            lo, hi = min(ja, jb), max(ja, jb)
+            if not (lo - 0.05 <= cons <= hi + 0.05):
+                errors.append(f"R4: consensus dim {k} total {cons} outside the judges' "
+                              f"envelope [{lo}, {hi}] — a consensus value must trace to "
+                              f"an agreed value, a ruling, or a conservative resolution")
+
+    # ---- R5: agreement fields consistent with judge values
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        ja = (judge_runs.get(_JUDGE_A47) or {}).get(k)
+        jb = (judge_runs.get(_JUDGE_B47) or {}).get(k)
+        got = agreement.get(k)
+        if isinstance(ja, (int, float)) and isinstance(jb, (int, float)):
+            mx = contracts.dim_max(int(k), integration_heavy)
+            expected = round(max(0.0, 1.0 - abs(ja - jb) / mx), 3)
+            if got is None:
+                errors.append(f"R5: per_dim_agreement[{k}] missing")
+            elif abs(float(got) - expected) > 0.005:
+                errors.append(f"R5: per_dim_agreement[{k}] = {got}, expected {expected} "
+                              f"(1 − |{ja} − {jb}| / {mx})")
+    rate = agg_stats.get("verdict_agreement_rate")
+    conc = agg_stats.get("score_concordance")
+    overall = agg_stats.get("agreement_overall")
+    if not isinstance(agg_stats, dict) or rate is None or conc is None or overall is None:
+        errors.append("R5: agreement_stats must carry verdict_agreement_rate, "
+                      "score_concordance and agreement_overall (Backend Schema §6.5)")
+    elif isinstance(rate, (int, float)) and isinstance(conc, (int, float)) \
+            and abs(float(overall) - round(0.5 * rate + 0.5 * conc, 3)) > 0.005:
+        errors.append(f"R5: agreement_overall = {overall}, expected "
+                      f"0.5·{rate} + 0.5·{conc} = {round(0.5 * rate + 0.5 * conc, 3)}")
+
+    # ---- R6 (same as v4.6: band vocabulary)
+    valid_bands = set(contracts.BAND_LABELS)
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        if k not in bands:
+            errors.append(f"R6: per_dim_band[{k}] missing")
+        elif bands[k] not in valid_bands:
+            errors.append(f"R6: per_dim_band[{k}] = {bands[k]!r} not in {valid_bands}")
+
+    # ---- R7 (verbatim truth-source strings)
+    truth = bundle.get("per_dim_truth_source", {})
+    for k, v in contracts.EXPECTED_TRUTH_SOURCE.items():
+        if truth.get(k) != v:
+            errors.append(f"R7: per_dim_truth_source[{k}] = {truth.get(k)!r}, expected {v!r}")
+
+    # ---- R8: dim-3 three-key entries + reasoning depth
+    sub3 = bundle.get("dim_3_sub_criteria", {}) or {}
+    required_sub3 = ["cloud_module_selection", "trusted_design", "easy_design",
+                     "adaptable_design"]
+    mc = sub3.get("multi_cloud_architecture")
+    multi_cloud = mc is not None
+    per_sub_max = 4 if multi_cloud else 5
+    if multi_cloud:
+        required_sub3.append("multi_cloud_architecture")
+    for key in required_sub3:
+        item = sub3.get(key)
+        if not item:
+            errors.append(f"R8: dim_3_sub_criteria[{key!r}] missing")
+            continue
+        score = _v47_sub_consensus(item)
+        if score is None:
+            errors.append(f"R8: dim_3_sub_criteria[{key!r}] has no numeric 'consensus' "
+                          f"in its three-key entry (dual-judge shape)")
+            continue
+        if score < 0 or score > per_sub_max:
+            errors.append(f"R8: dim_3_sub_criteria[{key!r}] consensus {score} out of "
+                          f"bounds [0, {per_sub_max}] (multi_cloud={multi_cloud})")
+        if not item.get("reasoning") or len(item.get("reasoning", "")) < 50:
+            errors.append(f"R8: dim_3_sub_criteria[{key!r}] reasoning <50 chars")
+
+    # ---- R9: dim-4 floor consistency (fields unchanged from v4.6)
+    sub4_max = {"component_presence": 9, "architectural_decision_quality": 6}
+    for key, max_score in sub4_max.items():
+        item = sub4.get(key)
+        if not item:
+            errors.append(f"R9: dim_4_sub_criteria[{key!r}] missing")
+            continue
+        score = _v47_sub_consensus(item)
+        if score is None:
+            errors.append(f"R9: dim_4_sub_criteria[{key!r}] has no numeric 'consensus' "
+                          f"in its three-key entry (dual-judge shape)")
+            continue
+        if score < 0 or score > max_score:
+            errors.append(f"R9: dim_4_sub_criteria[{key!r}] consensus {score} out of "
+                          f"bounds [0, {max_score}]")
+    if all(k in sub4 for k in ("raw_sum_before_floor", "final_dim_4_score")):
+        raw = sub4.get("raw_sum_before_floor")
+        cap = sub4.get("floor_cap")
+        final = sub4.get("final_dim_4_score")
+        if isinstance(raw, (int, float)) and isinstance(final, (int, float)):
+            expected = min(raw, cap) if cap is not None else min(raw, 15)
+            if abs(final - expected) > 0.05:
+                errors.append(f"R9: final_dim_4_score = {final}, expected "
+                              f"min({raw}, {cap if cap is not None else 15}) = {expected}")
+
+    # ---- R8c: every applicable sub-criterion carries the three-key object
+    for _dim, _subs in SUBCRIT.items():
+        _sc = bundle.get("dim_%s_sub_criteria" % _dim)
+        if not isinstance(_sc, dict):
+            errors.append(
+                f"R8c: dim_{_dim}_sub_criteria missing or not an object — every dimension "
+                "must carry dual-judge sub-criterion entries to populate the audit sheet")
+            continue
+        for _sid, _key in _subs:
+            _entry = _sc.get(_key)
+            if _sid == "3E" and _entry is None:
+                continue  # multi-cloud only; absent is valid off multi-cloud
+            if not isinstance(_entry, dict):
+                errors.append(
+                    f"R8c: dim_{_dim}_sub_criteria[{_key!r}] ({_sid}) missing — needed to "
+                    "populate the Sub_Criteria sheet judge columns")
+                continue
+            bad = [j for j in (_JUDGE_A47, _JUDGE_B47, "consensus")
+                   if not isinstance(_entry.get(j), (int, float))]
+            if bad:
+                errors.append(
+                    f"R8c: dim_{_dim}_sub_criteria[{_key!r}] ({_sid}) three-key entry "
+                    f"missing numeric value(s) for {bad} — Judge A / Judge B / Consensus "
+                    "columns must all populate")
+            if _entry.get("provenance") not in PROVENANCE_VALUES:
+                errors.append(
+                    f"R8c: dim_{_dim}_sub_criteria[{_key!r}] ({_sid}) provenance "
+                    f"{_entry.get('provenance')!r} not in {PROVENANCE_VALUES}")
+
+    # ---- R10 (unchanged rule text)
+    for d in deductions:
+        did = d.get("id", "")
+        val = d.get("deduction")
+        if not re.match(r"^(TRUST|RR)-\d+$", did):
+            errors.append(f"R10: deduction id {did!r} invalid pattern")
+            continue
+        if did.startswith("RR-"):
+            if val not in (-1, -3):
+                errors.append(f"R10: RR deduction {did!r} value {val!r} invalid — "
+                              f"RR deductions are only -1 or -3 (never -5; -5 is TRUST-only)")
+            if not d.get("salesforce_source"):
+                errors.append(f"R10: RR deduction {did!r} missing salesforce_source "
+                              f"(release-currency deductions must cite a Salesforce-controlled source)")
+        elif did.startswith("TRUST-"):
+            if val not in (-1, -3, -5):
+                errors.append(f"R10: TRUST deduction {did!r} value {val!r} not in {{-1,-3,-5}}")
+        if not d.get("triggering_passage"):
+            errors.append(f"R10: deduction {did!r} missing triggering_passage")
+
+    # ---- R11 firewall (unchanged fields)
+    reasoning = bundle.get("per_dim_key_reasoning", {})
+    zms_citations = bundle.get("zms_calibration_citations", {})
+    for k in ("1", "2", "6"):
+        text = reasoning.get(k, "") or ""
+        for pat in BENCHMARK_AS_AUTHORITY_PATTERNS:
+            m = pat.search(text)
+            if m:
+                errors.append(
+                    f"R11: per_dim_key_reasoning[{k}] cites ZMS/calibration as requirements authority "
+                    f"({m.group(0)!r}) — Dim {k} truth-source is operator BRD. "
+                    f"ZMS calibration-as-bar phrasings are permitted; this phrasing claims authority.")
+                break
+        for i, cite in enumerate(zms_citations.get(k, []) or []):
+            anchor = cite.get("evidence_anchor", "") or ""
+            for pat in BENCHMARK_AS_AUTHORITY_PATTERNS:
+                m = pat.search(anchor)
+                if m:
+                    errors.append(
+                        f"R11: zms_calibration_citations[{k}][{i}].evidence_anchor cites ZMS as "
+                        f"requirements authority ({m.group(0)!r}) — truth-source firewall violation")
+                    break
+
+    # ---- R12 (+ inline R20/R25/R25e/R25b/c on consensus citations — same
+    # discipline as v4.6, verbatim rule text)
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        entries = zms_citations.get(k, [])
+        if not entries:
+            errors.append(
+                f"R12: zms_calibration_citations[{k}] is empty — every dimension must "
+                "cite at least one ZMS criterion with verdict and evidence anchor")
+            continue
+        for i, entry in enumerate(entries):
+            cid = entry.get("zms_criterion_id", "")
+            if not cid or not re.match(r"^\d[A-Z]\.[a-z_]+$", cid):
+                errors.append(
+                    f"R12: zms_calibration_citations[{k}][{i}].zms_criterion_id "
+                    f"{cid!r} not in expected form (e.g., '3B.record')")
+            label = entry.get("source_label", "")
+            if label not in ("Zennify SDD standard", "Well-Architected",
+                             "Zennify + Well-Architected"):
+                errors.append(
+                    f"R12: zms_calibration_citations[{k}][{i}].source_label "
+                    f"{label!r} not in recognised set")
+            verdict = entry.get("verdict", "")
+            if verdict not in ("Present", "Partial", "Absent", "NA"):
+                errors.append(
+                    f"R12: zms_calibration_citations[{k}][{i}].verdict "
+                    f"{verdict!r} not in (Present/Partial/Absent/NA)")
+            anchor = entry.get("evidence_anchor", "") or ""
+            if verdict == "Present" and len(anchor) < 20:
+                errors.append(
+                    f"R20: zms_calibration_citations[{k}][{i}] verdict=Present but "
+                    f"evidence_anchor only {len(anchor)} chars — Present requires "
+                    "verbatim ≤30-word anchor with substantive content")
+            if verdict in ("Present", "Partial", "Absent", "NA"):
+                prob = anchor_quality_problem(anchor, verdict)
+                if prob:
+                    errors.append(
+                        f"R25: zms_calibration_citations[{k}][{i}] (verdict={verdict}) "
+                        f"evidence_anchor is not grounded — {prob}")
+                if verdict in ("Present", "Partial") and source_index is None:
+                    cid2 = entry.get("zms_criterion_id") or entry.get("criterion_id") or ""
+                    comps = (depth_map or {}).get(cid2, [])
+                    if comps:
+                        try:
+                            import evidence_anchor_verify as _EV
+                            sv = _EV.supports_verdict(anchor, verdict, comps)
+                            if sv.get("quote_supports_verdict") == "no":
+                                errors.append(
+                                    f"R25e: zms_calibration_citations[{k}][{i}] (verdict={verdict}) "
+                                    f"evidence_anchor addresses none of {cid2}'s depth components "
+                                    f"— it quote-wraps a generic phrase rather than the specific "
+                                    f"criterion. Quote what the SDD says about THIS criterion's "
+                                    f"mechanism/artifact, not any plausible Salesforce term.")
+                        except Exception:
+                            pass
+                if source_index is not None:
+                    try:
+                        import evidence_anchor_verify as _EV
+                        cid2 = entry.get("zms_criterion_id") or entry.get("criterion_id") or ""
+                        comps = (depth_map or {}).get(cid2, [])
+                        ver = _EV.verify_anchor(
+                            anchor, verdict, source_index, comps,
+                            negative_evidence=entry.get("negative_evidence"))
+                        st = ver.get("status")
+                        if st == "fabricated_or_unmatched":
+                            errors.append(
+                                f"R25b: zms_calibration_citations[{k}][{i}] (verdict={verdict}) "
+                                f"evidence_anchor does NOT resolve in the SDD source index "
+                                f"(fabricated or mis-transcribed quote)")
+                        elif st == "irrelevant_quote":
+                            errors.append(
+                                f"R25e: zms_calibration_citations[{k}][{i}] (verdict={verdict}) "
+                                f"evidence_anchor exists in the SDD but does not support the "
+                                f"verdict for {cid2} (real but irrelevant quote)")
+                        elif st == "unverified_absent":
+                            errors.append(
+                                f"R25c: zms_calibration_citations[{k}][{i}] verdict=Absent "
+                                f"missing negative_evidence (searched_sections + searched_terms required)")
+                    except Exception:
+                        pass
+
+    # ---- R13 (unchanged)
+    for k in ("1", "2", "3", "4", "5", "6", "7"):
+        rtext = reasoning.get(k, "") or ""
+        citations = zms_citations.get(k, [])
+        if rtext and citations and not reasoning_references_zms_citations(rtext, citations):
+            errors.append(
+                f"R13: per_dim_key_reasoning[{k}] does not appear to reference any "
+                f"zms_calibration_citations entry — non-bias requirement: reasoning "
+                "must ground in cited ZMS criterion verdicts")
+
+    # ---- R14: blinding leak — v4.6 fields PLUS reconcile ruling output
+    content_coding = bundle.get("content_coding", {}) or {}
+    leaked_fields = []
+    for field_name in ("per_dim_key_reasoning", "narrative_per_dim"):
+        section = bundle.get(field_name, {})
+        for k, text in section.items():
+            if text and leak_scanner.search(text):
+                leaked_fields.append(f"{field_name}[{k}]")
+    for sub_field in ("dim_1_sub_criteria", "dim_2_sub_criteria", "dim_3_sub_criteria",
+                      "dim_4_sub_criteria", "dim_5_sub_criteria", "dim_6_sub_criteria",
+                      "dim_7_sub_criteria"):
+        for sub_key, sub_item in (bundle.get(sub_field) or {}).items():
+            if not isinstance(sub_item, dict):
+                continue
+            sub_text = sub_item.get("reasoning", "") or ""
+            if sub_text and leak_scanner.search(sub_text):
+                leaked_fields.append(f"{sub_field}[{sub_key}].reasoning")
+    for k, entries in (zms_citations or {}).items():
+        for i, entry in enumerate(entries or []):
+            anchor = entry.get("evidence_anchor", "") or ""
+            if anchor and leak_scanner.search(anchor):
+                leaked_fields.append(f"zms_calibration_citations[{k}][{i}].evidence_anchor")
+    # v4.7: reconcile output — ruling citations/rationales on coding entries,
+    # and the dissent records — must be leak-free too (executor output).
+    for sub_key, blk in content_coding.items():
+        if not isinstance(blk, dict):
+            continue
+        for i, comp in enumerate(blk.get("zms_components") or []):
+            if not isinstance(comp, dict):
+                continue
+            for fld in ("ruling_citation", "ruling_rationale"):
+                txt = comp.get(fld) or ""
+                if txt and leak_scanner.search(txt):
+                    leaked_fields.append(f"content_coding[{sub_key}].zms_components[{i}].{fld}")
+    for i, d in enumerate(dissents):
+        for fld in ("why_unresolved",):
+            txt = (d or {}).get(fld) or ""
+            if txt and leak_scanner.search(txt):
+                leaked_fields.append(f"dissents[{i}].{fld}")
+    if leaked_fields:
+        errors.append(f"R14: Blinding leak — forbidden tokens found in {leaked_fields}")
+
+    # ---- R15 / R16 (verbatim, unchanged)
+    blinding_att = bundle.get("blinding_attestation", "")
+    if not blinding_att:
+        errors.append("R15: blinding_attestation missing")
+    elif blinding_att.strip() != contracts.BLINDING_ATTESTATION:
+        errors.append(f"R15: blinding_attestation does not match template verbatim. "
+                      f"Got: {blinding_att[:80]!r}...")
+    nonbias_att = bundle.get("non_bias_attestation", "")
+    if not nonbias_att:
+        errors.append("R16: non_bias_attestation missing")
+    elif nonbias_att.strip() != contracts.NON_BIAS_ATTESTATION:
+        errors.append(f"R16: non_bias_attestation does not match template verbatim. "
+                      f"Got: {nonbias_att[:80]!r}...")
+
+    # ---- R17: v4.7 required top-level set
+    required_top_level = [
+        "run_id", "blinding_label", "header", "judge_runs_by_dimension",
+        "dim_3_sub_criteria", "dim_4_sub_criteria", "deductions",
+        "per_dim_band", "per_dim_mean", "per_dim_agreement", "agreement_stats",
+        "per_dim_truth_source", "per_dim_key_reasoning", "narrative_per_dim",
+        "zms_calibration_citations", "content_coding", "consensus_provenance",
+        "dissents", "blinding_attestation", "non_bias_attestation",
+        "judge_independence_attestation",
+    ]
+    missing = [f for f in required_top_level if f not in bundle]
+    if missing:
+        errors.append(f"R17: bundle missing required top-level field(s): {missing}")
+
+    # ---- R18 (unchanged)
+    for k in ("1", "2", "6"):
+        rtext = reasoning.get(k, "") or ""
+        if rtext and not reasoning_has_operator_brd_citation(rtext):
+            errors.append(
+                f"R18: per_dim_key_reasoning[{k}] does not cite any operator-BRD passage — "
+                f"Dim {k} requires operator-BRD grounding (story ID, requirement number, BRD §, "
+                f"AC reference, or explicit operator-input reference)")
+
+    # ---- R19 (unchanged)
+    zms_calibration = bundle.get("zms_calibration", {})
+    applicable_ids = set()
+    if isinstance(zms_calibration, dict):
+        for c in (zms_calibration.get("applicable_criteria") or []):
+            cid = c.get("id") if isinstance(c, dict) else None
+            if cid:
+                applicable_ids.add(cid)
+    cited_ids = set()
+    for sub_key, sub_block in content_coding.items():
+        if not isinstance(sub_block, dict):
+            continue
+        for comp in (sub_block.get("zms_components") or []):
+            cid = comp.get("zms_criterion_id") if isinstance(comp, dict) else None
+            if cid:
+                cited_ids.add(cid)
+    if applicable_ids:
+        missing_in_coding = applicable_ids - cited_ids
+        if missing_in_coding:
+            errors.append(
+                f"R19: ZMS coverage incomplete — {len(missing_in_coding)} applicable "
+                f"criteria absent from content_coding (sample: "
+                f"{sorted(missing_in_coding)[:5]})")
+
+    # ---- R20 (content_coding half, unchanged)
+    for sub_key, sub_block in content_coding.items():
+        if not isinstance(sub_block, dict):
+            continue
+        for i, comp in enumerate(sub_block.get("zms_components") or []):
+            if not isinstance(comp, dict):
+                continue
+            verdict = comp.get("verdict", "")
+            source = comp.get("source_label", "")
+            anchor = comp.get("evidence_anchor", "") or ""
+            cid = comp.get("zms_criterion_id", "")
+            if verdict in ("Partial", "Absent") and "Zennify" in source:
+                if len(anchor) < 15:
+                    errors.append(
+                        f"R20: content_coding[{sub_key}].zms_components[{i}] "
+                        f"({cid}, source={source}) verdict={verdict} but evidence_anchor "
+                        f"only {len(anchor)} chars — Partial/Absent on a Zennify-source "
+                        "criterion requires an anchor explaining what was searched for")
+
+    # ---- R21 / R22 / R23 / R24 (unchanged chain)
+    release_findings = bundle.get("release_awareness_findings", []) or []
+    finding_ids = {f.get("finding_id") for f in release_findings if isinstance(f, dict)}
+    for d in deductions:
+        did = d.get("id", "")
+        if did.startswith("TRUST-") and not d.get("trust_schedule_ref"):
+            errors.append(
+                f"R21: deduction {did} missing trust_schedule_ref — every "
+                "TRUST-* deduction must cross-reference the rubric TRUST schedule")
+        if did.startswith("RR-"):
+            finding_ref = d.get("release_finding_ref")
+            if not finding_ref:
+                errors.append(
+                    f"R22: deduction {did} missing release_finding_ref — every RR-* "
+                    "deduction must cite the source release_awareness finding_id")
+            elif finding_ids and finding_ref not in finding_ids:
+                errors.append(
+                    f"R22: deduction {did} release_finding_ref={finding_ref!r} not "
+                    f"present in release_awareness_findings (available: {sorted(finding_ids)})")
+    SALESFORCE_DOMAINS = (
+        "help.salesforce.com", "developer.salesforce.com", "architect.salesforce.com",
+        "trailhead.salesforce.com", "admin.salesforce.com", "salesforce.com",
+        "trust.salesforce.com",
+    )
+    for i, f in enumerate(release_findings):
+        if not isinstance(f, dict):
+            continue
+        url = f.get("source_url", "") or ""
+        if not url:
+            errors.append(
+                f"R23: release_awareness_findings[{i}] missing source_url — "
+                "every finding must cite a Salesforce-controlled source")
+            continue
+        if not any(dom in url for dom in SALESFORCE_DOMAINS):
+            errors.append(
+                f"R23: release_awareness_findings[{i}] source_url={url!r} not on "
+                "a Salesforce-controlled domain (help/developer/architect/trailhead/trust)")
+    for i, a in enumerate(bundle.get("recommended_actions", []) or []):
+        if isinstance(a, dict) and a.get("category") == "release_currency" \
+                and not a.get("release_finding_ref"):
+            errors.append(
+                f"R24: recommended_actions[{i}] category=release_currency but "
+                "missing release_finding_ref — every release-driven action must "
+                "trace to a finding_id in release_awareness_findings")
+
+    # ---- R25 (v4.7 extension): BOTH judges' retained anchors and EVERY
+    # reconcile ruling citation must be grounded, not just the consensus
+    # citations validated in the R12 block above.
+    comp_by_cid = {}
+    for sub_key, blk in content_coding.items():
+        if not isinstance(blk, dict):
+            continue
+        for comp in (blk.get("zms_components") or []):
+            if isinstance(comp, dict) and comp.get("zms_criterion_id"):
+                comp_by_cid[comp["zms_criterion_id"]] = (sub_key, comp)
+    for cid, (sub_key, comp) in comp_by_cid.items():
+        for judge, je in ((comp.get("judge_entries") or {})).items():
+            if not isinstance(je, dict):
+                continue
+            jv = je.get("verdict", "")
+            ja = je.get("evidence_anchor", "") or ""
+            if jv in ("Present", "Partial"):
+                prob = anchor_quality_problem(ja, jv)
+                if prob:
+                    errors.append(
+                        f"R25: content_coding[{sub_key}] ({cid}) judge_entries[{judge}] "
+                        f"(verdict={jv}) retained anchor is not grounded — {prob}")
+                elif source_index is not None:
+                    try:
+                        import evidence_anchor_verify as _EV
+                        ver = _EV.verify_anchor(ja, jv, source_index,
+                                                (depth_map or {}).get(cid, []))
+                        if ver.get("status") == "fabricated_or_unmatched":
+                            errors.append(
+                                f"R25b: content_coding[{sub_key}] ({cid}) judge_entries"
+                                f"[{judge}] anchor does NOT resolve in the SDD source "
+                                f"index (fabricated or mis-transcribed quote)")
+                    except Exception:
+                        pass
+        rc = comp.get("ruling_citation") or ""
+        if rc:
+            prob = anchor_quality_problem(rc, "Present")
+            if prob:
+                errors.append(
+                    f"R25: content_coding[{sub_key}] ({cid}) ruling_citation is not a "
+                    f"grounded SDD quote — {prob}")
+            elif source_index is not None:
+                try:
+                    import evidence_anchor_verify as _EV
+                    ver = _EV.verify_anchor(rc, "Present", source_index, None)
+                    if ver.get("status") == "fabricated_or_unmatched":
+                        errors.append(
+                            f"R25b: content_coding[{sub_key}] ({cid}) ruling_citation "
+                            f"does NOT resolve in the SDD source index")
+                except Exception:
+                    pass
+
+    # ---- R26 (NEW): consensus provenance completeness
+    if applicable_ids:
+        no_prov = applicable_ids - set(cons_prov.keys())
+        if no_prov:
+            errors.append(
+                f"R26: {len(no_prov)} applicable criteria missing from "
+                f"consensus_provenance (sample: {sorted(no_prov)[:5]}) — every "
+                "applicable criterion must record how its consensus value arose")
+    for cid, prov in cons_prov.items():
+        if prov not in PROVENANCE_VALUES:
+            errors.append(f"R26: consensus_provenance[{cid}] = {prov!r} not in "
+                          f"{PROVENANCE_VALUES}")
+            continue
+        if prov == "agreed":
+            continue
+        got = comp_by_cid.get(cid)
+        if not got:
+            errors.append(
+                f"R26: consensus_provenance[{cid}] = {prov!r} but no content_coding "
+                "component carries the criterion — non-agreed items must retain "
+                "judge_entries for the audit trail")
+            continue
+        sub_key, comp = got
+        if not comp.get("judge_entries"):
+            errors.append(
+                f"R26: content_coding[{sub_key}] ({cid}) provenance={prov!r} but "
+                "judge_entries missing — every non-agreed provenance must retain "
+                "both judges' entries")
+        if prov in ("adopt_claude", "adopt_gemini", "meet_between") \
+                and not comp.get("ruling_citation"):
+            errors.append(
+                f"R26: content_coding[{sub_key}] ({cid}) provenance={prov!r} but "
+                "ruling_citation missing — every ruling must cite the SDD passage "
+                "that justifies it")
+
+    # ---- R27 (NEW): dissent integrity
+    crit_dissents = {}
+    for i, d in enumerate(dissents):
+        cid = d.get("criterion_id")
+        if cid:
+            crit_dissents.setdefault(cid, []).append(i)
+            ja = ((d.get(_JUDGE_A47) or {}).get("verdict")) or ""
+            jb = ((d.get(_JUDGE_B47) or {}).get("verdict")) or ""
+            res = ((d.get("conservative_resolution") or {}).get("verdict")) or ""
+            if ja and jb and res:
+                expected = min((ja, jb), key=_v47_rank)
+                expected = "Absent" if expected == "NA" else expected
+                if res != expected:
+                    errors.append(
+                        f"R27: dissents[{i}] ({cid}) conservative_resolution verdict "
+                        f"{res!r} is not the weaker of {ja!r}/{jb!r} (expected {expected!r})")
+        elif d.get("sub_key"):
+            sa, sb = d.get(_JUDGE_A47), d.get(_JUDGE_B47)
+            res = d.get("conservative_resolution")
+            if isinstance(sa, (int, float)) and isinstance(sb, (int, float)) \
+                    and isinstance(res, (int, float)) and abs(res - min(sa, sb)) > 0.05:
+                errors.append(
+                    f"R27: dissents[{i}] ({d.get('sub_key')}) conservative_resolution "
+                    f"{res} is not min({sa}, {sb})")
+    for cid, idxs in crit_dissents.items():
+        if len(idxs) > 1:
+            errors.append(f"R27: criterion {cid} appears {len(idxs)} times in dissents "
+                          f"— every dissent ruling must appear exactly once")
+        if cons_prov.get(cid) != "dissent":
+            errors.append(f"R27: dissents record for {cid} but consensus_provenance is "
+                          f"{cons_prov.get(cid)!r} — dissent records and provenance must agree")
+    prov_dissent_cids = {cid for cid, p in cons_prov.items() if p == "dissent"}
+    unrecorded = prov_dissent_cids - set(crit_dissents.keys())
+    if unrecorded:
+        errors.append(f"R27: provenance says dissent but no dissent record exists for "
+                      f"{sorted(unrecorded)[:5]} — every dissent ruling must appear "
+                      f"exactly once in dissents")
+
+    # ---- R28 (attestation half)
+    jia = bundle.get("judge_independence_attestation", "")
+    if not jia:
+        errors.append("R28: judge_independence_attestation missing")
+    elif jia.strip() != contracts.JUDGE_INDEPENDENCE_ATTESTATION:
+        errors.append(f"R28: judge_independence_attestation does not match template "
+                      f"verbatim. Got: {jia[:80]!r}...")
+
+    return (len(errors) == 0, errors)
+
+
+def build_score_sheet_tokens_v47(bundle, blinding_label, integration_heavy,
+                                 floor_cap, run_record=None) -> dict:
+    """v4.7 sheet tokens: the full v4.6 header/provenance/dimension token set
+    (reused — consensus means feed the same mean/band/gate/total tokens, so no
+    report or sheet field is reduced), PLUS the dual-judge columns, agreement
+    summary, judge models, and the R26–R28 checklist rows."""
+    t = build_score_sheet_tokens(bundle, blinding_label, integration_heavy,
+                                 floor_cap, run_record)
+    ja, jb = contracts.JUDGES
+    for i in (26, 27, 28):
+        t["R%d_result" % i] = "PASS"
+    t["R2_result"] = "N/A (retired under dual-judge)"
+
+    jm = (bundle.get("header", {}) or {}).get("judge_models", {}) or {}
+    t["judge_a_model"] = jm.get(ja, "")
+    t["judge_b_model"] = jm.get(jb, "")
+
+    judge_runs = bundle.get("judge_runs_by_dimension", {}) or {}
+    agreement = bundle.get("per_dim_agreement", {}) or {}
+    agg = bundle.get("agreement_stats", {}) or {}
+    rate_per_dim = agg.get("verdict_agreement_rate_per_dim", {}) or {}
+    dissent_dims = _v47_dissent_dims(bundle)
+    for d in range(1, 8):
+        ds = str(d)
+        t["dim_%d_judge_cc" % d] = (judge_runs.get(ja) or {}).get(ds, "")
+        t["dim_%d_judge_gm" % d] = (judge_runs.get(jb) or {}).get(ds, "")
+        t["dim_%d_con" % d] = (judge_runs.get("consensus") or {}).get(ds, "")
+        t["dim_%d_conc" % d] = agreement.get(ds, "")
+        t["dim_%d_agree_rate" % d] = rate_per_dim.get(ds, "")
+        t["dim_%d_dissent" % d] = "DISSENT" if ds in dissent_dims else "clear"
+
+    for d, items in SUBCRIT.items():
+        sub = bundle.get("dim_%s_sub_criteria" % d, {}) or {}
+        for sid, key in items:
+            entry = sub.get(key)
+            if isinstance(entry, dict):
+                t["%s_cc" % sid] = entry.get(ja, "")
+                t["%s_gm" % sid] = entry.get(jb, "")
+                t["%s_con" % sid] = entry.get("consensus", "")
+                t["%s_prov" % sid] = entry.get("provenance", "")
+            else:
+                t["%s_cc" % sid] = t["%s_gm" % sid] = t["%s_con" % sid] = ""
+                t["%s_prov" % sid] = ""
+
+    t["agree_rate_overall"] = agg.get("verdict_agreement_rate", "")
+    t["concordance_overall"] = agg.get("score_concordance", "")
+    t["agreement_overall"] = agg.get("agreement_overall", "")
+    t["reliability_label"] = agg.get("reliability_label", "")
+    t["dissent_count"] = agg.get("dissent_count",
+                                 len(bundle.get("dissents") or []))
+    t["divergence_count"] = agg.get("divergence_count", "")
+    return t
+
+
 # -------- Cap and aggregation helpers (unchanged) -------------------------
 
 def cap_rr_deductions(deductions: list[dict]) -> tuple[float, float]:
@@ -911,7 +1647,9 @@ def coverage_to_score(coverage, max_points, critical_floor_absent=False):
 
 
 def _subscore(item) -> float:
-    """Per-sub-criterion value: mean of the 5-pass 'scores' array, or scalar 'score'."""
+    """Per-sub-criterion value: mean of the 5-pass 'scores' array, scalar
+    'score', or (v4.7, additive) the 'consensus' key of a dual-judge
+    three-key entry. v4.6 inputs behave exactly as before."""
     if not isinstance(item, dict):
         return 0.0
     arr = item.get("scores")
@@ -920,6 +1658,8 @@ def _subscore(item) -> float:
         return round(sum(nums) / len(nums), 2) if nums else 0.0
     if isinstance(item.get("score"), (int, float)):
         return float(item["score"])
+    if isinstance(item.get("consensus"), (int, float)):
+        return float(item["consensus"])
     return 0.0
 
 
@@ -1231,6 +1971,12 @@ def main() -> int:
                          "R14 leak scan (catches identity leaking via branding, logos, "
                          "or named tools). Merged with any blinding_extra_terms in the "
                          "run record.")
+    ap.add_argument("--protocol", choices=["auto", "dual-judge", "five-pass"],
+                    default="auto",
+                    help="Validation/population path. 'auto' (default) detects the "
+                         "bundle shape: judge_runs_by_dimension -> dual-judge (v4.7, "
+                         "R1+R3-R28); five_runs_by_dimension -> five-pass (v4.6, "
+                         "R1-R25, frozen).")
     args = ap.parse_args()
 
     if not args.bundle.exists():
@@ -1259,20 +2005,37 @@ def main() -> int:
         except Exception:
             pass
 
-    ok, errors = validate_bundle(bundle, args.blinding_label, source_index, depth_map,
-                                 blinding_extra_terms=blinding_extra_terms)
+    protocol = args.protocol
+    if protocol == "auto":
+        protocol = ("dual-judge" if "judge_runs_by_dimension" in bundle
+                    else "five-pass")
+    rules_checked = 28 if protocol == "dual-judge" else 25
+
+    if protocol == "dual-judge":
+        ok, errors = validate_bundle_v47(
+            bundle, args.blinding_label, source_index, depth_map,
+            blinding_extra_terms=blinding_extra_terms,
+            integration_heavy=args.integration_heavy)
+    else:
+        ok, errors = validate_bundle(bundle, args.blinding_label, source_index, depth_map,
+                                     blinding_extra_terms=blinding_extra_terms)
     if not ok:
         print(json.dumps({"status": "bundle_validation_failed", "errors": errors,
-                          "rules_checked": 25, "source_verified": source_index is not None}, indent=2))
+                          "protocol": protocol,
+                          "rules_checked": rules_checked,
+                          "source_verified": source_index is not None}, indent=2))
         return 20
 
     if args.validate_bundle_only:
-        print(json.dumps({"status": "bundle_valid", "rules_checked": 25,
+        print(json.dumps({"status": "bundle_valid", "protocol": protocol,
+                          "rules_checked": rules_checked,
                           "source_verified": source_index is not None}, indent=2))
         return 0
 
     if args.template is None:
-        args.template = default_template_path("score-sheet-template-v4.6.xlsx")
+        args.template = default_template_path(
+            "score-sheet-template-v4.7.xlsx" if protocol == "dual-judge"
+            else "score-sheet-template-v4.6.xlsx")
 
     if not args.template.exists():
         print(f"ERROR: template not found: {args.template}", file=sys.stderr)
@@ -1296,7 +2059,12 @@ def main() -> int:
     if getattr(args, "run_record", None) and args.run_record.exists():
         with open(args.run_record, encoding="utf-8") as rf:
             run_record = json.load(rf)
-    tokens = build_score_sheet_tokens(bundle, args.blinding_label, args.integration_heavy, floor_cap, run_record)
+    if protocol == "dual-judge":
+        tokens = build_score_sheet_tokens_v47(bundle, args.blinding_label,
+                                              args.integration_heavy, floor_cap, run_record)
+    else:
+        tokens = build_score_sheet_tokens(bundle, args.blinding_label,
+                                          args.integration_heavy, floor_cap, run_record)
     filled = fill_xlsx_tokens(wb, tokens)
     ded_result = fill_deductions_sheet(wb, deductions)
     wb.save(args.output)
@@ -1322,8 +2090,10 @@ def main() -> int:
             "dim_3_trust_deduction": trust_total,
             "dim_3_final_score": final_dim_3,
             "dim_4_final_score": final_dim_4,
+            "final_score": tokens.get("total_score"),
         },
-        "rules_checked": 25,
+        "protocol": protocol,
+        "rules_checked": rules_checked,
     }, indent=2))
     return 0
 

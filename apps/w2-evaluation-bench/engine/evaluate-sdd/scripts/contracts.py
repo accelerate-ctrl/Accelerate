@@ -18,13 +18,14 @@ from __future__ import annotations
 import re
 
 # --------------------------------------------------------------------------
-# Framework release label — SINGLE SOURCE OF TRUTH (v4.6).
+# Framework release label — SINGLE SOURCE OF TRUTH (v4.7, the dual-judge
+# consensus revision; bumped from v4.6 per PRD decision D11).
 # Every component that prints a release version (SKILL.md, system prompt,
 # rubric, OH, report covers, template version cells, ZMS-consumer references)
 # states this string. There is no separate embedded `schema_version`: the
-# whole system is one consistent v4.6 set.
+# whole system is one consistent set.
 # --------------------------------------------------------------------------
-FRAMEWORK_VERSION = "4.6"
+FRAMEWORK_VERSION = "4.7"
 
 # --------------------------------------------------------------------------
 # R15 — blinding attestation (verbatim)
@@ -356,3 +357,43 @@ def overall_gate_from_dims(dim_gates):
     if any(g == "MARGINAL_PASS" for g in vals):
         return "MARGINAL_PASS"
     return "PASS"
+
+
+# ==========================================================================
+# v4.7 — DUAL-JUDGE CONSENSUS PROTOCOL (added; nothing above this line
+# changed). Single source of truth for the consensus engine
+# (server/consensus.py), the v4.7 validator path (R26-R28), the bundle
+# assembler, and the reports. Backend Schema section 3 / TRD TR-16.
+# ==========================================================================
+
+# The two judges, in canonical order. Index 0 is "Judge A" (Claude Code,
+# subscription-billed, also the reconciliation executor per PRD D3); index 1
+# is "Judge B" (Gemini API, Google-billed).
+JUDGES = ("claude-code", "gemini")
+
+# Scoring protocols. "dual-judge" is the v2.0 product; "five-pass" is the
+# frozen v1.1 protocol retained ONLY for regression comparison (PRD D6).
+PROTOCOLS = ("dual-judge", "five-pass")
+
+# Divergence thresholds (Backend Schema section 6.3). A sub-score pair
+# diverges iff |a - b| is STRICTLY GREATER than SUB_DELTA_FRAC * sub_max;
+# a dimension pair iff strictly greater than DIM_DELTA_FRAC * dim_max
+# (dimension-level divergence after the sub-level merge is impossible by
+# construction and is asserted, never judge-ruled).
+SUB_DELTA_FRAC = 0.20
+DIM_DELTA_FRAC = 0.10
+
+# Verdict strength order for the conservative dissent rule (PRD D4):
+# strongest first. A dissent resolves to the WEAKER verdict. NA is excluded
+# from consensus arithmetic; an NA-vs-X dissent resolves to the weaker of
+# (Absent, X) — NA never wins a dissent (see server/consensus.py).
+VERDICT_ORDER = ("Present", "Partial", "Absent")
+
+# R28 — judge-independence attestation (verbatim; Backend Schema section 7).
+JUDGE_INDEPENDENCE_ATTESTATION = (
+    "I confirm that each judge scored this SDD independently from an "
+    "identical blinded packet, that neither judge's output was available to "
+    "the other before reconciliation, and that every consensus value traces "
+    "to an agreed verdict, an evidence-cited ruling, or a recorded dissent "
+    "resolved conservatively."
+)
