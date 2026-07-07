@@ -21,5 +21,10 @@ COPY examples/ examples/
 # /data works standalone for docker-run testing too.
 ENV W2APP_DATA=/data
 RUN mkdir -p /data/runs
-# Cloud Run injects PORT; default 8080 for local docker run.
-CMD exec python -m uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8080}
+# Cloud Run injects PORT; default 8080 for local docker run. TLS terminates
+# at Google's front end, so honor X-Forwarded-Proto or request.base_url
+# would embed http:// into the personalized installers (caught by the live
+# smoke's install.ps1 personalization check). Trusting all peers is safe
+# here: on Cloud Run only the platform's proxy can reach the container.
+CMD exec python -m uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8080} \
+    --proxy-headers --forwarded-allow-ips=*
