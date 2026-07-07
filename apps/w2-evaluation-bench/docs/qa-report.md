@@ -257,7 +257,7 @@ is deliberately never scrubbed. Gemini free tier fails closed
 3. **`server/main.py`**: 25 MiB upload ceiling (`W2_MAX_UPLOAD_MB`, HTTP 413).
 4. **`server/main.py`**: constant-time member-token comparison.
 5. **`server/main.py`**: baseline security headers on every response.
-6. **`server/main.py`**: `GET /healthz` (token-exempt liveness/startup probe
+6. **`server/main.py`**: `GET /health` (token-exempt liveness/startup probe
    for Cloud Run; reports data-dir writability).
 
 Plus new deployment verification assets: `scripts/remote_smoke.sh` (read-only

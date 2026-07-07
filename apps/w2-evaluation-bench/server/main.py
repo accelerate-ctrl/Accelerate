@@ -348,10 +348,14 @@ def runner_zip(request: Request):
                     headers={"Content-Disposition": "attachment; filename=runner.zip"})
 
 
+@app.get("/health")
 @app.get("/healthz")
 def healthz():
-    """Liveness/startup probe for Cloud Run (and uptime checks). Token-exempt
-    by design; reveals nothing beyond what the landing page already states."""
+    """Liveness probe + uptime checks. Token-exempt by design; reveals nothing
+    beyond what the landing page already states. Canonical path is /health:
+    Google's front end intercepts the literal path /healthz on Cloud Run and
+    answers 404 before the request reaches the container (found during the
+    live deployment shakedown) — /healthz is kept for local tooling only."""
     return {"ok": True, "service": "w2-eval-bench", "version": "2.0",
             "protocol": EVAL_PROTOCOL,
             "data_dir_writable": os.access(DATA_DIR, os.W_OK)}

@@ -166,7 +166,7 @@ smoke.
 | Build fails at `deploy`: permission denied | Build SA missing `roles/run.admin` or `roles/iam.serviceAccountUser` on the runtime SA (doc 08 Step 3). |
 | `REMOTE SMOKE FAIL: GET /api/runs without token -> 401` got 200 | The service has no tokens configured — the provisioning deploy didn't bind the `w2app-tokens` secret. Re-run doc 08 Step 7. |
 | `runner.zip contains the full runner FAIL` | You're deploying an image built before the QA fix that added `COPY runner/` — pull latest and redeploy. |
-| `healthz` FAIL / data_dir_writable false | Volume mount missing or bucket IAM missing `objectAdmin` for the runtime SA (doc 08 Steps 4/7). |
+| `health` check FAIL / data_dir_writable false | Volume mount missing or bucket IAM missing `objectAdmin` for the runtime SA (doc 08 Steps 4/7). |
 | Trigger never fires | Branch regex doesn't match, or the push only touched files outside `apps/w2-evaluation-bench/**`. |
 | Members' installs fail with 401 | Token not in the current `w2app-tokens` secret version, or service not yet updated to `:latest`. |
 | Console shows cost > $0.00 / run halts with 402 | Working as designed: a runner fell back to API billing. That member re-runs `claude logout && claude login` with plan credentials; see README billing guards. |

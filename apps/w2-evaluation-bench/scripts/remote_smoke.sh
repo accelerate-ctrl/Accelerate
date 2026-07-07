@@ -25,8 +25,8 @@ check() { # check <name> <expected-code> <got-code>
 echo "== W2 remote smoke against $URL =="
 
 # 1. health + static surfaces (token-exempt)
-check "GET /healthz"                      200 "$(code "$URL/healthz")"
-curl -s --max-time 30 "$URL/healthz" | grep -q '"ok": *true' \
+check "GET /health"                       200 "$(code "$URL/health")"
+curl -s --max-time 30 "$URL/health" | grep -q '"ok": *true' \
   && say "healthz body ok:true" "OK" || { say "healthz body ok:true" "FAIL"; FAIL=1; }
 check "GET /  (landing)"                  200 "$(code "$URL/")"
 curl -s --max-time 30 "$URL/" | grep -qi "zennify" \
@@ -49,7 +49,7 @@ else
 fi
 
 # 4. security headers present
-H=$(curl -sI --max-time 30 "$URL/healthz")
+H=$(curl -sI --max-time 30 "$URL/health")
 echo "$H" | grep -qi 'x-content-type-options: *nosniff' \
   && say "X-Content-Type-Options: nosniff" "OK" || { say "X-Content-Type-Options" "FAIL"; FAIL=1; }
 echo "$H" | grep -qi 'x-frame-options: *deny' \

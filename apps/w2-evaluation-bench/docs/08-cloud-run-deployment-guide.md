@@ -225,7 +225,7 @@ export URL=$(gcloud run services describe w2-eval-bench \
 bash scripts/remote_smoke.sh "$URL" "$ALICE"
 ```
 
-`REMOTE SMOKE PASS` proves, against production, read-only: `/healthz` is
+`REMOTE SMOKE PASS` proves, against production, read-only: `/health` is
 live and the data dir is writable; landing + console serve; all three auth
 walls return 401 without a token; a traversal attempt is blocked; security
 headers are present; `runner.zip` contains the complete runner; the installer
@@ -234,7 +234,7 @@ is served personalized. **Do not onboard members until this passes.**
 GitHub pipeline (doc 09) runs it as its final step.
 
 Optional monitoring: point a Cloud Monitoring uptime check at
-`$URL/healthz` (expect 200 containing `"ok": true`).
+`$URL/health` (expect 200 containing `"ok": true`).
 
 ### Step 9 — optional: the IAP wall (uses the Step-2 OAuth client)
 
