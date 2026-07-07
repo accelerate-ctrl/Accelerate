@@ -2,7 +2,10 @@
 # The image contains the deterministic brain only: FastAPI + the vendored v4.7
 # engine. There is NO model client and NO credential in this image; all model
 # judgment is pulled by the operator-side runner over HTTPS.
-FROM python:3.12-slim
+# BASE_IMAGE override lets restricted networks build from a registry mirror
+# (e.g. --build-arg BASE_IMAGE=mirror.gcr.io/library/python:3.12-slim).
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
