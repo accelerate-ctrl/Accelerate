@@ -85,13 +85,38 @@ th{color:#4a6a68;font-weight:600}
 .modal p{font-size:13px;color:var(--ink2);margin:0 0 14px}
 .hidden{display:none !important}
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+/* Auth gate — prototype-faithful sign-in card (docs/prototype, buildAuthGate) */
+.gate{position:fixed;inset:0;background:#f2f5f4;display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
+.gcard{width:min(440px,100%);background:#fff;border:1px solid rgba(28,74,77,.14);border-radius:20px;padding:44px 40px;text-align:center}
+.gt{font-size:22px;font-weight:600;color:var(--deep);letter-spacing:-.01em;margin-bottom:8px}
+.gs{font-size:14.5px;color:var(--ink2);line-height:1.55;margin-bottom:30px}
+.gerr{font-size:13px;color:#d93025;margin:0 0 14px;text-align:left}
+.glock{margin-top:20px;font-size:12.5px;color:var(--ink2);display:flex;gap:6px;align-items:center;justify-content:center}
+.gback{display:inline-block;margin-top:24px;font-size:13px;color:var(--teal);font-weight:600;text-decoration:none}
+.gtok{margin-top:14px;font-size:12px}.gtok a{color:var(--ink2)}
+.who{display:flex;align-items:center;gap:9px;font:11.5px var(--mono)}
+.who .av{width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
+.who a{color:var(--sub);cursor:pointer}
 </style>
 </head>
 <body>
+<div id="gate" class="gate hidden" role="dialog" aria-modal="true" aria-label="Sign in">
+  <div class="gcard">
+    <svg width="46" height="46" viewBox="0 0 46 46" style="margin-bottom:22px" aria-hidden="true"><rect width="46" height="46" rx="10" fill="#139f94"/><text x="23" y="31" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="24" font-weight="700" fill="#fff">Z</text></svg>
+    <div class="gt">W2 Evaluation Bench</div>
+    <div class="gs">Operator console. Sign in with your Zennify Workspace account to continue.</div>
+    <div id="gerr" class="gerr hidden"></div>
+    <div id="gsiBtn" style="display:flex;justify-content:center;min-height:44px"></div>
+    <div class="glock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#139f94" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Access limited to @zennify.com Workspace users</span></div>
+    <br><a class="gback" href="/">← Back to overview</a>
+    <div class="gtok"><a href="#" id="useTok">Operator or runner setup: use a bench token instead</a></div>
+  </div>
+</div>
 <header>
   <h1>W2 Evaluation Bench</h1>
   <span class="tag">Solutioning Evaluation Framework · v4.7 · dual-judge consensus</span>
   <span class="guard">runner: subscription-only · API keys refused · billing tripwire armed</span>
+  <span class="who" id="who"></span>
 </header>
 <main>
   <div>
@@ -169,19 +194,80 @@ const STAGE_IDX_B = {S0:0, S1:1, S2:2, S3:3, "S3.5":4, S4:5};
 const C = {teal:"#139f94", blue:"#8094c0", sub:"#22bcad", neg:"#c25008", line:"rgba(28,74,77,.18)"};
 
 let TOKEN = localStorage.getItem("w2tok") || "";
+let SESSION = localStorage.getItem("w2sess") || "";
+let EMAIL = localStorage.getItem("w2mail") || "";
+let AUTHCFG = {enabled:false};
 let selected = null, meterAsTable = matchMedia("(max-width:640px)").matches;
 let pollT = null;
 
-function hdrs(){ return TOKEN ? {"X-W2-Token": TOKEN} : {}; }
+function hdrs(){
+  const h = {};
+  if (TOKEN) h["X-W2-Token"] = TOKEN;
+  if (SESSION) h["X-W2-Session"] = SESSION;
+  return h;
+}
+
+/* ---- Google Workspace gate (zennify.com only; server-enforced) ---- */
+function showGate(){ document.getElementById("gate").classList.remove("hidden"); mountGsi(); }
+function hideGate(){ document.getElementById("gate").classList.add("hidden"); }
+function needAuth(){
+  if (AUTHCFG.enabled){ SESSION=""; localStorage.removeItem("w2sess"); showGate(); }
+  else askToken();
+}
+let gsiMounted = false;
+function mountGsi(){
+  if (gsiMounted || !AUTHCFG.client_id) return;
+  gsiMounted = true;
+  const s = document.createElement("script");
+  s.src = "https://accounts.google.com/gsi/client";
+  s.onload = () => {
+    google.accounts.id.initialize({client_id: AUTHCFG.client_id,
+      hd: AUTHCFG.domain, callback: onGoogleCred});
+    google.accounts.id.renderButton(document.getElementById("gsiBtn"),
+      {theme:"outline", size:"large", text:"signin_with", shape:"pill", width:300});
+  };
+  document.head.appendChild(s);
+}
+async function onGoogleCred(resp){
+  const err = document.getElementById("gerr");
+  try {
+    const r = await fetch("/auth/google", {method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({credential: resp.credential})});
+    const d = await r.json();
+    if (!r.ok){ err.textContent = d.detail || "Sign-in failed."; err.classList.remove("hidden"); return; }
+    SESSION = d.session; EMAIL = d.email;
+    localStorage.setItem("w2sess", SESSION); localStorage.setItem("w2mail", EMAIL);
+    err.classList.add("hidden"); hideGate(); whoami(); refresh();
+  } catch(e){ err.textContent = "Sign-in failed — network error."; err.classList.remove("hidden"); }
+}
+function whoami(){
+  const el = document.getElementById("who");
+  if (!el) return;
+  el.innerHTML = EMAIL
+    ? `<span class="av">${esc(EMAIL[0].toUpperCase())}</span><span>${esc(EMAIL)}</span><a id="soLink">sign out</a>`
+    : "";
+  const so = document.getElementById("soLink");
+  if (so) so.onclick = () => { SESSION=""; EMAIL="";
+    localStorage.removeItem("w2sess"); localStorage.removeItem("w2mail"); showGate(); whoami(); };
+}
+(async function bootAuth(){
+  try { AUTHCFG = await (await fetch("/auth/config")).json(); } catch(e){}
+  if (AUTHCFG.enabled && !SESSION && !TOKEN) showGate();
+  whoami();
+  const ut = document.getElementById("useTok");
+  if (ut) ut.onclick = (e) => { e.preventDefault(); askToken(); };
+})();
 async function api(path, opts){
   const r = await fetch(path, Object.assign({headers: hdrs()}, opts||{}));
-  if (r.status === 401){ askToken(); throw new Error("401"); }
+  if (r.status === 401){ needAuth(); throw new Error("401"); }
   return r.json();
 }
 function askToken(){ document.getElementById("tokModal").classList.remove("hidden"); }
 document.getElementById("tokGo").onclick = () => {
   TOKEN = document.getElementById("tokIn").value.trim();
   localStorage.setItem("w2tok", TOKEN);
+  hideGate();
   document.getElementById("tokModal").classList.add("hidden");
   refresh();
 };
@@ -207,7 +293,7 @@ document.getElementById("start").onclick = async () => {
   btn.disabled = true; btn.textContent = "Starting…";
   try {
     const r = await fetch("/api/runs", {method:"POST", headers: hdrs(), body: fd});
-    if (r.status === 401){ askToken(); return; }
+    if (r.status === 401){ needAuth(); return; }
     const d = await r.json();
     selected = d.run_id;
     refresh();
@@ -352,7 +438,8 @@ function usageLine(st){
 function deliverables(st){
   const arts = st.artifacts || {};
   if (!Object.keys(arts).length) return "";
-  const tk = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : "";
+  const tk = TOKEN ? `?token=${encodeURIComponent(TOKEN)}`
+    : (SESSION ? `?session=${encodeURIComponent(SESSION)}` : "");
   const order = ["report","score_sheet_a","score_sheet_b","content_mapping","release_a","release_b","lift","run_record","diagnostic_bundle"];
   const links = order.filter(k => arts[k]).map(k =>
     `<a class="${k==="report"?"primary":""}" href="/api/runs/${encodeURIComponent(st.run_id)}/download/${k}${tk}">${k.replace(/_/g," ")}</a>`);

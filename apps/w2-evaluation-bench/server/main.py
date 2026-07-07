@@ -30,7 +30,7 @@ import os
 from fastapi import Request
 from fastapi.responses import Response
 
-from . import orchestrator, packets, packet_shapes
+from . import auth, orchestrator, packets, packet_shapes
 from .storage import (new_run_id, run_dir, save_state, load_state, list_runs,
                       public_state, resolve_download)
 from .config import RUNS_DIR, DATA_DIR, EVAL_PROTOCOL
@@ -87,19 +87,38 @@ def _heartbeat(member: str | None, runner_id: str, engine: str | None) -> None:
             pass  # heartbeat persistence is best-effort; memory copy stands
 
 
+def _member_from_email(email: str) -> str:
+    """Map a signed-in Workspace user onto a member id for owner stamping
+    (FR-13): the email localpart when it matches a registered member name,
+    else the shared 'operator' identity."""
+    local = email.split("@")[0].lower()
+    return local if local in {m.lower() for m in MEMBER_BY_TOKEN.values()} \
+        else "operator"
+
+
 def _member_of(request: Request) -> str | None:
     supplied = (request.headers.get("x-w2-token")
                 or request.query_params.get("token", ""))
-    if not supplied:
-        return None
-    # Constant-time comparison against every registered token: a plain dict
-    # lookup would let response timing leak prefix matches. The registry is a
-    # handful of members, so scanning it is free.
-    member = None
-    for tok, m in MEMBER_BY_TOKEN.items():
-        if hmac.compare_digest(supplied, tok):
-            member = m
-    return member
+    if supplied:
+        # Constant-time comparison against every registered token: a plain
+        # dict lookup would let response timing leak prefix matches. The
+        # registry is a handful of members, so scanning it is free.
+        member = None
+        for tok, m in MEMBER_BY_TOKEN.items():
+            if hmac.compare_digest(supplied, tok):
+                member = m
+        if member:
+            return member
+    # Browser surfaces: Google Workspace session (zennify.com only), minted
+    # by POST /auth/google after server-side verification.
+    if auth.enabled():
+        sess = (request.headers.get("x-w2-session")
+                or request.query_params.get("session", ""))
+        if sess:
+            email = auth.check_session(sess)
+            if email:
+                return _member_from_email(email)
+    return None
 
 
 @app.middleware("http")
@@ -363,6 +382,34 @@ def runner_zip(request: Request):
                 z.write(p, f"runner/examples/{name}")
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": "attachment; filename=runner.zip"})
+
+
+@app.get("/auth/config")
+def auth_config():
+    """Public: tells the console whether the Google Workspace gate is on and
+    which client id / domain to use. No secrets here — a client id is public
+    by design; the domain restriction is enforced server-side in /auth/google."""
+    return {"enabled": auth.enabled(), "client_id": auth.GOOGLE_CLIENT_ID,
+            "domain": auth.ALLOWED_DOMAIN}
+
+
+@app.post("/auth/google")
+def auth_google(body: dict):
+    """Exchange a Google ID-token credential for a bench session. The
+    zennify.com restriction lives HERE (email suffix + Workspace hd claim on a
+    signature-verified token) — the browser UI is cosmetic."""
+    if not auth.enabled():
+        raise HTTPException(404, "Google sign-in is not enabled on this bench")
+    cred = (body or {}).get("credential") or ""
+    try:
+        email, hd = auth.verify_google_credential(cred)
+    except Exception:
+        raise HTTPException(401, auth.DOMAIN_ERROR)
+    if not auth.domain_ok(email, hd):
+        raise HTTPException(403, auth.DOMAIN_ERROR)
+    return {"session": auth.mint_session(email), "email": email,
+            "member": _member_from_email(email),
+            "expires_in": auth.SESSION_TTL_SECONDS}
 
 
 @app.get("/health")
