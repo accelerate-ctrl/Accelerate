@@ -326,6 +326,23 @@ def install_script(request: Request):
     return Response(script, media_type="text/x-shellscript")
 
 
+@app.get("/install.ps1")
+def install_script_windows(request: Request):
+    """Windows-native counterpart of /install.sh (TR-30, FR-12): personalized
+    PowerShell installer. Same auth; canonical invocation keeps the token in a
+    header:  irm -Headers @{'X-W2-Token'='<tok>'} <bench>/install.ps1 | iex"""
+    if MEMBER_BY_TOKEN and _member_of(request) is None:
+        return Response("# 401: supply your bench token "
+                        "(irm -Headers @{'X-W2-Token'='<tok>'} .../install.ps1 | iex)\n",
+                        401, media_type="text/plain")
+    supplied = (request.headers.get("x-w2-token")
+                or request.query_params.get("token", ""))
+    tpl = (Path(__file__).parent / "install_template.ps1").read_text()
+    base = str(request.base_url).rstrip("/")
+    script = tpl.replace("__W2_SERVER__", base).replace("__W2_TOKEN__", supplied or "")
+    return Response(script, media_type="text/plain")
+
+
 @app.get("/runner.zip")
 def runner_zip(request: Request):
     """The runner payload for the installer / manual installs (doc 07 Option

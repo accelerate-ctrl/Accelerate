@@ -36,6 +36,7 @@ check "GET /bench (console)"              200 "$(code "$URL/bench")"
 # 2. auth is enforced (these MUST be 401 on a tokened deployment)
 check "GET /api/runs without token -> 401" 401 "$(code "$URL/api/runs")"
 check "GET /install.sh without token -> 401" 401 "$(code "$URL/install.sh")"
+check "GET /install.ps1 without token -> 401" 401 "$(code "$URL/install.ps1")"
 check "GET /runner.zip without token -> 401" 401 "$(code "$URL/runner.zip")"
 check "bad token -> 401" 401 "$(code -H 'X-W2-Token: not-a-real-token' "$URL/api/runs")"
 
@@ -78,6 +79,10 @@ PY
     | head -3 | grep -q "W2" \
     && say "install.sh is served personalized" "OK" \
     || { say "install.sh is served personalized" "FAIL"; FAIL=1; }
+  curl -s --max-time 30 -H "X-W2-Token: $TOKEN" "$URL/install.ps1" \
+    | grep -q "W2Server = '$URL'" \
+    && say "install.ps1 is served personalized" "OK" \
+    || { say "install.ps1 is served personalized" "FAIL"; FAIL=1; }
 else
   echo "  (no member token supplied — skipped the authenticated checks;"
   echo "   re-run with a token for full coverage)"

@@ -55,6 +55,32 @@ What it does, step by step, visibly:
 Then open the bench in your browser — the header of the console should show
 **"your runner: connected"**. Done.
 
+## Option A for Windows — one-command install (native PowerShell)
+
+No WSL needed. Prerequisite: Python 3 from python.org (tick **"Add to
+PATH"** in its installer). Then open **PowerShell** and run (paste your real
+URL and token):
+
+```powershell
+irm -Headers @{'X-W2-Token'='YOUR-TOKEN'} https://YOUR-BENCH-URL/install.ps1 | iex
+```
+
+Same five steps as the macOS/Linux installer, Windows-shaped: installs Claude
+Code with Anthropic's official Windows installer if missing → `claude
+setup-token` opens your Team login → runner lands in `%USERPROFILE%\.w2\` →
+registers a **Scheduled Task "W2Runner"** that starts at logon (falls back to
+a Startup-folder entry where task registration is restricted) → writes
+`%USERPROFILE%\.w2\env` → runs the same self-check.
+
+Add the Gemini key afterwards: edit `%USERPROFILE%\.w2\env`, set
+`GEMINI_API_KEY=...` and `W2_GEMINI_TIER=paid`, then restart the runner:
+
+```powershell
+Stop-ScheduledTask -TaskName W2Runner; Start-ScheduledTask -TaskName W2Runner
+```
+
+(If you prefer WSL, the bash Option A above works unchanged inside it.)
+
 ## Option B — manual install
 
 1. **Claude Code**: `npm install -g @anthropic-ai/claude-code`, then
