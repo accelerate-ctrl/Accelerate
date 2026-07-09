@@ -1,0 +1,12 @@
+{
+  "schema": "evaluate-sdd-sa-calibration/v1",
+  "purpose": "Document-level regression anchors from SA-graded best-in-class SDDs. A best SDD MUST score in STRONG or GOOD; a WEAK/ADEQUATE score on one of these is a miscalibration alarm in the EVAL, not the SDD. These do not feed scoring; they are an out-of-band sanity check the operator can run.",
+  "provenance": "SA-curated best-SDD set, shared 2026-06. SA endorsed each document as best-in-class; criterion-level mappings live in accuracy-validation-set.json under label_source=sa_exemplar.",
+  "expected_band_floor": "GOOD",
+  "anchors": [
+    {"id": "SACAL-01", "sdd": "AFCU Book-To-Core Integrations", "vertical": "credit_union", "focus": "integration orchestration, OmniStudio IPs, Queueable Apex chaining, error handling, idempotency, governor limits, CMDT config, retry", "applicability_hint": ["INTEGRATIONS","API","AUTOMATION","TRIGGERS","CUSTOM_BUILD","REGULATED"], "expected_band_floor": "GOOD"},
+    {"id": "SACAL-02", "sdd": "First Republic PLP/SBL FSC", "vertical": "bank_lending", "focus": "six-component security/sharing model, data model depth, record types, validation, approvals, analytics, UI", "applicability_hint": ["REGULATED","UI_IN_SCOPE","CONFIG_DRIVEN","DATA_MIGRATION"], "expected_band_floor": "GOOD"},
+    {"id": "SACAL-03", "sdd": "NWCM FSC Upgrade", "vertical": "wealth_fsc", "focus": "FSC features (Financial Accounts, Holdings, Householding, Life Events, Action Plans, RBL), security model, flows, packages, analytics; design-phase blueprint", "applicability_hint": ["REGULATED","CONFIG_DRIVEN","AUTOMATION","MULTI_CLOUD"], "expected_band_floor": "ADEQUATE", "note": "Design-phase blueprint with some TBD sections; band floor relaxed to ADEQUATE accordingly. Still SA-endorsed as a strong design-phase exemplar."},
+    {"id": "SACAL-04", "sdd": "Compeer AgTech nCino", "vertical": "ag_lender", "focus": "REST APIs (Opp/CoBorrower/Collateral), domain-driven Apex architecture, auto-conversion, decline automation, ActiveDocs/DocuSign integration, field mapping, analytics", "applicability_hint": ["INTEGRATIONS","API","AUTOMATION","TRIGGERS","CUSTOM_BUILD","REGULATED","DATA_MIGRATION"], "expected_band_floor": "GOOD"}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "title": "evidence-verification/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "results"
+  ],
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {
+        "required": [
+          "status",
+          "verdict"
+        ]
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

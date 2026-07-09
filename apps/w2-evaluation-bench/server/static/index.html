@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/brand/zennify-icon-teal.png">
+<title>W2 Evaluation Bench — Two models. One blinded verdict.</title>
+<link rel="stylesheet" href="/brand/tokens.css">
+<style>
+/* Landing identity: official Zennify brand (UI/UX brief section 8.2). */
+/* fonts + tokens come from the official brand sheet (/brand/tokens.css) */
+:root{
+  --dark-teal:#1c4a4d; --teal:#27bbaf; --mint:#62d7b8; --light-mint:#b0eed3;
+  --ice:#E8F7F6; --deep-teal:#185F60; --dark-bg:#1E3A3A;
+  --text-dark:#1C4A4D; --text-muted:#6B8A8D;
+  --acc-blue:#A5C6FF; --acc-purple:#B19CD8; --acc-peach:#FFCB99; --acc-teal:#185f60;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',system-ui,-apple-system,sans-serif;color:var(--text-dark);background:#fff}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.mono{font-family:'DM Mono',ui-monospace,monospace}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+/* hero */
+.hero{background:var(--dark-teal);color:#fff;padding:72px 0 64px}
+.hero .mark{font-weight:600;letter-spacing:2.5px;font-size:13px;color:var(--mint);text-transform:uppercase}
+.hero .product{font-size:15px;color:var(--light-mint);margin-top:10px}
+.hero h1{font-size:clamp(34px,6vw,58px);font-weight:600;line-height:1.06;margin:18px 0 20px;color:#fff}
+.hero p.sub{font-size:17.5px;line-height:1.55;color:#d7efe9;max-width:640px}
+.hero .cta{display:inline-block;margin-top:30px;background:var(--teal);color:#08302d;font-weight:600;
+  font-size:16px;padding:14px 30px;border-radius:10px;text-decoration:none}
+.hero .cta:hover{filter:brightness(1.07)}
+.hero .quiet{margin-top:14px;font-size:13.5px;color:var(--mint)}
+.reveal{opacity:0;transform:translateY(10px);animation:in .55s ease forwards}
+@keyframes in{to{opacity:1;transform:none}}
+.reveal:nth-child(2){animation-delay:.15s}.reveal:nth-child(3){animation-delay:.3s}
+.reveal:nth-child(4){animation-delay:.45s}.reveal:nth-child(5){animation-delay:.6s}
+.reveal:nth-child(6){animation-delay:.75s}
+/* behind the scenes */
+.behind{background:var(--ice);padding:64px 0}
+h2.sect{font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--teal);font-weight:600}
+.behind h3{font-size:clamp(24px,3.5vw,32px);font-weight:600;margin:10px 0 6px}
+.behind p.lead{color:var(--text-muted);font-size:15.5px;margin-bottom:34px}
+.pipe{display:grid;grid-template-columns:repeat(7,1fr);gap:12px}
+@media (max-width:700px){.pipe{grid-template-columns:1fr}}
+.step{background:#fff;border-radius:12px;padding:16px 14px;border:1px solid rgba(30,74,72,.08)}
+.step .num{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;
+  width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#08302d}
+.step h4{font-size:14.5px;font-weight:600;margin:10px 0 6px}
+.step p{font-size:12.5px;line-height:1.5;color:var(--text-muted)}
+/* guarantees */
+.guar{background:#fff;padding:56px 0}
+.gcards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+@media (max-width:860px){.gcards{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.gcards{grid-template-columns:1fr}}
+.gcard{background:var(--ice);border-radius:12px;padding:18px}
+.gcard h4{font-size:15px;font-weight:600;margin-bottom:8px}
+.gcard p{font-size:13px;line-height:1.55;color:var(--text-muted)}
+/* judges */
+.judges{background:var(--dark-bg);color:#fff;padding:56px 0}
+.judges h3{font-size:clamp(22px,3vw,28px);font-weight:600;margin:10px 0 26px}
+.jcards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:700px){.jcards{grid-template-columns:1fr}}
+.jcard{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:20px}
+.jcard h4{font-size:16.5px;font-weight:600;margin-bottom:8px;color:var(--mint)}
+.jcard p{font-size:13.5px;line-height:1.6;color:#cfe6e0}
+/* footer */
+footer{background:var(--dark-teal);color:#bfe0d8;padding:36px 0;font-size:13.5px}
+footer .wrap{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+footer a.cta2{background:var(--teal);color:#08302d;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none}
+@media (prefers-reduced-motion: reduce){.reveal{animation:none;opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<section class="hero">
+  <div class="wrap">
+    <div class="reveal" style="display:flex;align-items:center;gap:14px;margin-bottom:18px"><img src="/brand/zennify-logo-light.png" alt="Zennify" style="height:30px" loading="eager"></div>
+    <div class="mark reveal">Solutioning evaluation framework</div>
+    <div class="product reveal">The W2 Evaluation Bench · <span class="mono">v4.7</span></div>
+    <h1 class="reveal">Two models. One blinded verdict.</h1>
+    <p class="sub reveal">The W2 Evaluation Bench scores solution designs against Zennify&rsquo;s frozen
+      senior-SA calibration &mdash; judged independently by Claude and Gemini, reconciled on evidence,
+      and delivered as an audit-ready report.</p>
+    <div class="reveal"><a class="cta" href="/bench">Open the bench</a></div>
+    <div class="quiet reveal">Runs on your subscription. Zero API billing.</div>
+  </div>
+</section>
+
+<section class="behind">
+  <div class="wrap">
+    <h2 class="sect">Behind the scenes</h2>
+    <h3>From two documents to one audit-ready report</h3>
+    <p class="lead">Seven deterministic stages sit between the upload and the report. Only the first
+      one needs a person.</p>
+    <div class="pipe">
+      <div class="step"><div class="num" style="background:var(--acc-blue)">01</div><h4>Upload</h4>
+        <p>A BRD and one or two SDDs; the only human step.</p></div>
+      <div class="step"><div class="num" style="background:var(--acc-purple)">02</div><h4>Sealed blinding</h4>
+        <p>Lane identities locked in an escrow no one and nothing reads until the final step; judges see only &ldquo;Output A/B&rdquo;.</p></div>
+      <div class="step"><div class="num" style="background:var(--acc-peach)">03</div><h4>Frozen calibration</h4>
+        <p>99 criteria from Zennify&rsquo;s SDD standard and the Salesforce Well-Architected framework, filtered to the engagement.</p></div>
+      <div class="step"><div class="num" style="background:var(--mint)">04</div><h4>Dual-judge scoring</h4>
+        <p>Claude and Gemini each score every criterion independently from byte-identical packets, quoting the document verbatim for every verdict.</p></div>
+      <div class="step"><div class="num" style="background:var(--acc-teal);color:#fff">05</div><h4>Evidence-ruled consensus</h4>
+        <p>Divergences are reconciled only by pointing at what the SDD actually says; genuine disagreements are preserved as dissents and resolved conservatively, never averaged away.</p></div>
+      <div class="step"><div class="num" style="background:var(--acc-blue)">06</div><h4>28-rule validation</h4>
+        <p>Every anchor, citation, attestation, and deduction must pass the framework&rsquo;s validation gate before a report can exist.</p></div>
+      <div class="step"><div class="num" style="background:var(--acc-purple)">07</div><h4>Sealed reveal &amp; report</h4>
+        <p>The escrow is opened last; the methodology lift is oriented and the branded report is built with a full audit trail.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="guar">
+  <div class="wrap">
+    <h2 class="sect">Guarantees</h2>
+    <div class="gcards">
+      <div class="gcard"><h4>Blinded until the last step</h4>
+        <p>The lane-identity escrow is written at intake and first read at reveal &mdash; never by a judge, never by a route.</p></div>
+      <div class="gcard"><h4>Two independent model families</h4>
+        <p>Claude and Gemini score in isolation; dissents are preserved, not averaged away.</p></div>
+      <div class="gcard"><h4>Every claim anchored verbatim</h4>
+        <p>Each verdict quotes the exact SDD text it rests on &mdash; no claim without an anchor.</p></div>
+      <div class="gcard"><h4>Zero API billing</h4>
+        <p>Subscription tokens only, with billing guards and a server tripwire. Reported API cost stays $0.00.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="judges">
+  <div class="wrap">
+    <h2 class="sect" style="color:var(--mint)">The judges</h2>
+    <h3>Two unrelated model families, scoring in the dark</h3>
+    <div class="jcards">
+      <div class="jcard"><h4>Claude &mdash; via Claude Code</h4>
+        <p>Runs under Zennify&rsquo;s own Claude subscription on operator-controlled compute.
+        Never sees Gemini&rsquo;s scores before reconciliation.</p></div>
+      <div class="jcard"><h4>Gemini &mdash; via Google API</h4>
+        <p>Runs on Google&rsquo;s paid API from the same box.
+        Never sees Claude&rsquo;s scores before reconciliation.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <img src="/brand/zennify-logo-light.png" alt="Zennify" style="height:24px;display:block;margin-bottom:14px">
+    <div>Internal Zennify tool &mdash; the W2 Evaluation Bench, Solutioning Evaluation Framework
+      <span class="mono">v4.7</span>. Reports are the artifact of record; the six-document build set
+      (<span class="mono">docs/</span>) governs behavior.</div>
+    <a class="cta2" href="/bench">Open the bench</a>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,82 @@
+# Cloud Build pipeline: GitHub -> container image -> Cloud Run.
+#
+# Used by the Cloud Build GitHub trigger described in
+# docs/09-github-deploy-user-guide.md. The trigger watches the repository
+# (accelerate-ctrl/Accelerate) and runs this file on push; everything here is
+# scoped to the app subdirectory apps/w2-evaluation-bench.
+#
+# Substitutions (set on the trigger, or via --substitutions on manual runs):
+#   _REGION   Cloud Run region            (default us-central1)
+#   _SERVICE  Cloud Run service name      (default w2-eval-bench)
+#   _BUCKET   GCS bucket for /data        (REQUIRED, e.g. myproj-w2-runs)
+#   _AR_REPO  Artifact Registry repo name (default w2-bench)
+#
+# Secrets/config NOT handled here on purpose: W2APP_TOKENS and other env vars
+# are set on the Cloud Run service once (step 6 of the guide) and are
+# preserved across deploys because this pipeline only supplies --image.
+substitutions:
+  _REGION: us-central1
+  _SERVICE: w2-eval-bench
+  _AR_REPO: w2-bench
+  _BUCKET: ""
+
+steps:
+  # 1. Unit gate — the same suite the release gate runs (57 tests).
+  - id: unit-tests
+    name: python:3.12-slim
+    dir: apps/w2-evaluation-bench
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --no-cache-dir -r requirements.txt >/dev/null
+        python -m unittest discover -s tests
+
+  # 2. Build the server image from the app subdirectory.
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: apps/w2-evaluation-bench
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE}:$COMMIT_SHA
+      - .
+
+  # 3. Push it to Artifact Registry.
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE}:$COMMIT_SHA
+
+  # 4. Deploy the new image to the existing Cloud Run service. Env vars,
+  #    volume mount, and scaling settings set at first deploy are preserved.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --project=$PROJECT_ID
+      - --region=${_REGION}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE}:$COMMIT_SHA
+
+  # 5. Post-deploy verification: the live service must pass the read-only
+  #    remote smoke (health, auth walls, traversal block, headers).
+  - id: remote-smoke
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    dir: apps/w2-evaluation-bench
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        URL=$$(gcloud run services describe ${_SERVICE} --project $PROJECT_ID \
+               --region ${_REGION} --format 'value(status.url)')
+        bash scripts/remote_smoke.sh "$$URL"
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE}:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY

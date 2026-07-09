@@ -1,0 +1,10 @@
+{
+  "accuracy_gate": "advisory",
+  "ood_mode": "advisory",
+  "stale_register": "warn",
+  "min_reliability": "ADVISORY",
+  "id": "advisory",
+  "version": "1.0.0",
+  "status": "active",
+  "review_by": "dynamic"
+}

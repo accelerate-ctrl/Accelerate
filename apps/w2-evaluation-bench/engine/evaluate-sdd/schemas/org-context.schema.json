@@ -1,0 +1,10 @@
+{
+  "title": "org-context/v1",
+  "type": "object",
+  "required": [
+    "org_context_version",
+    "source_type",
+    "salesforce_org"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

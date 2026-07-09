@@ -1,0 +1,60 @@
+{
+  "schema": "domain-profile-manifest/v1",
+  "profiles": [
+    {
+      "profile_id": "financial-services-cloud",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "financial-services-cloud.yaml.json"
+    },
+    {
+      "profile_id": "sales-cloud",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "sales-cloud.yaml.json"
+    },
+    {
+      "profile_id": "service-cloud",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "service-cloud.yaml.json"
+    },
+    {
+      "profile_id": "experience-cloud",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "experience-cloud.yaml.json"
+    },
+    {
+      "profile_id": "integration-heavy",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "integration-heavy.yaml.json"
+    },
+    {
+      "profile_id": "data-migration-heavy",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "data-migration-heavy.yaml.json"
+    },
+    {
+      "profile_id": "reporting-analytics-heavy",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "reporting-analytics-heavy.yaml.json"
+    },
+    {
+      "profile_id": "agentforce-ai",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "agentforce-ai.yaml.json"
+    },
+    {
+      "profile_id": "unknown-generic",
+      "version": "1.0.0",
+      "status": "active",
+      "file": "unknown-generic.yaml.json"
+    }
+  ],
+  "_status": "ARCHIVAL: not consumed by the v4.6 batch pipeline (completeness layer is dormant); retained for lineage."
+}

@@ -1,0 +1,10 @@
+{
+  "accuracy_gate": "enforce_if_eligible",
+  "ood_mode": "abstain_on_ood",
+  "stale_register": "provisional_unless_live_confirmed",
+  "min_reliability": "MICRO-CALIBRATED",
+  "id": "strict",
+  "version": "1.0.0",
+  "status": "active",
+  "review_by": "dynamic"
+}

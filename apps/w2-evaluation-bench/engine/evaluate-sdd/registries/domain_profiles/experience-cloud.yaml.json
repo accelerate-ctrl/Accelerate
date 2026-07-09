@@ -1,0 +1,42 @@
+{
+  "profile_id": "experience-cloud",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "experience cloud",
+      "portal",
+      "community"
+    ],
+    "optional_terms": [
+      "external user",
+      "guest user",
+      "site"
+    ]
+  },
+  "expected_design_areas": [
+    "external_sharing",
+    "license_model",
+    "security"
+  ],
+  "common_failure_modes": [
+    "external sharing model missing",
+    "license type unclear"
+  ],
+  "zms_emphasis": [
+    "3",
+    "4",
+    "5"
+  ],
+  "tests": [
+    "test_detect_experience_cloud"
+  ]
+}

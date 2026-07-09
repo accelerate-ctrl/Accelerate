@@ -1,0 +1,26 @@
+{
+  "title": "source-index/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "doc_id",
+    "sha256",
+    "segments"
+  ],
+  "properties": {
+    "segments": {
+      "type": "array",
+      "items": {
+        "required": [
+          "segment_id",
+          "kind",
+          "char_start",
+          "char_end",
+          "text",
+          "norm_hash"
+        ]
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

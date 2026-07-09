@@ -1,0 +1,19 @@
+{
+  "title": "completeness-profile/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "review_completeness"
+  ],
+  "properties": {
+    "review_completeness": {
+      "required": [
+        "level",
+        "label",
+        "reasons",
+        "impact"
+      ]
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

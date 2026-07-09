@@ -1,0 +1,21 @@
+{
+  "title": "requirements-trace/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "requirements"
+  ],
+  "properties": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "required": [
+          "requirement_id",
+          "source_quote",
+          "source_segment"
+        ]
+      }
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

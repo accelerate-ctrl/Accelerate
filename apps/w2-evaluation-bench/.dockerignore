@@ -1,0 +1,17 @@
+# Docker build context exclusions. CAUTION: runner/ and examples/ MUST stay in
+# the context — the Dockerfile COPYs them as the /runner.zip installer payload
+# (the v1.1 version of this file excluded them, which broke the image build
+# once the Dockerfile gained those COPYs; found during deploy pre-flight).
+# data/ can contain client documents and the blinding escrow — never in a build.
+.git
+.gitignore
+data/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+docs/
+scripts/
+README.md
+*.zip
+*.bundle

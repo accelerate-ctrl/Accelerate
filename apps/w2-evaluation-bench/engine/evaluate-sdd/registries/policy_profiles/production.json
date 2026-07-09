@@ -1,0 +1,10 @@
+{
+  "accuracy_gate": "advisory_until_human_labels",
+  "ood_mode": "abstain_on_ood",
+  "stale_register": "provisional",
+  "min_reliability": "MICRO-CALIBRATED",
+  "id": "production",
+  "version": "1.0.0",
+  "status": "active",
+  "review_by": "dynamic"
+}

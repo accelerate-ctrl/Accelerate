@@ -1,0 +1,38 @@
+{
+  "profile_id": "reporting-analytics-heavy",
+  "version": "1.0.0",
+  "status": "active",
+  "owner": "derived",
+  "created_at": "2026-06-29",
+  "review_by": "dynamic-tracks-salesforce-docs",
+  "source_authority": [
+    "Salesforce Docs (live)",
+    "ZMS"
+  ],
+  "note": "Detection signals + interpretation only. Platform FACTS (currency, license) resolve LIVE via the Salesforce-source path under R23 \u2014 this file holds no fact that goes stale on a release.",
+  "signals": {
+    "required_terms": [
+      "report",
+      "dashboard",
+      "analytics"
+    ],
+    "optional_terms": [
+      "crm analytics",
+      "einstein"
+    ]
+  },
+  "expected_design_areas": [
+    "reporting",
+    "data_model"
+  ],
+  "common_failure_modes": [
+    "report source undefined"
+  ],
+  "zms_emphasis": [
+    "3",
+    "4"
+  ],
+  "tests": [
+    "test_detect_reporting_analytics_heavy"
+  ]
+}
