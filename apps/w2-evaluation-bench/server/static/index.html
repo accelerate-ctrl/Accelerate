@@ -4,23 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>W2 Evaluation Bench — Two models. One blinded verdict.</title>
+<link rel="stylesheet" href="/brand/tokens.css">
 <style>
 /* Landing identity: official Zennify brand (UI/UX brief section 8.2). */
-@font-face{font-family:'DM Sans';src:url(/fonts/DMSansRegular.woff2) format('woff2');
-  font-weight:100 1000;font-display:swap}
-@font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoRegular.woff2) format('woff2');
-  font-weight:400;font-display:swap}
+/* fonts + tokens come from the official brand sheet (/brand/tokens.css) */
 :root{
-  --dark-teal:#1E4A48; --teal:#27BBAF; --mint:#79E2BF; --light-mint:#B0EDD3;
+  --dark-teal:#1c4a4d; --teal:#27bbaf; --mint:#62d7b8; --light-mint:#b0eed3;
   --ice:#E8F7F6; --deep-teal:#185F60; --dark-bg:#1E3A3A;
   --text-dark:#1C4A4D; --text-muted:#6B8A8D;
-  --acc-blue:#A5C6FF; --acc-purple:#B19CD8; --acc-peach:#FFCB99; --acc-teal:#139F94;
+  --acc-blue:#A5C6FF; --acc-purple:#B19CD8; --acc-peach:#FFCB99; --acc-teal:#185f60;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',system-ui,-apple-system,sans-serif;color:var(--text-dark);background:#fff}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-.mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
+.mono{font-family:'DM Mono',ui-monospace,monospace}
 .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
 /* hero */
 .hero{background:var(--dark-teal);color:#fff;padding:72px 0 64px}
@@ -45,7 +43,7 @@ h2.sect{font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--t
 .pipe{display:grid;grid-template-columns:repeat(7,1fr);gap:12px}
 @media (max-width:700px){.pipe{grid-template-columns:1fr}}
 .step{background:#fff;border-radius:12px;padding:16px 14px;border:1px solid rgba(30,74,72,.08)}
-.step .num{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;
+.step .num{font-family:'DM Mono',monospace;font-size:12px;font-weight:600;
   width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#08302d}
 .step h4{font-size:14.5px;font-weight:600;margin:10px 0 6px}
 .step p{font-size:12.5px;line-height:1.5;color:var(--text-muted)}
@@ -75,7 +73,7 @@ footer a.cta2{background:var(--teal);color:#08302d;font-weight:600;padding:10px 
 <body>
 <section class="hero">
   <div class="wrap">
-    <div class="mark reveal">Zennify</div>
+    <div class="mark reveal">Solutioning evaluation framework</div>
     <div class="product reveal">The W2 Evaluation Bench · <span class="mono">v4.7</span></div>
     <h1 class="reveal">Two models. One blinded verdict.</h1>
     <p class="sub reveal">The W2 Evaluation Bench scores solution designs against Zennify&rsquo;s frozen

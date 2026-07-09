@@ -1,0 +1,232 @@
+/*
+  Zennify Brand — Marketing — Colors & Typography Tokens
+  ---------------------------------------------------
+  Single source of truth for color + type foundations.
+  Semantic tokens map to raw palette values; use the semantic vars in UI.
+*/
+
+/* ---------- Fonts ---------- */
+/* Fonts are self-hosted (Cloud Run serves them; no external dependency).
+   Families and axes match the brand import: DM Sans variable + DM Mono. */
+@font-face{font-family:'DM Sans';src:url(/fonts/DMSansRegular.woff2) format('woff2');font-weight:100 1000;font-display:swap}
+@font-face{font-family:'DM Mono';src:url(/fonts/DMMonoRegular.ttf) format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'DM Mono';src:url(/fonts/DMMonoMedium.ttf) format('truetype');font-weight:500;font-display:swap}
+
+:root {
+  /* ============================================
+     COLOR PALETTE — Raw values (from brand guide)
+     ============================================ */
+
+  /* Greens / Teals — primary brand family */
+  --z-dark-green:    #1c4a4d;  /* Primary body text, heavy backgrounds */
+  --z-dark-teal:     #185f60;
+  --z-teal:          #27bbaf;  /* Core brand accent (logo mark) */
+  --z-light-teal:    #62d7b8;
+  --z-light-green:   #b0eed3;
+  --z-white-green:   #e8f7f6;  /* Subtle tinted surfaces */
+
+  /* Blues & Purples — secondary / illustration palette */
+  --z-white-purple:  #f2f4f9;  /* Softest neutral surface */
+  --z-light-blue:    #a5c6ff;
+  --z-blue:          #3d81f6;
+  --z-purple-grey:   #c7d3ec;
+  --z-purple:        #b19cd8;
+  --z-dark-purple:   #8094c0;
+
+  /* Oranges — warmth accents, sparingly */
+  --z-light-orange:  #ffcb99;
+  --z-orange:        #fe9732;
+
+  /* Neutrals */
+  --z-white:         #ffffff;
+  --z-black:         #0b1f20;   /* Near-black derived from dark-green */
+  --z-ink-900:       #1c4a4d;   /* = dark-green */
+  --z-ink-700:       #2f6366;
+  --z-ink-500:       #567a7c;
+  --z-ink-300:       #9fb6b7;
+  --z-ink-100:       #d6e4e4;
+  --z-surface-tint:  #f5faf9;   /* Page-background tint */
+
+  /* ============================================
+     SEMANTIC COLOR TOKENS — use these in UI
+     ============================================ */
+
+  /* Foreground */
+  --fg-1: var(--z-dark-green);    /* Primary text */
+  --fg-2: var(--z-ink-700);       /* Secondary text */
+  --fg-3: var(--z-ink-500);       /* Muted / captions */
+  --fg-invert: var(--z-white);    /* On dark surfaces */
+  --fg-brand: var(--z-teal);      /* Brand links, emphasized eyebrow */
+  --fg-link: var(--z-dark-teal);
+
+  /* Background / Surface */
+  --bg-page:      var(--z-white);
+  --bg-tint:      var(--z-white-green);   /* Tinted section bg */
+  --bg-soft:      var(--z-white-purple);  /* Cool tinted section bg */
+  --bg-inverse:   var(--z-dark-green);    /* Dark hero / footer */
+  --bg-inverse-2: var(--z-dark-teal);
+  --surface-card: var(--z-white);
+  --surface-raised: var(--z-white);
+
+  /* Borders */
+  --border-subtle:  rgba(28, 74, 77, 0.08);
+  --border-default: rgba(28, 74, 77, 0.14);
+  --border-strong:  rgba(28, 74, 77, 0.28);
+  --border-brand:   var(--z-teal);
+
+  /* Accent / decorative */
+  --accent-teal:   var(--z-teal);
+  --accent-blue:   var(--z-blue);
+  --accent-purple: var(--z-purple);
+  --accent-orange: var(--z-orange);
+
+  /* Status (derived; brand doesn't specify — WCAG-safe) */
+  --status-success: #1f8a6b;
+  --status-warning: #c76b12;
+  --status-danger:  #b03a3a;
+  --status-info:    var(--z-blue);
+
+  /* ============================================
+     TYPOGRAPHY
+     ============================================ */
+  --font-sans:    'DM Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'DM Sans', var(--font-sans);
+  --font-mono:    'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Weights */
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* Fluid type scale — DM Sans is the only family */
+  --fs-display-1: clamp(56px, 7vw, 96px);   /* Hero display */
+  --fs-display-2: clamp(44px, 5.4vw, 72px);
+  --fs-h1: clamp(36px, 4.2vw, 56px);
+  --fs-h2: clamp(28px, 3.1vw, 40px);
+  --fs-h3: clamp(22px, 2.2vw, 28px);
+  --fs-h4: 20px;
+  --fs-body-lg: 18px;
+  --fs-body:    16px;
+  --fs-body-sm: 14px;
+  --fs-caption: 13px;
+  --fs-eyebrow: 13px;
+
+  /* Line heights */
+  --lh-tight:   1.05;
+  --lh-snug:    1.2;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.65;
+
+  /* Letter spacing */
+  --ls-tight:    -0.02em;
+  --ls-snug:     -0.01em;
+  --ls-normal:   0;
+  --ls-eyebrow:  0.12em;   /* eyebrow / subtitle UPPERCASE */
+
+  /* ============================================
+     SPACING / RADII / SHADOWS / MOTION
+     ============================================ */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  24px;
+  --space-6:  32px;
+  --space-7:  48px;
+  --space-8:  64px;
+  --space-9:  96px;
+  --space-10: 128px;
+
+  --radius-xs:   4px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-xl:   28px;
+  --radius-2xl:  40px;
+  --radius-pill: 999px;
+
+  /* Soft, cool-toned shadows — no pure black */
+  --shadow-xs: 0 1px 2px rgba(24, 95, 96, 0.06);
+  --shadow-sm: 0 2px 6px rgba(24, 95, 96, 0.08), 0 1px 2px rgba(24, 95, 96, 0.04);
+  --shadow-md: 0 8px 20px rgba(24, 95, 96, 0.10), 0 2px 6px rgba(24, 95, 96, 0.05);
+  --shadow-lg: 0 18px 40px rgba(24, 95, 96, 0.14), 0 4px 10px rgba(24, 95, 96, 0.06);
+  --shadow-xl: 0 28px 60px rgba(24, 95, 96, 0.18);
+  --shadow-inner: inset 0 1px 0 rgba(255,255,255,0.6);
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in:  cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --dur-fast:   120ms;
+  --dur-normal: 220ms;
+  --dur-slow:   420ms;
+
+  /* Container / layout */
+  --container-max: 1240px;
+  --container-pad: clamp(20px, 4vw, 48px);
+}
+
+/* ============================================
+   ELEMENT DEFAULTS — semantic typography
+   ============================================ */
+html { color-scheme: light; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--fg-1);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1, h2, .h2, h3, .h3, h4, .h4 {
+  font-family: var(--font-display);
+  color: var(--fg-1);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
+  margin: 0 0 0.5em;
+  text-wrap: balance;
+}
+
+.display-1 { font-size: var(--fs-display-1); font-weight: var(--fw-medium); letter-spacing: -0.025em; }
+.display-2 { font-size: var(--fs-display-2); font-weight: var(--fw-medium); letter-spacing: -0.022em; }
+
+h1, .h1 { font-size: var(--fs-h1); font-weight: var(--fw-medium); }
+h2, .h2 { font-size: var(--fs-h2); font-weight: var(--fw-medium); letter-spacing: var(--ls-snug); }
+h3, .h3 { font-size: var(--fs-h3); font-weight: var(--fw-medium); letter-spacing: var(--ls-snug); }
+h4, .h4 { font-size: var(--fs-h4); font-weight: var(--fw-medium); line-height: var(--lh-snug); }
+
+p, .body { font-size: var(--fs-body); line-height: var(--lh-relaxed); color: var(--fg-1); text-wrap: pretty; }
+.body-lg { font-size: var(--fs-body-lg); line-height: var(--lh-relaxed); }
+.body-sm { font-size: var(--fs-body-sm); line-height: var(--lh-normal); color: var(--fg-2); }
+.caption { font-size: var(--fs-caption); line-height: var(--lh-normal); color: var(--fg-3); }
+
+/* Eyebrow / subtitle — brand guide: ALL CAPS + letterspacing */
+.eyebrow, .subtitle {
+  font-size: var(--fs-eyebrow);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase;
+  color: var(--fg-brand);
+}
+
+a { color: var(--fg-link); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { color: var(--z-teal); }
+
+code, kbd, pre, samp {
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}
+code {
+  background: var(--z-white-green);
+  color: var(--z-dark-teal);
+  padding: 0.12em 0.4em;
+  border-radius: var(--radius-xs);
+}
+
+::selection { background: var(--z-light-teal); color: var(--z-dark-green); }
