@@ -24,6 +24,8 @@ Post-build documents (added after the build shipped):
 |---|---|---|
 | 8 | 08-cloud-run-deployment-guide.md | Complete Cloud Run deployment plan: OAuth client → every component → verified live service → member onboarding → operations |
 | 9 | 09-github-deploy-user-guide.md | Operator guide: first deploy from GitHub via Cloud Shell, then push-to-deploy via the Cloud Build trigger (`deploy/cloudbuild.yaml`) |
+| 10 | 10-pre-intelligence-engine.md | The deterministic NLP layer: what it computes, where it feeds the judges, and the prepare-and-verify covenant |
+| 11 | 11-nlp-accuracy-report.md | Measured NLP accuracy vs the hand-labeled gold corpus: 100% on 87 instances, ≥95% enforced in CI (`scripts/nlp_benchmark.py`) |
 | — | qa-report.md | v2.0 QA & security audit: completeness matrix, E2E functionality evidence, security + prompt-injection review, hardening fixes |
 | — | errata.md | Every doc-vs-code conflict found during the build, with its ruling |
 

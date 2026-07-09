@@ -136,3 +136,9 @@ console's **Pre-intelligence panel** (evidence coverage, BRD traceability,
 guardrail lint per lane), the two downloadable artifacts, and — when it
 flags something — the reconciliation rulings and dissent annex of the
 report itself.
+
+Accuracy is measured, not assumed: every component is graded against a
+hand-labeled adversarial gold corpus and held to a ≥95% bar enforced in CI.
+Method, per-component numbers, and the defects the benchmark caught are in
+`docs/11-nlp-accuracy-report.md`; reproduce any time with
+`python3 scripts/nlp_benchmark.py`.

@@ -12,7 +12,10 @@ from .textproc import clamp_words
 
 # SF-1, US-2.3, REQ-004, NFR-7, AC-1 …
 _REQ_ID = re.compile(r"\b((?:SF|US|REQ|NFR|FR|AC)-\d+(?:\.\d+)*)\b", re.I)
-_MODAL = re.compile(r"\b(shall|must|should|is required to|needs to)\b", re.I)
+# (?!-) keeps compound adjectives ("must-have list", "should-cost model")
+# from reading as modality requirements.
+_MODAL = re.compile(r"\b(shall|must|should)\b(?!-)|\b(is required to|needs to)\b",
+                    re.I)
 _KIND = {"SF": "story", "US": "story", "REQ": "requirement", "FR": "requirement",
          "NFR": "nfr", "AC": "acceptance"}
 
