@@ -102,7 +102,9 @@ def _anchor(sdd: str, keywords: list[str]) -> tuple[str, str]:
                 if count == 24:
                     cut = m.end(); break
             anchor = raw[:cut].strip()
-            if len(anchor) >= 20 and anchor in sdd:
+            # single-line only: the R25b source index resolves per line, so a
+            # window spanning a newline would be a fabricated-looking quote
+            if len(anchor) >= 20 and "\n" not in anchor and anchor in sdd:
                 words = anchor.lower().split()
                 repetitive = max(map(words.count, set(words))) / len(words) > 0.25
                 if _concrete(anchor) and not repetitive:

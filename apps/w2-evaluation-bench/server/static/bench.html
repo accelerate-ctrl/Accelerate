@@ -384,6 +384,24 @@ function meterTable(perDim){
   return `<div class="tblwrap"><table aria-label="Concurrence table"><tr><th>Dimension</th><th>Judge A</th><th>Judge B</th><th>Consensus</th><th>Concord.</th><th>Verdict agr.</th><th>Dissent</th></tr>${rows}</table></div>`;
 }
 
+function preIntelPanel(st){
+  const pa = (st.digests||{}).pre_analysis;
+  if (!pa) return "";
+  const lanes = Object.keys(pa).sort();
+  const rows = lanes.map(l => {
+    const a = pa[l]||{};
+    const flags = (a.injection_flags||0) + (a.blinding_tokens_in_input||0);
+    return `<tr><td class="blind">${esc(l)}</td>
+      <td>${a.criteria_with_candidates??"–"}/${a.criteria??"–"} (${pct(a.evidence_coverage)})</td>
+      <td>${a.requirements_covered??"–"}/${a.requirements_total??"–"} (${pct(a.traceability_rate)})</td>
+      <td>${flags ? `<b style="color:var(--neg)">${flags} flagged</b>` : "clean"}</td></tr>`;
+  }).join("");
+  return `<h2 style="margin-top:16px">Pre-intelligence <span class="chip">deterministic · advisory</span></h2>
+    <div class="micro" style="margin:0 0 8px">The bench pre-processed the documents before any model read them:
+    evidence candidates per criterion, BRD→SDD traceability, and guardrail lint. Judges verify — hints never decide.</div>
+    <div class="tblwrap"><table><tr><th>Lane</th><th>Evidence candidates</th><th>BRD traceability</th><th>Guardrail lint</th></tr>${rows}</table></div>`;
+}
+
 function judgingPanel(st){
   const cons = (st.digests||{}).consensus || {};
   const labels = Object.keys(cons);
@@ -507,6 +525,7 @@ async function renderDetail(){
     </div>
     ${rail(st.mode, st.stage, st.status)}
     ${banner}
+    ${preIntelPanel(st)}
     ${judgingPanel(st)}
     ${pk}
     ${usageLine(st)}

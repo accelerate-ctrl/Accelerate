@@ -167,11 +167,34 @@ grep -n "ESCROW_NAME" server/orchestrator.py | grep -v "lane_reveal_apply\|lane-
 echo "  escrow: unreachable via routes; referenced only by config/download-guard/reveal-arg"
 
 echo "== 7. T-9 no model-SDK imports in server/ =="
-BAD=$(grep -rEn "import anthropic|from anthropic|google\.generativeai|import genai|from google|import openai" server/*.py || true)
+# Model SDKs only: google.oauth2 / google.auth are Workspace IDENTITY
+# libraries (server/auth.py sign-in verification), not model clients.
+BAD=$(grep -rEn "import anthropic|from anthropic|google\.generativeai|import genai|from google\.genai|import vertexai|from vertexai|import openai" server/*.py || true)
 [ -z "$BAD" ] || fail "model SDK import found in server/: $BAD"
 echo "  server/ holds no Anthropic or Google client"
 
-echo "== 8. T-10 legacy five-pass protocol (frozen v4.6 path) =="
+echo "== 8. T-13 pre-intelligence layer engaged (artifact, packet, digest) =="
+RD="$W2APP_DATA/runs/$RID"
+[ -f "$RD/pre-analysis-A.json" ] && [ -f "$RD/pre-analysis-B.json" ] \
+  || { echo "SMOKE FAIL: pre-analysis artifacts missing"; exit 1; }
+PK=$(ls "$RD"/packets/pass*claude-code.packet.json | head -1)
+grep -q "PRE-ANALYSIS (deterministic, advisory)" "$PK" \
+  || { echo "SMOKE FAIL: pass packet not enriched with pre-analysis"; exit 1; }
+W2D="$W2APP_DATA" RID="$RID" python3 -c "
+import json, os
+st = json.load(open(os.environ['W2D'] + '/runs/' + os.environ['RID'] + '/state.json'))
+pa = st['digests'].get('pre_analysis') or {}
+assert set(pa) == {'Output A', 'Output B'}, pa
+a = pa['Output A']
+assert a['criteria'] > 0 and a['evidence_coverage'] > 0, a
+assert a['requirements_total'] >= 5 and a['traceability_rate'] > 0, a
+pre = json.load(open(os.environ['W2D'] + '/runs/' + os.environ['RID'] + '/pre-analysis-A.json'))
+assert pre['preintel_version'] and pre['mechanisms'], 'mechanism index empty'
+print('  pre-intel: coverage %.0f%% traceability %.0f%% mechanisms %d' % (
+      a['evidence_coverage']*100, a['traceability_rate']*100, len(pre['mechanisms'])))
+"
+
+echo "== 9. T-10 legacy five-pass protocol (frozen v4.6 path) =="
 LEG_PORT=${LEG_PORT:-8889}
 W2APP_DATA_LEG=$(mktemp -d)
 ( W2APP_DATA="$W2APP_DATA_LEG" EVAL_PROTOCOL=five-pass \

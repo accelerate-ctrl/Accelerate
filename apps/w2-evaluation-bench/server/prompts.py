@@ -129,10 +129,20 @@ Use the exact sub_criterion keys from the scoring reference.{JSON_ONLY}
 """
 
 
+PRE_ANALYSIS_RULES = (
+    "The PRE-ANALYSIS section below was computed DETERMINISTICALLY by the "
+    "bench (no model): candidate evidence spans per criterion, BRD "
+    "traceability, and guardrail flags. Treat it as retrieval hints ONLY - "
+    "verify every hint against the SDD, cite whatever the SDD actually "
+    "supports (hinted or not), and NEVER code a verdict from a hint alone. "
+    "Hints can be incomplete or wrong; the SDD is the only evidence source.")
+
+
 def pass_prompt_dual(*, run_id: str, label: str, dim_group: str,
                      sdd_path: Path, slice_path: Path, playbook_path: Path,
                      core_ref: Path, dims_ref: Path, plan: dict,
-                     mapping_digest: dict, release_digest: dict) -> str:
+                     mapping_digest: dict, release_digest: dict,
+                     pre_analysis: str = "") -> str:
     """v2.0 dual-judge scoring prompt. BYTE-IDENTICAL for both judges of a
     (lane, dim-group): the judge is selected by packet meta only, never named
     in the prompt (judge independence, PRD G2). Differences from the five-pass
@@ -173,7 +183,9 @@ Return:
    "evidence_anchor": "<verbatim from SDD>", "sdd_ref": "...",
    "components_present": [], "components_partial": [], "components_absent": []}}}}}}
 Use the exact sub_criterion keys from the scoring reference.{JSON_ONLY}
+{PRE_ANALYSIS_RULES if pre_analysis else ""}
 {DOC_GUARD}
+{f"=== PRE-ANALYSIS (deterministic, advisory) ==={chr(10)}{pre_analysis}" if pre_analysis else ""}
 === SCORING DISCIPLINE (section-d-core) ===
 {_read(core_ref)}
 === DIMENSION REFERENCE ===
@@ -279,7 +291,8 @@ Return: {{"exec_narrative": {{"what_we_evaluated": "...", "the_verdict": "...",
 
 
 def review_prompt(*, dim_group: str, sdd_path: Path, slice_path: Path,
-                  playbook_path: Path, brd_path: Path, release_digest: dict) -> str:
+                  playbook_path: Path, brd_path: Path, release_digest: dict,
+                  pre_analysis: str = "") -> str:
     return f"""You are the Mode B (single-SDD qualitative review) evaluator for dimensions
 {dim_group}, reading the SDD against the ZMS senior-SA calibration AS A LENS
 (no scoring). Every finding must be grounded: a verbatim evidence_anchor from
@@ -297,7 +310,9 @@ Return: {{"findings": [{{"id": "F-<dim><n>", "dimension": <int>, "zms_lens": "<c
  "why_it_matters": "...", "what_good_looks_like": "...", "done_when": "...",
  "priority": "High|Medium|Low", "affected_zms_refs": ["..."], "evidence_refs": ["..."]}}],
  "clarifications": []}}{JSON_ONLY}
+{PRE_ANALYSIS_RULES if pre_analysis else ""}
 {DOC_GUARD}
+{f"=== PRE-ANALYSIS (deterministic, advisory) ==={chr(10)}{pre_analysis}" if pre_analysis else ""}
 === SA REASONING PLAYBOOK ===
 {_read(playbook_path)}
 === ZMS CALIBRATION SLICE (dims {dim_group}) ===

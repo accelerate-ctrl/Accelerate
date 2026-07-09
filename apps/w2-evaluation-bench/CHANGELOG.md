@@ -1,5 +1,30 @@
 # Changelog — W2 Evaluation Bench
 
+## v2.1 (2026-07-07) — pre-intelligence layer (approved plan)
+
+The server is promoted from deterministic orchestrator to a pre-processing
+engine (`engine/.../scripts/nlp/`, pure stdlib, zero model calls): document
+model + requirement registry (BRD story/modality inventory), Salesforce
+mechanism lexicon index, per-ZMS-criterion evidence candidates (IDF-weighted,
+synonym-expanded, deterministic), BRD→SDD traceability matrix, and guardrail
+lint (injection patterns + blinding tokens at intake). Claude + Gemini remain
+the only judges — better fed:
+
+- Judgment packets gain a byte-identical advisory `PRE-ANALYSIS` section
+  (retrieval hints + uncovered-BRD warnings + lint cautions) governed by
+  PRE_ANALYSIS_RULES ("verify, never assume") and DOC_GUARD.
+- Post-judgment verification: agreed affirmative verdicts whose anchor shares
+  zero judgeable terms with the criterion join the SAME blinded reconcile
+  packet as a review class (`consensus.merge(review_items=…)`) — the
+  intelligent layer confirms with a citation or records a dissent; the layer
+  itself never decides.
+- Artifacts: `pre-analysis-<lane>.json` per run (downloadable), summary in
+  run digests, console "Pre-intelligence" panel.
+- Gates: 13 nlp unit tests; smoke T-13 (artifact + packet enrichment +
+  digest asserted); richer fixtures; mock anchors hardened to single-line
+  verbatim windows; T-9 grep narrowed to model SDKs (google-auth is identity,
+  not a model client). Five-pass legacy leg unchanged and re-verified.
+
 ## v2.0.1 (2026-07-06) — QA hardening + deployment kit
 
 Post-release QA & security audit (`docs/qa-report.md`). Fixes:

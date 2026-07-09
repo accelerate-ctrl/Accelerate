@@ -274,7 +274,8 @@ def _apply_sub_ruling(item_key: str, sa: float, sb: float, mx: float,
 
 def merge(cards: dict, rulings: dict | None, *, criteria: list, sub_max: dict,
           dims: list, dim_max: dict, lane: str, dim_group: str,
-          rr_capped_total: float = 0.0, floor_cap=None) -> dict:
+          rr_capped_total: float = 0.0, floor_cap=None,
+          review_items: set | None = None) -> dict:
     """Merge two scorecards (+ reconcile rulings for their divergences) into
     the consensus record for one (lane, dim-group). Backend Schema section 6.
 
@@ -288,6 +289,7 @@ def merge(cards: dict, rulings: dict | None, *, criteria: list, sub_max: dict,
     """
     a, b = cards[JUDGE_A], cards[JUDGE_B]
     rulings = rulings or {}
+    review_items = review_items or set()
     d = diff(cards, criteria, sub_max, dims, dim_max)
 
     items, dissents = {}, []
@@ -301,7 +303,7 @@ def merge(cards: dict, rulings: dict | None, *, criteria: list, sub_max: dict,
                           "judge_entries": None,
                           "ruling_citation": None, "ruling_rationale": None}
             continue
-        if cid not in d["criteria"]:
+        if cid not in d["criteria"] and cid not in review_items:
             # agreed: Judge A's anchor kept; both retained when texts differ
             keep_both = (ea.get("evidence_anchor") or "") != (eb.get("evidence_anchor") or "")
             items[cid] = {"provenance": "agreed", "consensus": _strip(ea),
@@ -311,8 +313,10 @@ def merge(cards: dict, rulings: dict | None, *, criteria: list, sub_max: dict,
             continue
         if cid not in rulings:
             raise ValueError(f"divergent criterion {cid!r} has no reconcile ruling")
+        # review_items (pre-intelligence weak-evidence flags) carry identical
+        # judge entries; the ruling machinery treats them like any divergence.
         prov, entry, citation, rationale, dissent = _apply_criterion_ruling(
-            cid, d["criteria"][cid], rulings[cid])
+            cid, d["criteria"].get(cid) or {JUDGE_A: ea, JUDGE_B: eb}, rulings[cid])
         items[cid] = {"provenance": prov, "consensus": entry,
                       "judge_entries": {JUDGE_A: _strip(ea), JUDGE_B: _strip(eb)},
                       "ruling_citation": citation, "ruling_rationale": rationale}

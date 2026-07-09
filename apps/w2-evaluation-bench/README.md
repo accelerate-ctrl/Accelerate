@@ -29,6 +29,19 @@ only, on the org's **paid-tier** key (free tier is refused: Google may train
 on free-tier prompts and excludes commercial use; override for non-client
 pilots only with `W2_ALLOW_GEMINI_FREE_TIER=1`).
 
+**v2.1 adds the pre-intelligence layer**: before any model reads anything,
+the server's NLP engine (`engine/…/scripts/nlp/`; deterministic, stdlib-only,
+zero model calls) parses both documents into a structural model, extracts the
+BRD requirement inventory, indexes every named Salesforce mechanism, locates
+candidate evidence per ZMS criterion (IDF-weighted lexical retrieval over the
+calibration's own language), maps BRD→SDD traceability, and lints for
+prompt-injection and blinding-token patterns. Judgment packets carry the
+result as an advisory `PRE-ANALYSIS` block (identical for both judges:
+verify, never assume); on the way back, agreed verdicts whose citation shares
+no judgeable term with the criterion are routed into the same blinded
+reconciliation the judges already use. The app pre-processes; Claude and
+Gemini stay the only intelligence.
+
 ## Architecture
 
 ```

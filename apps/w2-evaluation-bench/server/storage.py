@@ -19,6 +19,9 @@ DOWNLOADABLE = {
     "lift": ["lift-calc.json"],
     "run_record": ["run-record.json"],
     "diagnostic_bundle": ["diagnostic-bundle.json"],
+    # pre-intelligence artifacts (blinded: lane-labelled inputs only)
+    "pre_analysis_a": ["pre-analysis-A.json"],
+    "pre_analysis_b": ["pre-analysis-B.json"],
 }
 
 

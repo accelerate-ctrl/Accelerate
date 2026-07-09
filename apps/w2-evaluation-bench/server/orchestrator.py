@@ -21,6 +21,7 @@ from .storage import run_dir, load_state, save_state
 import contracts
 import pass_accumulate      # five-pass legacy path (frozen; EVAL_PROTOCOL=five-pass)
 import judge_accumulate
+import nlp                  # pre-intelligence layer (deterministic; approved plan)
 import source_index_build
 
 DUAL = (EVAL_PROTOCOL == "dual-judge")
@@ -218,6 +219,27 @@ def _lane_rr_floor(rd: Path, st: dict, label: str) -> tuple[float, object]:
     return float(rr or 0), mapping.get("dim_4_floor_cap")
 
 
+def _pre_analysis(rd: Path, st: dict, label: str) -> dict:
+    """Build (once) and load the lane's pre-intelligence artifact: document
+    model, requirement registry, per-criterion evidence candidates,
+    BRD<->SDD traceability, guardrail lint. Deterministic and blinded (reads
+    only lane-labelled documents); persisted as pre-analysis-<lane>.json and
+    summarized into the run digests for the console."""
+    lane = "A" if label.endswith("A") else "B"
+    path = rd / f"pre-analysis-{lane}.json"
+    if path.exists():
+        return _j(path)
+    crits = {g: _j(rd / f"zms-calibration-dims-{g}.json")["applicable_criteria"]
+             for g in ("1-3", "4-7")}
+    pre = nlp.build_pre_analysis(
+        brd_text=(rd / "inputs" / st["files"]["brd"]).read_text(errors="replace"),
+        sdd_text=_lane_sdd(st, label).read_text(errors="replace"),
+        criteria_by_group=crits)
+    path.write_text(nlp.pre_analysis.to_json(pre))
+    st.setdefault("digests", {}).setdefault("pre_analysis", {})[label] = pre["summary"]
+    return pre
+
+
 def stage_scoring_packets_dual(rd: Path, st: dict) -> bool:
     """8 pass packets (2 lanes x 2 dim-groups x 2 judges). The two packets of
     a (lane, group) are BYTE-IDENTICAL in prompt — the judge lives only in
@@ -243,6 +265,7 @@ def stage_scoring_packets_dual(rd: Path, st: dict) -> bool:
                 st["stage"] = "S3"  # dual scoring in flight (console stage rail)
                 if not packets.exists(rd, pid):
                     if prompt is None:  # built once -> byte-identical across judges
+                        pre = _pre_analysis(rd, st, label)
                         prompt = prompts.pass_prompt_dual(
                             run_id=st["run_id"], label=label, dim_group=group,
                             sdd_path=_lane_sdd(st, label),
@@ -251,7 +274,8 @@ def stage_scoring_packets_dual(rd: Path, st: dict) -> bool:
                                                ["sa_reasoning_playbook_path"]),
                             core_ref=SCRIPTS.parent / "references" / "section-d-core.md",
                             dims_ref=SCRIPTS.parent / "references" / f"section-d-dims-{group}.md",
-                            plan=plan, mapping_digest=mapping, release_digest=rel)
+                            plan=plan, mapping_digest=mapping, release_digest=rel,
+                            pre_analysis=nlp.prompt_digest(pre, group))
                     packets.create(rd, pid, kind="pass", label=label, prompt=prompt,
                                    meta={"lane": lane, "dim_group": group,
                                          "judge": judge, "floor_cap": floor_cap,
@@ -282,7 +306,14 @@ def batch_consensus(rd: Path, st: dict) -> bool:
             ctx = _group_ctx(rd, st, group)
             d = consensus_mod.diff(cards, ctx["criteria"], ctx["sub_max"],
                                    ctx["dims"], ctx["dim_max"])
-            divergent = bool(d["criteria"] or d["subs"])
+            # Pre-intelligence post-judgment check (approved plan, N5):
+            # agreed affirmative verdicts whose anchor shares zero judgeable
+            # terms with the criterion join the SAME reconcile packet as a
+            # review class — the intelligent layer confirms with a citation
+            # or records a dissent. Never decided here.
+            weak = nlp.review_anchor_quality(cards, d["criteria"], ctx["criteria"])
+            crit_items = {**d["criteria"], **weak}
+            divergent = bool(crit_items or d["subs"])
             rulings = None
             rpid = f"reconcile:{label}:{group}"
             if divergent:
@@ -296,7 +327,7 @@ def batch_consensus(rd: Path, st: dict) -> bool:
                             rd, rpid, kind="reconcile", label=label,
                             prompt=prompts.reconcile_prompt(
                                 label=label, dim_group=group,
-                                crit_items=d["criteria"], sub_items=sub_items,
+                                crit_items=crit_items, sub_items=sub_items,
                                 sdd_path=_lane_sdd(st, label)),
                             meta={"lane": lane, "dim_group": group,
                                   "judge": contracts.JUDGES[0]})
@@ -308,7 +339,8 @@ def batch_consensus(rd: Path, st: dict) -> bool:
                     cards, rulings, criteria=ctx["criteria"],
                     sub_max=ctx["sub_max"], dims=ctx["dims"],
                     dim_max=ctx["dim_max"], lane=lane, dim_group=group,
-                    rr_capped_total=rr, floor_cap=floor_cap)
+                    rr_capped_total=rr, floor_cap=floor_cap,
+                    review_items=set(weak))
             except ValueError as e:
                 # Semantically invalid rulings (unknown ruling, out-of-bounds
                 # meet_between, missing item): reopen the reconcile packet for
@@ -750,13 +782,15 @@ def stage_review_packets(rd: Path, st: dict) -> bool:
             need = True
             if not packets.exists(rd, pid):
                 if prompt is None:  # built once -> byte-identical across judges
+                    pre = (_pre_analysis(rd, st, "Output A") if DUAL else None)
                     prompt = prompts.review_prompt(
                         dim_group=group, sdd_path=_lane_sdd(st, "Output A"),
                         slice_path=rd / f"zms-calibration-dims-{group}.json",
                         playbook_path=Path(_j(rd / "zms-calibration-content.json")
                                            ["sa_reasoning_playbook_path"]),
                         brd_path=rd / "inputs" / st["files"]["brd"],
-                        release_digest=_release_digest(rd, "Output A"))
+                        release_digest=_release_digest(rd, "Output A"),
+                        pre_analysis=(nlp.prompt_digest(pre, group) if pre else ""))
                 meta = {"dim_group": group}
                 if judge:
                     meta["judge"] = judge
