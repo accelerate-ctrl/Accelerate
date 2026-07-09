@@ -5,167 +5,307 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>W2 Evaluation Bench · Console</title>
 <style>
-/* Console identity (UI/UX brief §2): the deliverable's own styler palette
-   (report_style.py) — the console wears the instrument's identity. */
+/* Zennify official brand system (same tokens as the landing page / index.html):
+   dark-teal surfaces, teal/mint accents, DM Sans display, IBM Plex Mono data. */
+@font-face{font-family:'DM Sans';src:url(/fonts/DMSansRegular.woff2) format('woff2');font-weight:100 1000;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoRegular.woff2) format('woff2');font-weight:400;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoMedium.woff2) format('woff2');font-weight:500;font-display:swap}
 @font-face{font-family:'IBM Plex Mono';src:url(/fonts/IBMPlexMonoSemiBold.woff2) format('woff2');font-weight:600;font-display:swap}
 :root{
-  --ink:#10282a; --deep:#1c4a4d; --teal:#139f94; --sub:#22bcad;
-  --blue:#8094c0; --pos:#059669; --neg:#c25008; --paper:#f2f5f4;
-  --card:#ffffff; --ink2:#5c7a7c; --line:rgba(28,74,77,.14); --line2:rgba(28,74,77,.08);
+  --dark-teal:#1E4A48; --teal:#27BBAF; --mint:#79E2BF; --light-mint:#B0EDD3;
+  --ice:#E8F7F6; --deep-teal:#185F60; --dark-bg:#1E3A3A;
+  --ink:#1C4A4D; --ink2:#6B8A8D; --paper:#F4F8F7; --card:#ffffff;
+  --acc-blue:#A5C6FF; --acc-purple:#B19CD8; --acc-peach:#FFCB99; --acc-teal:#139F94;
+  --pos:#059669; --neg:#C25008; --blue:#8094C0;
+  --line:rgba(28,74,77,.13); --line2:rgba(28,74,77,.07);
   --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
-  --sans:'Avenir Next','Segoe UI',system-ui,sans-serif;
+  --sans:'DM Sans',system-ui,-apple-system,sans-serif;
 }
 *{box-sizing:border-box} html{scroll-behavior:smooth}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
-a{color:var(--teal)}
-:focus-visible{outline:2px solid var(--deep);outline-offset:2px}
+a{color:var(--acc-teal)}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 button{cursor:pointer;border:0;font-family:var(--sans)}
-header{background:var(--deep);color:#eaf4f3;padding:16px 26px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-header h1{font-size:19px;margin:0;letter-spacing:.4px;font-weight:600}
-header .tag{font:12px var(--mono);color:var(--sub)}
-header .guard{margin-left:auto;font:11px var(--mono);color:#bfe5e1;border:1px solid #2b6a6c;border-radius:4px;padding:4px 10px}
-main{max-width:1140px;margin:24px auto;padding:0 20px;display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px}
-@media (max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
-main>div{min-width:0}
-.id,.blind{overflow-wrap:anywhere}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:18px}
-h2{font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:var(--deep);margin:0 0 12px;font-weight:700}
+.hidden{display:none !important}
+.mono{font-family:var(--mono)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+
+/* ── topbar + nav ─────────────────────────────────────────────── */
+.topbar{background:var(--dark-teal);color:#fff}
+.topbar .bar{display:flex;align-items:center;gap:16px;padding:14px 0;flex-wrap:wrap}
+.zmark{width:34px;height:34px;border-radius:9px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;color:#08302d;flex:none}
+.brand .over{font-size:10.5px;letter-spacing:2.5px;color:var(--mint);font-weight:600}
+.brand .name{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.15}
+.tabs{display:flex;gap:4px;margin-left:18px}
+.tabs a{color:#cfe9e4;text-decoration:none;font-size:14px;font-weight:600;padding:8px 14px;border-radius:8px}
+.tabs a.on{background:rgba(255,255,255,.12);color:#fff}
+.tabs a:hover{color:#fff}
+.guard{margin-left:auto;font:10.5px var(--mono);color:var(--light-mint);border:1px solid rgba(121,226,191,.35);border-radius:6px;padding:5px 10px}
+.who{display:flex;align-items:center;gap:8px;font:11.5px var(--mono);color:#d7efe9}
+.who .av{width:26px;height:26px;border-radius:50%;background:var(--teal);color:#08302d;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.who a{color:var(--mint);cursor:pointer}
+/* brand band under the nav (run page) */
+.band{background:var(--dark-teal);color:#fff;padding:26px 0 30px}
+.band h1{margin:0 0 6px;font-size:clamp(22px,3.4vw,32px);font-weight:600;line-height:1.1}
+.band p{margin:0;color:#d7efe9;font-size:14.5px;max-width:640px}
+.band .chips{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.band .bchip{font:11px var(--mono);color:var(--light-mint);border:1px solid rgba(121,226,191,.3);border-radius:999px;padding:4px 11px}
+
+/* ── sections / cards ─────────────────────────────────────────── */
+main{padding:26px 0 10px}
+.sect-title{font-size:11.5px;letter-spacing:2.2px;text-transform:uppercase;color:var(--acc-teal);font-weight:700;margin:26px 0 4px}
+.sect-sub{font-size:19px;font-weight:600;color:var(--ink);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:18px}
+h2{font-size:12px;letter-spacing:1.6px;text-transform:uppercase;color:var(--dark-teal);margin:0 0 12px;font-weight:700}
+.micro{font-size:12.5px;line-height:1.55;color:var(--ink2);margin-top:10px}
+
+/* engine showcase */
+.engine{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media(max-width:980px){.engine{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.engine{grid-template-columns:minmax(0,1fr)}}
+.ecard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;text-align:left;transition:border-color .15s ease, transform .15s ease}
+.ecard:hover{border-color:var(--teal);transform:translateY(-1px)}
+.ecard.on{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal)}
+.ecard .num{font:600 11px var(--mono);display:inline-block;padding:3px 8px;border-radius:7px;color:#123;margin-bottom:9px}
+.ecard h3{margin:0 0 5px;font-size:14.5px;font-weight:600;color:var(--ink)}
+.ecard p{margin:0;font-size:12px;line-height:1.45;color:var(--ink2)}
+.edetail{background:var(--ice);border:1px solid rgba(39,187,175,.3);border-radius:14px;padding:18px 20px;margin:12px 0 4px}
+.edetail h3{margin:0 0 4px;font-size:16px;color:var(--dark-teal)}
+.edetail .cap{font-size:13px;color:var(--ink);margin:8px 0 0}
+.edetail ul{margin:8px 0 0;padding-left:18px;font-size:13px;line-height:1.65;color:var(--ink)}
+.edetail .fact{font:11.5px var(--mono);color:var(--deep-teal)}
+
+/* two-column work area */
+.cols{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:18px}
+@media(max-width:900px){.cols{grid-template-columns:minmax(0,1fr)}}
 label{display:block;font:12px var(--mono);color:#4a6a68;margin:10px 0 4px}
-input[type=file],select,input[type=text],input[type=password]{width:100%;font:13px var(--mono);padding:7px;border:1px solid var(--line);border-radius:6px;background:#fbfdfd}
+input[type=file],select,input[type=text],input[type=password]{width:100%;font:13px var(--mono);padding:8px;border:1px solid var(--line);border-radius:8px;background:#fbfdfd}
 .row{display:flex;gap:10px}.row>*{flex:1}
-.btn{background:var(--teal);color:#fff;font-weight:600;font-size:14.5px;padding:11px 16px;border-radius:9px;width:100%;margin-top:14px}
+.btn{background:var(--teal);color:#08302d;font-weight:700;font-size:15px;padding:12px 16px;border-radius:10px;width:100%;margin-top:14px}
+.btn:hover{filter:brightness(1.06)}
 .btn:disabled{opacity:.45;cursor:default}
-.btn.ghost{background:transparent;color:var(--deep);border:1px solid var(--line);width:auto;padding:8px 14px;font-size:13px}
-.btn.stop{background:var(--neg);width:auto;padding:8px 14px;font-size:13px}
-.badge-panel{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(19,159,148,.22);border-radius:999px;padding:7px 12px;font-size:12px;color:var(--teal);font-weight:600;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--dark-teal);border:1px solid var(--line);width:auto;padding:8px 14px;font-size:13px;font-weight:600}
+.btn.stop{background:var(--neg);color:#fff;width:auto;padding:8px 14px;font-size:13px}
+.badge-panel{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(39,187,175,.35);border-radius:999px;padding:7px 12px;font-size:12px;color:var(--deep-teal);font-weight:600;white-space:nowrap}
 .badge-panel i{width:7px;height:7px;border-radius:50%;background:var(--teal)}
-.micro{font-size:12px;line-height:1.5;color:var(--ink2);margin-top:11px}
-.run-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px}
-.run-item:hover{background:#f4faf9}
-.run-item .id{font:12px var(--mono)}
-.chip{font:10px var(--mono);padding:1px 7px;border-radius:9px;border:1px solid var(--line);color:var(--ink2)}
+
+/* runs / results lists */
+.run-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 6px;border-bottom:1px solid var(--line2);cursor:pointer;font-size:13px;border-radius:8px}
+.run-item:hover{background:var(--ice)}
+.run-item .id{font:12px var(--mono);overflow-wrap:anywhere}
+.chip{font:10px var(--mono);padding:1px 7px;border-radius:9px;border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
 .badge{font:10px var(--mono);padding:2px 8px;border-radius:10px;color:#fff;background:var(--blue);white-space:nowrap}
 .badge.done{background:var(--pos)} .badge.awaiting_checkpoint{background:var(--neg)}
-.badge.awaiting_packets{background:var(--teal)} .badge.error,.badge.stopped{background:#7a2e10}
-.rail{display:flex;margin:8px 0 18px}
+.badge.awaiting_packets,.badge.running{background:var(--acc-teal)} .badge.error,.badge.stopped{background:#7a2e10}
+.rescard{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px;text-decoration:none;color:var(--ink);transition:border-color .15s ease}
+.rescard:hover{border-color:var(--teal)}
+.rescard .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rescard .id{font:12.5px var(--mono);font-weight:600;overflow-wrap:anywhere}
+.rescard .meta{font-size:12px;color:var(--ink2);margin-top:6px}
+
+/* stage rail */
+.rail{display:flex;margin:10px 0 16px}
 .rail .st{flex:1;text-align:center;font:10.5px var(--mono);color:#7b9391;position:relative;padding-top:15px}
 .rail .st::before{content:"";position:absolute;top:4px;left:0;right:0;height:3px;background:var(--line);transition:background .2s ease}
-.rail .st.hit{color:var(--deep)} .rail .st.hit::before{background:var(--sub)}
+.rail .st.hit{color:var(--dark-teal)} .rail .st.hit::before{background:var(--mint)}
 .rail .st.now{color:var(--neg);font-weight:700} .rail .st.now::before{background:var(--neg)}
 @media (max-width:640px){.rail .st{font-size:0}.rail .st.now{font-size:10px}.rail .st{padding-top:10px}}
+
 table{width:100%;border-collapse:collapse;font:12px var(--mono)}
 td,th{padding:6px 8px;border-bottom:1px solid var(--line2);text-align:left}
 th{color:#4a6a68;font-weight:600}
 .tblwrap{overflow-x:auto}
 .blind{font:11px var(--mono);color:var(--blue);letter-spacing:1px}
 .jbadge{font:10px var(--mono);padding:1px 6px;border-radius:8px;color:#fff}
-.jbadge.cc{background:var(--teal)} .jbadge.gm{background:var(--blue)}
+.jbadge.cc{background:var(--acc-teal)} .jbadge.gm{background:var(--blue)}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .stat{font:12px var(--mono);border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:#fbfdfd}
-.stat b{color:var(--deep)}
-.banner{border-radius:8px;padding:10px 14px;font-size:13px;margin:10px 0}
+.stat b{color:var(--dark-teal)}
+.banner{border-radius:10px;padding:10px 14px;font-size:13px;margin:10px 0}
 .banner.wait{background:#fdf6ee;border:1px solid rgba(194,80,8,.25);color:#7a4a17}
 .banner.err{background:#fbf0ec;border:1px solid rgba(194,80,8,.35);color:#7a2e10}
 .banner.stop{background:#f0f0f0;border:1px solid #ccc;color:#555}
 .usage{font:12px var(--mono);color:var(--ink2);margin:8px 0}
-.usage .cc{color:var(--teal)} .usage .gm{color:var(--blue)} .usage b{color:var(--pos)}
-.dl{display:flex;gap:8px;flex-wrap:wrap}
-.dl a{font:12px var(--mono);border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-decoration:none;color:var(--deep);background:#fbfdfd}
-.dl a:hover{border-color:var(--teal)}
-.dl a.primary{background:var(--teal);color:#fff;border-color:var(--teal)}
-.lift{font:38px var(--mono);font-weight:600;margin:4px 0}
-.meter-tip{font:11px var(--mono);color:var(--ink2)}
-.toggle{font:11px var(--mono);color:var(--teal);background:none;border:none;text-decoration:underline;padding:0}
+.usage .cc{color:var(--acc-teal)} .usage .gm{color:var(--blue)} .usage b{color:var(--pos)}
+.lift{font:40px var(--mono);font-weight:600;margin:4px 0}
+.toggle{font:11px var(--mono);color:var(--acc-teal);background:none;border:none;text-decoration:underline;padding:0}
 .autoappr{display:inline-block;font:11px var(--mono);color:var(--pos);border:1px solid rgba(5,150,105,.3);border-radius:6px;padding:3px 8px;margin-bottom:8px}
+.id{overflow-wrap:anywhere}
+
+/* documents grid (results page) */
+.docs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media(max-width:900px){.docs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.docs{grid-template-columns:minmax(0,1fr)}}
+.doc{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 15px;text-decoration:none;color:var(--ink);transition:border-color .15s ease}
+.doc:hover{border-color:var(--teal)}
+.doc.primary{background:var(--dark-teal);color:#fff;border-color:var(--dark-teal)}
+.doc.primary .dd{color:#cfe9e4}.doc.primary .dt{color:var(--mint)}
+.doc .dt{font:600 10px var(--mono);letter-spacing:1px;color:var(--acc-teal)}
+.doc .dn{font-size:14px;font-weight:600;margin:4px 0 3px}
+.doc .dd{font-size:11.5px;line-height:1.45;color:var(--ink2)}
+
+/* detail header strip */
+.dethead{background:var(--dark-teal);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.dethead .id{font:600 14px var(--mono);color:var(--light-mint)}
+.dethead .sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.dethead .back{color:var(--mint);text-decoration:none;font-size:13px;font-weight:600}
+
+/* rail inside the dark detail header: light labels */
+.dethead .rail .st{color:#8fb5b0}
+.dethead .rail .st.hit{color:var(--light-mint)}
+.dethead .rail .st.hit::before{background:var(--mint)}
+.dethead .rail .st.now{color:var(--acc-peach);font-weight:700}
+.dethead .rail .st.now::before{background:var(--acc-peach)}
+.dethead .rail .st::before{background:rgba(255,255,255,.18)}
+
+/* footer */
+footer{background:var(--dark-teal);color:#cfe9e4;margin-top:34px;padding:22px 0;font-size:12.5px}
+footer .wrap{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+footer .zmark{width:26px;height:26px;font-size:15px;border-radius:7px}
+footer .mono{color:var(--mint)}
+
+/* modal + auth gate (Zennify sign-in, prototype-faithful) */
 .modal{position:fixed;inset:0;background:rgba(16,40,42,.55);display:flex;align-items:center;justify-content:center;z-index:50}
 .modal .box{background:#fff;border-radius:14px;padding:28px;width:min(400px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.25)}
-.modal h3{margin:0 0 6px;font-size:17px;color:var(--deep)}
+.modal h3{margin:0 0 6px;font-size:17px;color:var(--dark-teal)}
 .modal p{font-size:13px;color:var(--ink2);margin:0 0 14px}
-.hidden{display:none !important}
-@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
-/* Auth gate — prototype-faithful sign-in card (docs/prototype, buildAuthGate) */
-.gate{position:fixed;inset:0;background:#f2f5f4;display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
-.gcard{width:min(440px,100%);background:#fff;border:1px solid rgba(28,74,77,.14);border-radius:20px;padding:44px 40px;text-align:center}
-.gt{font-size:22px;font-weight:600;color:var(--deep);letter-spacing:-.01em;margin-bottom:8px}
+.gate{position:fixed;inset:0;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:20px;z-index:40}
+.gcard{width:min(440px,100%);background:#fff;border:1px solid var(--line);border-radius:20px;padding:44px 40px;text-align:center}
+.gt{font-size:22px;font-weight:600;color:var(--ink);letter-spacing:-.01em;margin-bottom:8px}
 .gs{font-size:14.5px;color:var(--ink2);line-height:1.55;margin-bottom:30px}
 .gerr{font-size:13px;color:#d93025;margin:0 0 14px;text-align:left}
 .glock{margin-top:20px;font-size:12.5px;color:var(--ink2);display:flex;gap:6px;align-items:center;justify-content:center}
-.gback{display:inline-block;margin-top:24px;font-size:13px;color:var(--teal);font-weight:600;text-decoration:none}
+.gback{display:inline-block;margin-top:24px;font-size:13px;color:var(--acc-teal);font-weight:600;text-decoration:none}
 .gtok{margin-top:14px;font-size:12px}.gtok a{color:var(--ink2)}
-.who{display:flex;align-items:center;gap:9px;font:11.5px var(--mono)}
-.who .av{width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px}
-.who a{color:var(--sub);cursor:pointer}
 .gfall{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:13px;border:1px solid #dadce0;border-radius:10px;background:#fff;font-size:15px;font-weight:600;color:#3c4043}
+@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 </style>
 </head>
 <body>
 <div id="gate" class="gate hidden" role="dialog" aria-modal="true" aria-label="Sign in">
   <div class="gcard">
-    <svg width="46" height="46" viewBox="0 0 46 46" style="margin-bottom:22px" aria-hidden="true"><rect width="46" height="46" rx="10" fill="#139f94"/><text x="23" y="31" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="24" font-weight="700" fill="#fff">Z</text></svg>
+    <svg width="46" height="46" viewBox="0 0 46 46" style="margin-bottom:22px" aria-hidden="true"><rect width="46" height="46" rx="10" fill="#27BBAF"/><text x="23" y="31" text-anchor="middle" font-family="'DM Sans',sans-serif" font-size="24" font-weight="700" fill="#08302d">Z</text></svg>
     <div class="gt">W2 Evaluation Bench</div>
     <div class="gs">Operator console. Sign in with your Zennify Workspace account to continue.</div>
     <div id="gerr" class="gerr hidden"></div>
     <div id="gsiBtn" style="display:flex;justify-content:center;min-height:44px"></div>
-    <div class="glock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#139f94" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Access limited to @zennify.com Workspace users</span></div>
+    <div class="glock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#27BBAF" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>Access limited to @zennify.com Workspace users</span></div>
     <br><a class="gback" href="/">← Back to overview</a>
     <div class="gtok"><a href="#" id="useTok">Operator or runner setup: use a bench token instead</a></div>
   </div>
 </div>
-<header>
-  <h1>W2 Evaluation Bench</h1>
-  <span class="tag">Solutioning Evaluation Framework · v4.7 · dual-judge consensus</span>
-  <span class="guard">runner: subscription-only · API keys refused · billing tripwire armed</span>
-  <span class="who" id="who"></span>
-</header>
-<main>
-  <div>
-    <!-- New run card (§3.2) -->
-    <section class="card" aria-labelledby="nr">
-      <h2 id="nr">New run</h2>
-      <label for="brd">BRD (requirements truth)</label>
-      <input type="file" id="brd" accept=".md,.txt">
-      <label for="sdd1">SDD 1</label>
-      <input type="file" id="sdd1" accept=".md,.txt">
-      <label for="sdd2">SDD 2 — leave empty for Mode B review</label>
-      <input type="file" id="sdd2" accept=".md,.txt">
-      <div id="modeAOpts" class="hidden">
-        <div class="row">
-          <div><label for="zen">ZenAgent lane</label>
-            <select id="zen"><option value="a">SDD 1</option><option value="b">SDD 2</option></select></div>
-          <div><label for="ev">Release evidence</label>
-            <select id="ev"><option value="">Register (offline)</option><option value="1">Live via runner</option></select></div>
-        </div>
-      </div>
-      <div class="row">
-        <div><label for="ckpt">Checkpoint</label>
-          <select id="ckpt"><option value="1">Hands-free (default)</option><option value="">Pause at D.5 for me</option></select></div>
-        <div><label>Judging</label>
-          <span class="badge-panel"><i></i>Panel: Claude + Gemini</span></div>
-      </div>
-      <button class="btn" id="start">Start evaluation</button>
-      <div class="micro">Three files → blinded comparison with methodology lift. Two files → design review. You won’t be needed again until the report.</div>
-    </section>
-    <!-- Runs list (§3.3) -->
-    <section class="card" aria-labelledby="rl">
-      <h2 id="rl">Runs</h2>
-      <div id="runs"><div class="micro">No runs yet. Upload a BRD and one or two SDDs to start.</div></div>
-    </section>
-    <!-- Runner card (FR-12) -->
-    <section class="card" aria-labelledby="rc">
-      <h2 id="rc">Runner</h2>
-      <div id="runners" class="micro">No heartbeat yet. Install your runner with the one-command installer (see the installation guide) and it will appear here.</div>
-    </section>
+
+<div class="topbar">
+  <div class="wrap bar">
+    <a href="/" style="display:flex;gap:11px;align-items:center;text-decoration:none;color:#fff">
+      <span class="zmark">Z</span>
+      <span class="brand"><span class="over">ZENNIFY</span><br><span class="name">W2 Evaluation Bench</span></span>
+    </a>
+    <nav class="tabs" aria-label="Console pages">
+      <a href="#/run" id="tabRun">Run evaluation</a>
+      <a href="#/results" id="tabResults">Results</a>
+    </nav>
+    <span class="guard">runner: subscription-only · API keys refused · billing tripwire armed</span>
+    <span class="who" id="who"></span>
   </div>
-  <div>
-    <!-- Run detail (§3.4) -->
-    <section class="card" id="detail" aria-live="polite">
-      <h2>Run detail</h2>
-      <div class="micro">Select a run on the left.</div>
-    </section>
+</div>
+
+<!-- ══════════════ PAGE 1 · RUN ══════════════ -->
+<section id="page-run">
+  <div class="band">
+    <div class="wrap">
+      <h1>Run an evaluation.</h1>
+      <p>Upload a BRD and one or two solution designs. The engine pre-processes,
+      two model families judge blind, evidence rules every disagreement — and
+      you're not needed again until the report.</p>
+      <div class="chips">
+        <span class="bchip">engine v4.7 · dual-judge consensus</span>
+        <span class="bchip">pre-intelligence v1.0</span>
+        <span class="bchip">99 frozen criteria · 7 dimensions</span>
+        <span class="bchip">reported API cost $0.00</span>
+      </div>
+    </div>
   </div>
-</main>
+  <main class="wrap">
+    <div class="sect-title">The engine</div>
+    <div class="sect-sub">Eight components do the work — click any to see its capabilities</div>
+    <div class="engine" id="engineGrid" role="list"></div>
+    <div id="engineDetail" class="edetail hidden" aria-live="polite"></div>
+
+    <div class="sect-title" style="margin-top:30px">Evaluate</div>
+    <div class="sect-sub">Start a run and watch it move</div>
+    <div class="cols">
+      <div>
+        <section class="card" aria-labelledby="nr">
+          <h2 id="nr">New evaluation</h2>
+          <label for="brd">BRD (requirements truth)</label>
+          <input type="file" id="brd" accept=".md,.txt">
+          <label for="sdd1">SDD 1</label>
+          <input type="file" id="sdd1" accept=".md,.txt">
+          <label for="sdd2">SDD 2 — leave empty for a single-design review (Mode B)</label>
+          <input type="file" id="sdd2" accept=".md,.txt">
+          <div id="modeAOpts" class="hidden">
+            <div class="row">
+              <div><label for="zen">ZenAgent lane</label>
+                <select id="zen"><option value="a">SDD 1</option><option value="b">SDD 2</option></select></div>
+              <div><label for="ev">Release evidence</label>
+                <select id="ev"><option value="">Register (offline)</option><option value="1">Live via runner</option></select></div>
+            </div>
+          </div>
+          <div class="row">
+            <div><label for="ckpt">Checkpoint</label>
+              <select id="ckpt"><option value="1">Hands-free (default)</option><option value="">Pause at D.5 for me</option></select></div>
+            <div><label>Judging</label>
+              <span class="badge-panel"><i></i>Panel: Claude + Gemini</span></div>
+          </div>
+          <button class="btn" id="start">Start evaluation</button>
+          <div class="micro">Three files → blinded comparison with methodology lift.
+          Two files → design review with refinement recommendations.</div>
+        </section>
+        <section class="card" aria-labelledby="rc">
+          <h2 id="rc">Runner network</h2>
+          <div id="runners" class="micro" style="margin-top:0">No heartbeat yet. Install your personal runner with the one-command installer (component 08 above) and it will appear here.</div>
+        </section>
+      </div>
+      <div>
+        <section class="card" aria-labelledby="lv">
+          <h2 id="lv">Live activity</h2>
+          <div id="liveRuns"><div class="micro" style="margin-top:0">Nothing in flight. Completed evaluations live on the <a href="#/results">Results</a> page.</div></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</section>
+
+<!-- ══════════════ PAGE 2 · RESULTS ══════════════ -->
+<section id="page-results" class="hidden">
+  <div class="band">
+    <div class="wrap">
+      <h1>Results.</h1>
+      <p>Every completed evaluation with its full audit trail: outcome, judge
+      concurrence, pre-intelligence analysis, and the document set.</p>
+    </div>
+  </div>
+  <main class="wrap">
+    <div id="resultsList"><div class="micro">No runs yet.</div></div>
+  </main>
+</section>
+
+<!-- ══════════════ PAGE 2b · RUN DETAIL (documents + analysis) ══════ -->
+<section id="page-detail" class="hidden">
+  <main class="wrap" style="padding-top:22px">
+    <div id="detail" aria-live="polite"></div>
+  </main>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span class="zmark">Z</span>
+    <span><b style="color:#fff">Zennify</b> · W2 Evaluation Bench — Solutioning Evaluation Framework <span class="mono">v4.7</span> · pre-intelligence <span class="mono">v1.0</span></span>
+    <span style="margin-left:auto">Internal tool · reports are the artifact of record</span>
+  </div>
+</footer>
+
 <div class="modal hidden" id="tokModal" role="dialog" aria-modal="true" aria-labelledby="tokT">
   <div class="box">
     <h3 id="tokT">Bench token</h3>
@@ -176,8 +316,7 @@ th{color:#4a6a68;font-weight:600}
 </div>
 <script>
 "use strict";
-/* Engine truth (contracts.py): dimension names + maxima. Demo names from the
-   design prototype were replaced with the engine's real dimensions (errata P-2). */
+/* Engine truth (contracts.py): dimension names + maxima (errata P-2). */
 const DIMS = [
   {n:1, name:"BRD Comprehension", max:15},
   {n:2, name:"Requirement Coverage", max:15},
@@ -189,17 +328,83 @@ const DIMS = [
 ];
 const STAGES_A = ["intake","setup","mapping","dual scoring","consensus","checkpoint","sheets+lift","reveal+report"];
 const STAGES_B = ["intake","setup","mapping","dual scoring","consensus","review+report"];
-/* server stage key -> rail index (Mode A) */
 const STAGE_IDX_A = {S0:0, S1:1, S2:2, S3:3, "S3.5":4, S4:6, S5:7};
 const STAGE_IDX_B = {S0:0, S1:1, S2:2, S3:3, "S3.5":4, S4:5};
-const C = {teal:"#139f94", blue:"#8094c0", sub:"#22bcad", neg:"#c25008", line:"rgba(28,74,77,.18)"};
+const C = {teal:"#139F94", blue:"#8094C0", sub:"#27BBAF", neg:"#C25008", line:"rgba(28,74,77,.18)"};
+
+/* The application engine, componentized (clickable showcase). Facts mirror
+   the shipped code: nlp/, blinding escrow, contracts, guards, consensus,
+   validator chain, report builders, runner network. */
+const ENGINE = [
+ {num:"01", acc:"var(--acc-blue)", name:"Pre-Intelligence Engine",
+  one:"Deterministic NLP pre-processing before any model reads a word.",
+  caps:["Document model: section tree + sentence map of BRD and SDDs",
+        "Requirement registry: story IDs (SF-/US-/NFR-…) + shall/must statements",
+        "Salesforce mechanism index (~90-phrase curated lexicon)",
+        "Per-criterion evidence candidates — IDF-weighted, synonym-expanded, verbatim ≤25-word spans",
+        "BRD→SDD traceability matrix (referenced / addressed / unmatched)",
+        "Guardrail lint: prompt-injection patterns + blinding-token scan"],
+  fact:"zero model calls · same inputs ⇒ byte-identical output · artifacts: pre-analysis-A/B.json"},
+ {num:"02", acc:"var(--acc-purple)", name:"Sealed Blinding",
+  one:"Lane identities locked in an escrow nothing reads until the reveal.",
+  caps:["ZenAgent↔lane mapping written once at intake to .lane-mapping",
+        "No API route can serve it; the packet builder never reads it",
+        "Judges only ever see “Output A” / “Output B”",
+        "R14 scans every reasoning field and all reconciliation output for identity leaks"],
+  fact:"first and only reader: lane_reveal_apply.py, at the reveal"},
+ {num:"03", acc:"var(--acc-peach)", name:"Frozen Calibration",
+  one:"99 ZMS criteria across 7 dimensions — the senior-SA bar, frozen.",
+  caps:["Engagement filter selects the applicable criteria per run",
+        "Dimension maxima are integration-aware (D3=20 when integration-heavy)",
+        "Truth-source firewall: the BRD owns requirements; ZMS is the bar only",
+        "Content-mapping classification + Dim-4 floor computed deterministically"],
+  fact:"7 dimensions · 15/15/20/15/15/10/15 points · calibration never drifts mid-run"},
+ {num:"04", acc:"var(--mint)", name:"Dual-Judge Panel",
+  one:"Claude and Gemini score independently from byte-identical packets.",
+  caps:["1 packet per judge per lane×dimension-group — prompts byte-identical, judge only in metadata",
+        "Claude runs on the member's Team seat (subscription, never API-billed)",
+        "Gemini runs on the org's paid-tier Google key (fail-closed tier probe)",
+        "Billing guards G1–G5 + a server 402 tripwire keep reported API cost at $0.00",
+        "Neither judge ever sees the other's output before reconciliation (attested, R28)"],
+  fact:"two unrelated model families · zero Anthropic API spend"},
+ {num:"05", acc:"var(--acc-teal)", light:1, name:"Evidence-Ruled Consensus",
+  one:"Disagreements are settled by what the SDD says — or preserved as dissents.",
+  caps:["Deterministic diff: verdicts, anchors (20%), scores (10% strict thresholds)",
+        "One blinded reconcile packet rules on each divergence with a verbatim citation",
+        "Weak-evidence review class: agreed verdicts with ungrounded anchors go back for a ruling",
+        "Irreconcilables resolved conservatively (weaker verdict / lower score) and kept as dissents",
+        "§6.5 agreement stats: verdict agreement, score concordance, reliability label"],
+  fact:"nothing is silently averaged — every value is agreed, evidence-ruled, or a recorded dissent"},
+ {num:"06", acc:"var(--acc-blue)", name:"28-Rule Validation",
+  one:"No bundle reaches a report without passing the R1–R28 gate.",
+  caps:["Every anchor and ruling citation must resolve verbatim in the SDD source index (R25 family)",
+        "Blinding-leak scan across all output (R14)",
+        "Provenance completeness, dissent integrity, judge-independence attestation (R26–R28)",
+        "Malformed runner results are rejected at POST time and never stored (400, write-once)"],
+  fact:"28 rules · fail-closed · validation report embedded in every bundle"},
+ {num:"07", acc:"var(--acc-purple)", name:"Reports & Lift",
+  one:"Branded, comprehensive, traceable deliverables — the artifact of record.",
+  caps:["Diagnostic Report (Mode A) / SDD Review Report (Mode B) as .docx",
+        "Judge provenance on every claim + per-dimension agreement table",
+        "Dissent & Reconciliation annex: both readings, ruling, citation, resolution",
+        "Consensus lift headline + per-judge lifts + [min,max] band",
+        "Score sheets (Judge A / Judge B / Consensus / Provenance columns), content mapping, run record"],
+  fact:"reveal happens last — the escrow opens only after everything is validated"},
+ {num:"08", acc:"var(--mint)", name:"Runner Network",
+  one:"Each member's laptop is the intelligence layer, under their own seat.",
+  caps:["One-command installer: curl …/install.sh (macOS/Linux) or irm …/install.ps1 (Windows)",
+        "Owner-pays affinity: your uploads run on your runner, your seat",
+        "Heartbeat ledger — this console shows who's connected live",
+        "No silent judge fallback; Gemini key stays in ~/.w2/env on the member machine"],
+  fact:"the server never holds a model credential — judgment stays on the member's side"},
+];
 
 let TOKEN = localStorage.getItem("w2tok") || "";
 let SESSION = localStorage.getItem("w2sess") || "";
 let EMAIL = localStorage.getItem("w2mail") || "";
 let AUTHCFG = {enabled:false};
 let selected = null, meterAsTable = matchMedia("(max-width:640px)").matches;
-let pollT = null;
+let pollT = null, lastRuns = [];
 
 function hdrs(){
   const h = {};
@@ -208,7 +413,7 @@ function hdrs(){
   return h;
 }
 
-/* ---- Google Workspace gate (zennify.com only; server-enforced) ---- */
+/* ── Google Workspace gate (zennify.com only; server-enforced) ── */
 function showGate(){ document.getElementById("gate").classList.remove("hidden"); mountGsi(); }
 function hideGate(){ document.getElementById("gate").classList.add("hidden"); }
 function needAuth(){
@@ -264,16 +469,6 @@ function whoami(){
   if (so) so.onclick = () => { SESSION=""; EMAIL="";
     localStorage.removeItem("w2sess"); localStorage.removeItem("w2mail"); showGate(); whoami(); };
 }
-(async function bootAuth(){
-  try { AUTHCFG = await (await fetch("/auth/config")).json(); } catch(e){}
-  if (AUTHCFG.enabled && !SESSION && !TOKEN) showGate();
-  whoami();
-  const ut = document.getElementById("useTok");
-  if (ut) ut.onclick = (e) => { e.preventDefault(); askToken(); };
-  // Poll only AFTER the auth config is known — otherwise the first 401 races
-  // the config fetch and opens the token modal on top of the Google gate.
-  schedule(); refresh();
-})();
 async function api(path, opts){
   const r = await fetch(path, Object.assign({headers: hdrs()}, opts||{}));
   if (r.status === 401){ needAuth(); throw new Error("401"); }
@@ -288,10 +483,35 @@ document.getElementById("tokGo").onclick = () => {
   refresh();
 };
 
+/* ── engine showcase (clickable capabilities) ── */
+let engineOpen = null;
+function renderEngine(){
+  const g = document.getElementById("engineGrid");
+  g.innerHTML = ENGINE.map((c,i) => `
+    <button class="ecard ${engineOpen===i?"on":""}" role="listitem" data-i="${i}"
+      aria-expanded="${engineOpen===i}">
+      <span class="num" style="background:${c.acc}${c.light?";color:#fff":""}">${c.num}</span>
+      <h3>${esc(c.name)}</h3><p>${esc(c.one)}</p>
+    </button>`).join("");
+  g.querySelectorAll(".ecard").forEach(b => b.onclick = () => {
+    const i = +b.dataset.i;
+    engineOpen = engineOpen === i ? null : i;
+    renderEngine();
+  });
+  const d = document.getElementById("engineDetail");
+  if (engineOpen == null){ d.classList.add("hidden"); return; }
+  const c = ENGINE[engineOpen];
+  d.classList.remove("hidden");
+  d.innerHTML = `<h3><span class="mono" style="color:var(--acc-teal)">${c.num}</span> ${esc(c.name)}</h3>
+    <div class="cap">${esc(c.one)}</div>
+    <ul>${c.caps.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    <div class="fact" style="margin-top:10px">${esc(c.fact)}</div>`;
+}
+
+/* ── run form ── */
 document.getElementById("sdd2").addEventListener("change", e => {
   document.getElementById("modeAOpts").classList.toggle("hidden", !e.target.files.length);
 });
-
 document.getElementById("start").onclick = async () => {
   const brd = document.getElementById("brd").files[0];
   const s1 = document.getElementById("sdd1").files[0];
@@ -311,11 +531,12 @@ document.getElementById("start").onclick = async () => {
     const r = await fetch("/api/runs", {method:"POST", headers: hdrs(), body: fd});
     if (r.status === 401){ needAuth(); return; }
     const d = await r.json();
-    selected = d.run_id;
+    location.hash = "#/results/" + encodeURIComponent(d.run_id);
     refresh();
   } finally { btn.disabled = false; btn.textContent = "Start evaluation"; }
 };
 
+/* ── helpers (ported verbatim) ── */
 function badge(st){ return `<span class="badge ${st}">${(st||"").replace(/_/g," ")}</span>`; }
 function esc(s){ const d = document.createElement("div"); d.textContent = String(s==null?"":s); return d.innerHTML; }
 function pct(v){ return (v==null||isNaN(v)) ? "–" : Math.round(v*100) + "%"; }
@@ -325,32 +546,6 @@ function ago(ts){
   const s = Math.max(0, (Date.now() - new Date(ts+"Z").getTime())/1000|0);
   return s < 90 ? s + "s ago" : Math.round(s/60) + "m ago";
 }
-
-async function refresh(){
-  let runs;
-  try { runs = await api("/api/runs"); } catch(e){ return; }
-  const el = document.getElementById("runs");
-  if (!runs.length) el.innerHTML = '<div class="micro">No runs yet. Upload a BRD and one or two SDDs to start.</div>';
-  else el.innerHTML = runs.map(r => `
-    <div class="run-item" role="button" tabindex="0" data-id="${esc(r.run_id)}">
-      <span class="id">${esc(r.run_id)}</span>
-      <span class="chip">${esc(r.mode)}</span>
-      ${badge(r.status)}
-    </div>`).join("");
-  el.querySelectorAll(".run-item").forEach(x => {
-    x.onclick = () => { selected = x.dataset.id; renderDetail(); };
-    x.onkeydown = ev => { if (ev.key === "Enter") x.onclick(); };
-  });
-  try {
-    const rs = await api("/api/runners");
-    const rl = document.getElementById("runners");
-    if (rs.length) rl.innerHTML = rs.map(r =>
-      `<div class="micro"><b style="color:var(--pos)">●</b> ${esc(r.member)}’s runner: connected · last seen ${ago(r.last_seen)} · <span class="blind">${esc(r.runner_id)}</span>${r.engine?` · ${esc(r.engine)}`:""}</div>`).join("");
-  } catch(e){}
-  if (!selected && runs.length) selected = runs[0].run_id;
-  if (selected) renderDetail();
-}
-
 function rail(mode, stage, status){
   const stages = mode === "A" ? STAGES_A : STAGES_B;
   const idxMap = mode === "A" ? STAGE_IDX_A : STAGE_IDX_B;
@@ -360,7 +555,6 @@ function rail(mode, stage, status){
   return `<div class="rail" role="img" aria-label="stage ${esc(stage)}">` + stages.map((s,i) =>
     `<div class="st ${i<cur?"hit":i===cur?"now":""}">${s}</div>`).join("") + "</div>";
 }
-
 function meterSVG(perDim){
   const W = 620, ROW = 34, PAD_L = 200, PAD_R = 66, H = ROW*DIMS.length + 14;
   let g = "";
@@ -388,7 +582,6 @@ function meterSVG(perDim){
     <circle cx="${PAD_L+345}" cy="${H-4}" r="4" fill="${C.neg}"/><text x="${PAD_L+353}" y="${H}" fill="#4a6a68">dissent</text></g>`;
   return `<svg viewBox="0 0 ${W} ${H+8}" width="100%" role="img" aria-label="Concurrence meter: judge scores per dimension">${g}</svg>`;
 }
-
 function meterTable(perDim){
   const rows = DIMS.map(d => {
     const pd = perDim[String(d.n)] || {};
@@ -399,7 +592,6 @@ function meterTable(perDim){
   }).join("");
   return `<div class="tblwrap"><table aria-label="Concurrence table"><tr><th>Dimension</th><th>Judge A</th><th>Judge B</th><th>Consensus</th><th>Concord.</th><th>Verdict agr.</th><th>Dissent</th></tr>${rows}</table></div>`;
 }
-
 function preIntelPanel(st){
   const pa = (st.digests||{}).pre_analysis;
   if (!pa) return "";
@@ -412,17 +604,16 @@ function preIntelPanel(st){
       <td>${a.requirements_covered??"–"}/${a.requirements_total??"–"} (${pct(a.traceability_rate)})</td>
       <td>${flags ? `<b style="color:var(--neg)">${flags} flagged</b>` : "clean"}</td></tr>`;
   }).join("");
-  return `<h2 style="margin-top:16px">Pre-intelligence <span class="chip">deterministic · advisory</span></h2>
+  return `<section class="card"><h2>Pre-intelligence <span class="chip">deterministic · advisory</span></h2>
     <div class="micro" style="margin:0 0 8px">The bench pre-processed the documents before any model read them:
     evidence candidates per criterion, BRD→SDD traceability, and guardrail lint. Judges verify — hints never decide.</div>
-    <div class="tblwrap"><table><tr><th>Lane</th><th>Evidence candidates</th><th>BRD traceability</th><th>Guardrail lint</th></tr>${rows}</table></div>`;
+    <div class="tblwrap"><table><tr><th>Lane</th><th>Evidence candidates</th><th>BRD traceability</th><th>Guardrail lint</th></tr>${rows}</table></div></section>`;
 }
-
 function judgingPanel(st){
   const cons = (st.digests||{}).consensus || {};
   const labels = Object.keys(cons);
   if (!labels.length) return "";
-  let html = `<h2 style="margin-top:16px">Judging</h2>`;
+  let html = `<section class="card"><h2>Cross-model judging</h2>`;
   labels.forEach(lab => {
     const c = cons[lab];
     html += `<div style="margin:6px 0 2px"><span class="blind">${esc(lab)}</span></div>
@@ -434,10 +625,9 @@ function judgingPanel(st){
     </div>`;
     if (c.per_dim) html += meterAsTable ? meterTable(c.per_dim) : meterSVG(c.per_dim);
   });
-  html += `<button class="toggle" id="meterToggle">view as ${meterAsTable ? "meter" : "table"}</button>`;
+  html += `<button class="toggle" id="meterToggle">view as ${meterAsTable ? "meter" : "table"}</button></section>`;
   return html;
 }
-
 function checkpointPanel(st){
   const cp = st.checkpoint;
   if (!cp || !cp.lanes) return "";
@@ -449,14 +639,13 @@ function checkpointPanel(st){
       <td>${l.mapping ? esc(l.mapping.dim_4_floor_cap==null ? "no cap" : l.mapping.dim_4_floor_cap) : "–"}</td>
       <td>${l.release_summary ? esc(l.release_summary.rr_deductions_capped_total ?? 0) : "–"}</td></tr>`;
   });
-  return `<h2 style="margin-top:16px">Checkpoint (D.5, blinded)</h2>
+  return `<section class="card"><h2>Checkpoint (D.5, blinded)</h2>
     ${paused ? "" : `<span class="autoappr">auto-approved · recorded at ${esc(st.checkpoint_approved_at || "")} · ${esc(st.checkpoint_approved_by || "")}</span>`}
     <div class="tblwrap"><table><tr><th>Lane</th><th>Total</th><th>Agreement</th><th>Dissents</th><th>Dim-4 floor</th><th>RR capped</th></tr>${rows}</table></div>
     ${paused ? `<div class="row" style="margin-top:10px">
        <button class="btn ghost" id="approveBtn">Proceed to score sheets</button>
-       <button class="btn stop" id="stopBtn">Stop with reason</button></div>` : ""}`;
+       <button class="btn stop" id="stopBtn">Stop with reason</button></div>` : ""}</section>`;
 }
-
 function usageLine(st){
   const u = st.usage || {};
   const per = u.per_judge || {};
@@ -469,42 +658,128 @@ function usageLine(st){
     + ` · <b>reported API cost $${(u.cost_usd_reported||0).toFixed(2)} (must stay 0.00)</b></div>`;
 }
 
-function deliverables(st){
+/* documents (results page) — rich cards, mode-aware labels */
+const DOC_META = {
+  report:            m => [m==="B"?"SDD Review Report":"Diagnostic Report", "DOCX", "The artifact of record: outcome, agreement, refinement areas, dissent annex."],
+  score_sheet_a:     _ => ["Score sheet — Output A", "XLSX", "Judge A / Judge B / Consensus / Provenance per criterion; Judge_Record sheet."],
+  score_sheet_b:     _ => ["Score sheet — Output B", "XLSX", "Same four-column trail for the second lane."],
+  content_mapping:   _ => ["Content mapping", "XLSX", "Where every framework component lives in each SDD; Dim-4 floor derivation."],
+  release_a:         _ => ["Release awareness — A", "JSON", "Platform-currency findings and capped deductions."],
+  release_b:         _ => ["Release awareness — B", "JSON", "Platform-currency findings and capped deductions."],
+  lift:              _ => ["Lift calculation", "JSON", "Consensus headline, per-judge lifts, [min,max] band."],
+  pre_analysis_a:    _ => ["Pre-intelligence — A", "JSON", "Doc model, evidence candidates, traceability, guardrail lint."],
+  pre_analysis_b:    _ => ["Pre-intelligence — B", "JSON", "Doc model, evidence candidates, traceability, guardrail lint."],
+  run_record:        _ => ["Run record", "JSON", "The full audited state machine record of this run."],
+  diagnostic_bundle: _ => ["Diagnostic bundle", "JSON", "Everything the validator saw — R1–R28 evidence trail."],
+};
+function documentsSection(st){
   const arts = st.artifacts || {};
   if (!Object.keys(arts).length) return "";
   const tk = TOKEN ? `?token=${encodeURIComponent(TOKEN)}`
     : (SESSION ? `?session=${encodeURIComponent(SESSION)}` : "");
   const order = ["report","score_sheet_a","score_sheet_b","content_mapping","release_a","release_b","lift","pre_analysis_a","pre_analysis_b","run_record","diagnostic_bundle"];
-  const links = order.filter(k => arts[k]).map(k =>
-    `<a class="${k==="report"?"primary":""}" href="/api/runs/${encodeURIComponent(st.run_id)}/download/${k}${tk}">${k.replace(/_/g," ")}</a>`);
-  return `<h2 style="margin-top:16px">Deliverables</h2><div class="dl">${links.join("")}</div>`;
+  const cards = order.filter(k => arts[k]).map(k => {
+    const [name, type, desc] = DOC_META[k](st.mode);
+    return `<a class="doc ${k==="report"?"primary":""}" href="/api/runs/${encodeURIComponent(st.run_id)}/download/${k}${tk}">
+      <span class="dt">${type}</span><div class="dn">${esc(name)}</div><div class="dd">${esc(desc)}</div></a>`;
+  });
+  return `<div class="sect-title">Documents</div><div class="sect-sub">The deliverable set for this run</div>
+    <div class="docs">${cards.join("")}</div>`;
 }
-
 function revealedBlock(st){
   const rev = (st.digests||{}).reveal;
   if (st.mode === "B"){
     const r = (st.digests||{}).review;
     if (!r) return "";
-    return `<h2 style="margin-top:16px">Review result</h2>
+    return `<section class="card"><h2>Review outcome</h2>
       <div class="lift" style="color:${r.build_ready==="build_ready"?"var(--pos)":"var(--neg)"};font-size:26px">${esc((r.build_ready||"").replace(/_/g," "))}</div>
-      <div class="micro">${r.findings} findings · ${r.recommendations} refinement recommendations · ${r.dissents||0} contested (cross-judge dissent) — see the Dissent &amp; Reconciliation annex in the report.</div>`;
+      <div class="micro">${r.findings} findings · ${r.recommendations} refinement recommendations · ${r.dissents||0} contested (cross-judge dissent) — see the Dissent &amp; Reconciliation annex in the report.</div></section>`;
   }
   if (!rev) return "";
   const lift = rev.headline_lift_za_minus_ots;
   const jl = rev.judge_lifts || {};
   const band = rev.lift_band || [];
   const sign = v => v==null ? "–" : (v>0?"+":"")+v;
-  return `<h2 style="margin-top:16px">Revealed result</h2>
+  return `<section class="card"><h2>Revealed outcome</h2>
     <div class="lift" style="color:${lift>=0?"var(--pos)":"var(--neg)"}">${sign(lift)}</div>
     <div class="micro">${esc(rev.za_label||"")} resolved to ZenAgent · ZA ${rev.za_total} / OTS ${rev.ots_total} · judge lifts: Claude ${sign(jl["claude-code"])} / Gemini ${sign(jl["gemini"])} · band [${band[0] ?? "–"}, ${band[1] ?? "–"}] · concurrence ${rev.agreement_overall ?? "–"}</div>
-    <div class="micro">${dissentCount(st)} dissent(s) — see the Dissent &amp; Reconciliation annex in the report.</div>`;
+    <div class="micro">${dissentCount(st)} dissent(s) — see the Dissent &amp; Reconciliation annex in the report.</div></section>`;
 }
 function dissentCount(st){
   const cons = (st.digests||{}).consensus || {};
   return Object.values(cons).reduce((a,c) => a + (c.dissents||0), 0);
 }
 
+/* ── routing: #/run · #/results · #/results/<id> ── */
+function route(){
+  const h = location.hash || "#/run";
+  const m = h.match(/^#\/results\/(.+)$/);
+  const page = m ? "detail" : (h.startsWith("#/results") ? "results" : "run");
+  document.getElementById("page-run").classList.toggle("hidden", page !== "run");
+  document.getElementById("page-results").classList.toggle("hidden", page !== "results");
+  document.getElementById("page-detail").classList.toggle("hidden", page !== "detail");
+  document.getElementById("tabRun").classList.toggle("on", page === "run");
+  document.getElementById("tabResults").classList.toggle("on", page !== "run");
+  if (m){ selected = decodeURIComponent(m[1]); renderDetail(); }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+
+/* ── data refresh (updates whichever page is visible) ── */
+async function refresh(){
+  try { lastRuns = await api("/api/runs"); } catch(e){ return; }
+  renderLive();
+  renderResultsList();
+  try {
+    const rs = await api("/api/runners");
+    const rl = document.getElementById("runners");
+    if (rs.length) rl.innerHTML = rs.map(r =>
+      `<div class="micro" style="margin-top:0"><b style="color:var(--pos)">●</b> ${esc(r.member)}’s runner: connected · last seen ${ago(r.last_seen)} · <span class="blind">${esc(r.runner_id)}</span>${r.engine?` · ${esc(r.engine)}`:""}</div>`).join("");
+  } catch(e){}
+  if (!document.getElementById("page-detail").classList.contains("hidden") && selected) renderDetail();
+}
+const ACTIVE = ["created","running","awaiting_packets","awaiting_checkpoint"];
+function renderLive(){
+  const el = document.getElementById("liveRuns");
+  const act = lastRuns.filter(r => ACTIVE.includes(r.status));
+  const recent = lastRuns.filter(r => !ACTIVE.includes(r.status)).slice(0, 5);
+  let html = "";
+  if (act.length) html += act.map(r => `
+    <div class="run-item" role="button" tabindex="0" data-id="${esc(r.run_id)}">
+      <span class="id">${esc(r.run_id)}</span>
+      <span class="chip">Mode ${esc(r.mode)}</span>
+      <span class="chip mono">${esc(r.stage||"")}</span>
+      ${badge(r.status)}
+    </div>`).join("");
+  else html += '<div class="micro" style="margin-top:0">Nothing in flight right now.</div>';
+  if (recent.length) html += `<div class="micro" style="margin-top:14px">Recently finished:</div>` +
+    recent.map(r => `
+    <div class="run-item" role="button" tabindex="0" data-id="${esc(r.run_id)}">
+      <span class="id">${esc(r.run_id)}</span>${badge(r.status)}
+      <span class="chip">open →</span>
+    </div>`).join("");
+  el.innerHTML = html;
+  el.querySelectorAll(".run-item").forEach(x => {
+    x.onclick = () => { location.hash = "#/results/" + encodeURIComponent(x.dataset.id); };
+    x.onkeydown = ev => { if (ev.key === "Enter") x.onclick(); };
+  });
+}
+function renderResultsList(){
+  const el = document.getElementById("resultsList");
+  if (!el) return;
+  if (!lastRuns.length){ el.innerHTML = '<div class="micro">No runs yet — start one on the <a href="#/run">Run evaluation</a> page.</div>'; return; }
+  el.innerHTML = lastRuns.map(r => `
+    <a class="rescard" href="#/results/${encodeURIComponent(r.run_id)}">
+      <div class="top"><span class="id">${esc(r.run_id)}</span>
+        <span class="chip">Mode ${esc(r.mode)}</span>${badge(r.status)}
+        <span class="chip">owner ${esc(r.owner||"operator")}</span></div>
+      <div class="meta">created ${esc(r.created_at||"")} · stage ${esc(r.stage||"")}${r.status!=="done"?" · still in flight — opens the live view":""}</div>
+    </a>`).join("");
+}
+
+/* ── run detail page (analysis + documents) ── */
 async function renderDetail(){
+  if (!selected) return;
   let st;
   try { st = await api("/api/runs/" + encodeURIComponent(selected)); } catch(e){ return; }
   const d = document.getElementById("detail");
@@ -523,7 +798,7 @@ async function renderDetail(){
     banner = `<div class="banner stop">Stopped at D.5 — ${esc(st.stop_reason || "operator stop")}</div>`;
 
   const pk = open.length ? `
-    <h2 style="margin-top:16px">Open packets</h2>
+    <section class="card"><h2>Open packets</h2>
     <div class="tblwrap"><table><tr><th>packet</th><th>kind</th><th>lane</th><th>judge</th><th>claimed by</th></tr>
     ${open.map(p => {
       const j = (p.packet_id.endsWith(":gemini")) ? "gm" : "cc";
@@ -531,23 +806,30 @@ async function renderDetail(){
         <td class="blind">${esc(p.label||"")}</td>
         <td><span class="jbadge ${j}">${j==="cc"?"CC":"GM"}</span></td>
         <td>${esc(p.claimed_by||"—")}</td></tr>`;}).join("")}
-    </table></div>` : "";
+    </table></div></section>` : "";
 
-  d.innerHTML = `<h2>Run detail</h2>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span class="id" style="font:13px var(--mono)">${esc(st.run_id)}</span>
-      <span class="chip">Mode ${esc(st.mode)}</span>${badge(st.status)}
-      <span class="chip">owner ${esc(st.owner||"operator")}</span>
+  d.innerHTML = `
+    <div class="dethead">
+      <a class="back" href="#/results">← All results</a>
+      <div style="margin-top:8px"><span class="id">${esc(st.run_id)}</span></div>
+      <div class="sub">
+        <span class="chip" style="border-color:rgba(255,255,255,.3);color:#d7efe9">Mode ${esc(st.mode)}</span>
+        ${badge(st.status)}
+        <span class="chip" style="border-color:rgba(255,255,255,.3);color:#d7efe9">owner ${esc(st.owner||"operator")}</span>
+        <span class="chip" style="border-color:rgba(255,255,255,.3);color:#d7efe9">created ${esc(st.created_at||"")}</span>
+      </div>
+      ${rail(st.mode, st.stage, st.status)}
     </div>
-    ${rail(st.mode, st.stage, st.status)}
     ${banner}
+    ${revealedBlock(st)}
+    ${documentsSection(st)}
+    <div class="sect-title" style="margin-top:26px">Analysis trail</div>
+    <div class="sect-sub">How the engine and the judges got there</div>
     ${preIntelPanel(st)}
     ${judgingPanel(st)}
-    ${pk}
-    ${usageLine(st)}
     ${checkpointPanel(st)}
-    ${deliverables(st)}
-    ${revealedBlock(st)}`;
+    ${pk}
+    ${usageLine(st)}`;
 
   const mt = document.getElementById("meterToggle");
   if (mt) mt.onclick = () => { meterAsTable = !meterAsTable; renderDetail(); };
@@ -568,12 +850,24 @@ async function renderDetail(){
   };
 }
 
-/* Poll at 4s; back off when the tab is hidden (UI/UX §6). */
+/* ── boot ── */
 function schedule(){
   clearInterval(pollT);
   pollT = setInterval(refresh, document.hidden ? 15000 : 4000);
 }
 document.addEventListener("visibilitychange", schedule);
+renderEngine();
+route();
+(async function bootAuth(){
+  try { AUTHCFG = await (await fetch("/auth/config")).json(); } catch(e){}
+  if (AUTHCFG.enabled && !SESSION && !TOKEN) showGate();
+  whoami();
+  const ut = document.getElementById("useTok");
+  if (ut) ut.onclick = (e) => { e.preventDefault(); askToken(); };
+  // Poll only AFTER the auth config is known — otherwise the first 401 races
+  // the config fetch and opens the token modal on top of the Google gate.
+  schedule(); refresh();
+})();
 </script>
 </body>
 </html>
