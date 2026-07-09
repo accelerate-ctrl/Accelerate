@@ -151,6 +151,12 @@ def batch_crosswalk(rd: Path, st: dict) -> bool:
                  "--sdd-path", str(_lane_sdd(st, label)), "--lane", lane,
                  "--run-id", st["run_id"], "--output-dir", str(rd),
                  "--features", str(fpath)])
+            # Pre-intelligence: add deterministic high-precision search
+            # variants per mechanism (additive fields; engine resolve reads
+            # its own fields untouched). The evidence packet embeds these.
+            qdoc = _j(q)
+            qdoc["queries"] = nlp.enrich_queries(qdoc.get("queries", []))
+            q.write_text(json.dumps(qdoc, indent=1))
         ev = rd / f"release-evidence-{lane}.json"
         if st.get("live_evidence"):
             pid = f"evidence:{label}"
@@ -165,6 +171,14 @@ def batch_crosswalk(rd: Path, st: dict) -> bool:
             res = packets.result(rd, pid)
             ev.write_text(json.dumps({"lane": lane, "as_of": res.get("as_of"),
                                       "evidence": res.get("evidence", {})}))
+            # Pre-intelligence: advisory review of the web evidence (snippet
+            # relevance + R23 domain pre-check). Separate artifact + digest;
+            # nothing dropped — the R23 validator stays the enforcement point.
+            review = nlp.review_evidence(res.get("evidence", {}),
+                                         _j(q).get("queries", []))
+            (rd / f"release-evidence-review-{lane}.json").write_text(
+                json.dumps(review, indent=1))
+            st["digests"].setdefault("release_review", {})[label] = review["summary"]
         else:
             ev.write_text(json.dumps({"lane": lane, "evidence": {}}))  # register-only
         d = _sh([PYTHON, _script("release_crosswalk.py"), "resolve",

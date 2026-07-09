@@ -144,3 +144,37 @@ class PreAnalysisAssembly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReleaseSupport(unittest.TestCase):
+    QUERIES = [{"mechanism_key": "shield_platform_encryption",
+                "mechanism_name": "Shield Platform Encryption",
+                "api_versions": ["28.0"],
+                "query": "Shield Platform Encryption Salesforce status",
+                "mentions": [{"section": "3 Security"}], "source": "regex_floor"}]
+
+    def test_enrich_preserves_and_adds(self):
+        from nlp.release_support import enrich_queries
+        out = enrich_queries(self.QUERIES)
+        self.assertEqual(out[0]["query"], self.QUERIES[0]["query"])  # original intact
+        self.assertIn('"Shield Platform Encryption" site:help.salesforce.com',
+                      out[0]["nlp_variants"])
+        self.assertTrue(any("API version 28.0" in v for v in out[0]["nlp_variants"]))
+        self.assertEqual(out[0]["sdd_sections"], ["3 Security"])
+        self.assertEqual(enrich_queries(self.QUERIES), out)  # deterministic
+
+    def test_review_evidence_flags(self):
+        from nlp.release_support import review_evidence
+        ev = {"shield_platform_encryption": [
+            {"url": "https://help.salesforce.com/s/article", "title": "Shield Platform Encryption",
+             "snippet": "Shield Platform Encryption encrypts data at rest"},
+            {"url": "https://random-blog.io/post", "title": "totally unrelated",
+             "snippet": "ten tips for productivity"}]}
+        r = review_evidence(ev, self.QUERIES)
+        s = r["summary"]
+        self.assertEqual(s["items"], 2)
+        self.assertEqual(s["low_relevance_items"], 1)
+        self.assertEqual(s["non_salesforce_domain_items"], 1)
+        rows = r["per_mechanism"]["shield_platform_encryption"]["items"]
+        self.assertTrue(rows[0]["salesforce_domain"] and rows[0]["relevance"] > 0.5)
+        self.assertFalse(rows[1]["salesforce_domain"])

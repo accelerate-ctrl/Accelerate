@@ -20,3 +20,4 @@ from .evidence_locator import (criterion_profile, locate_candidates,  # noqa: F4
                                anchor_relevance, traceability_matrix)
 from .guardrail_lint import injection_lint, blinding_scan   # noqa: F401
 from .pre_analysis import build_pre_analysis, prompt_digest, review_anchor_quality  # noqa: F401
+from .release_support import enrich_queries, review_evidence  # noqa: F401
