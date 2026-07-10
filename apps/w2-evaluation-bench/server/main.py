@@ -87,13 +87,29 @@ def _heartbeat(member: str | None, runner_id: str, engine: str | None) -> None:
             pass  # heartbeat persistence is best-effort; memory copy stands
 
 
+# Sole-operator mode (single-account judging): only the operator starts
+# runs; every other signed-in member SUBMITS a request the operator
+# approves and executes on their own machine/credentials.
+SOLE_OPERATOR = os.environ.get("W2_SOLE_OPERATOR", "").strip().lower()
+
+
+def _is_operator(member: str | None) -> bool:
+    m = (member or "").lower()
+    return m == "operator" or (SOLE_OPERATOR and m == SOLE_OPERATOR)
+
+
 def _member_from_email(email: str) -> str:
     """Map a signed-in Workspace user onto a member id for owner stamping
-    (FR-13): the email localpart when it matches a registered member name,
-    else the shared 'operator' identity."""
+    (FR-13): the email localpart when it matches a registered member name;
+    in sole-operator mode every Workspace user keeps a DISTINCT identity
+    (so requesters are never conflated with the operator); else the shared
+    'operator' identity."""
     local = email.split("@")[0].lower()
-    return local if local in {m.lower() for m in MEMBER_BY_TOKEN.values()} \
-        else "operator"
+    if local in {m.lower() for m in MEMBER_BY_TOKEN.values()}:
+        return local
+    if SOLE_OPERATOR:
+        return local
+    return "operator"
 
 
 def _member_of(request: Request) -> str | None:
@@ -240,6 +256,14 @@ def create_run(request: Request,
              # FR-13 owner-pays affinity: the uploader's seat runs this deal.
              "owner": getattr(request.state, "member", None) or "operator",
              "digests": {}, "checkpoint_approved": False}
+    # Sole-operator mode: non-operator submissions become REQUESTS — staged,
+    # visible, but not started until the operator approves. The operator's
+    # own uploads (and open local/dev mode) run immediately as before.
+    requester = getattr(request.state, "member", None)
+    if SOLE_OPERATOR and requester and not _is_operator(requester):
+        state["status"] = "requested"
+        state["requested_by"] = requester
+        state["owner"] = "operator"  # approved runs execute on the operator's runner
     # Learning loop 4 (advisory): warn when a slot's document reads like the
     # wrong artifact type — never blocks, the operator decides.
     try:
@@ -258,6 +282,10 @@ def create_run(request: Request,
     except Exception:
         pass
     save_state(run_id, state)
+    if state["status"] == "requested":
+        return {"run_id": run_id, "mode": mode, "status": "requested",
+                "note": "submitted to the operator for approval",
+                "intake_warnings": state.get("intake_warnings", [])}
     st = orchestrator.advance(run_id)
     return {"run_id": run_id, "mode": mode, "status": st["status"],
             "intake_warnings": state.get("intake_warnings", [])}
@@ -444,6 +472,35 @@ def runner_zip(request: Request):
                 z.write(p, f"runner/examples/{name}")
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": "attachment; filename=runner.zip"})
+
+
+@app.post("/api/runs/{run_id}/start")
+def start_requested(run_id: str, request: Request):
+    """Sole-operator mode: approve a requested run — it starts immediately
+    and its packets route to the operator's runner (owner-pays affinity)."""
+    if not _is_operator(getattr(request.state, "member", None)):
+        raise HTTPException(403, "only the operator can start requested runs")
+    st = load_state(run_id)
+    if st["status"] != "requested":
+        raise HTTPException(409, f"run is {st['status']}, not requested")
+    st["status"] = "created"
+    st["approved_by_operator_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    save_state(run_id, st)
+    out = orchestrator.advance(run_id)
+    return {"run_id": run_id, "status": out["status"]}
+
+
+@app.post("/api/runs/{run_id}/reject")
+def reject_requested(run_id: str, body: dict, request: Request):
+    if not _is_operator(getattr(request.state, "member", None)):
+        raise HTTPException(403, "only the operator can reject requests")
+    st = load_state(run_id)
+    if st["status"] != "requested":
+        raise HTTPException(409, f"run is {st['status']}, not requested")
+    st["status"] = "stopped"
+    st["stop_reason"] = (body or {}).get("reason") or "declined by operator"
+    save_state(run_id, st)
+    return {"run_id": run_id, "status": "stopped"}
 
 
 @app.post("/api/runs/{run_id}/feedback")

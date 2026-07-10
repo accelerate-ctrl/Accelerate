@@ -799,6 +799,11 @@ async function renderDetail(){
   }
   if (st.status === "stopped")
     banner = `<div class="banner stop">Stopped at D.5 — ${esc(st.stop_reason || "operator stop")}</div>`;
+  if (st.status === "requested")
+    banner = `<div class="banner wait"><b>Evaluation request</b> from <span class="blind">${esc(st.requested_by || "a teammate")}</span> — awaiting the operator. The run starts on the operator's judges when approved.
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="reqStartBtn">Approve &amp; run</button>
+        <button class="btn stop" id="reqDeclineBtn">Decline</button></div></div>`;
 
   const pk = open.length ? `
     <section class="card"><h2>Open packets</h2>
@@ -836,6 +841,22 @@ async function renderDetail(){
 
   const mt = document.getElementById("meterToggle");
   if (mt) mt.onclick = () => { meterAsTable = !meterAsTable; renderDetail(); };
+  const rqb = document.getElementById("reqStartBtn");
+  if (rqb) rqb.onclick = async () => {
+    rqb.disabled = true;
+    const r = await api(`/api/runs/${encodeURIComponent(st.run_id)}/start`, {method:"POST", headers: hdrs()});
+    if (r && r.status === 403) alert("Only the operator can start requested runs.");
+    renderDetail();
+  };
+  const rqd = document.getElementById("reqDeclineBtn");
+  if (rqd) rqd.onclick = async () => {
+    const reason = prompt("Reason for declining this request:") || "declined by operator";
+    const r = await api(`/api/runs/${encodeURIComponent(st.run_id)}/reject`,
+      {method:"POST", headers: Object.assign({"Content-Type":"application/json"}, hdrs()),
+       body: JSON.stringify({reason})});
+    if (r && r.status === 403) alert("Only the operator can decline requests.");
+    refresh();
+  };
   const ab = document.getElementById("approveBtn");
   if (ab) ab.onclick = async () => {
     await api(`/api/runs/${encodeURIComponent(st.run_id)}/approve`,

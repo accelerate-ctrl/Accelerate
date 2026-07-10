@@ -267,7 +267,40 @@ assert need <= set(rows[0]), rows[0].keys()
 assert all(r['final'] in ('Present','Partial','Absent') for r in rows)
 print('  learning ledger: %d rows | engines seen: %s' % (len(rows), engs))"
 
-echo "== 11. T-10 legacy five-pass protocol (frozen v4.6 path) =="
+echo "== 11. T-16 sole-operator request queue =="
+OP_PORT=${OP_PORT:-8892}
+W2APP_DATA_OP=$(mktemp -d)
+( W2APP_DATA="$W2APP_DATA_OP" W2APP_TOKENS="alice:tokA,operator:tokOP" \
+  W2_SOLE_OPERATOR="operator" \
+  setsid nohup python3 -m uvicorn server.main:app --port $OP_PORT --log-level warning \
+  > /tmp/uvicorn-op.log 2>&1 < /dev/null & )
+for i in $(seq 1 40); do curl -s -o /dev/null localhost:$OP_PORT/healthz && break; sleep 0.3; done
+RIDR=$(curl -s -H 'X-W2-Token: tokA' -X POST localhost:$OP_PORT/api/runs \
+  -F brd=@$F/brd.md -F sdd_1=@$F/sdd1.md -F evaluator_model=autonomous \
+  | python3 -c "import json,sys;d=json.load(sys.stdin);assert d['status']=='requested',d;print(d['run_id'])")
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -H 'X-W2-Token: tokA' -X POST localhost:$OP_PORT/api/runs/$RIDR/start)
+[ "$CODE" = "403" ] || fail "requester could start own request (got $CODE)"
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -H 'X-W2-Token: tokOP' -X POST localhost:$OP_PORT/api/runs/$RIDR/start)
+[ "$CODE" = "200" ] || fail "operator start returned $CODE"
+curl -s -H 'X-W2-Token: tokOP' localhost:$OP_PORT/api/runs/$RIDR | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['status']=='done', ('approved request did not complete', d['status'], d.get('error'))
+assert d.get('requested_by')=='alice' and d.get('owner')=='operator', (d.get('requested_by'), d.get('owner'))
+print('  request queue: alice requested -> operator approved -> done (owner=operator)')"
+RIDR2=$(curl -s -H 'X-W2-Token: tokA' -X POST localhost:$OP_PORT/api/runs \
+  -F brd=@$F/brd.md -F sdd_1=@$F/sdd1.md \
+  | python3 -c "import json,sys;print(json.load(sys.stdin)['run_id'])")
+curl -s -H 'X-W2-Token: tokOP' -X POST localhost:$OP_PORT/api/runs/$RIDR2/reject \
+  -H 'Content-Type: application/json' -d '{"reason":"duplicate"}' >/dev/null
+curl -s -H 'X-W2-Token: tokOP' localhost:$OP_PORT/api/runs/$RIDR2 | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+assert d['status']=='stopped' and d.get('stop_reason')=='duplicate', (d['status'], d.get('stop_reason'))
+print('  decline path: request stopped with reason')"
+pkill -f "uvicorn server.main:app --port $OP_PORT" 2>/dev/null || true
+rm -rf "$W2APP_DATA_OP"
+
+echo "== 12. T-10 legacy five-pass protocol (frozen v4.6 path) =="
 LEG_PORT=${LEG_PORT:-8889}
 W2APP_DATA_LEG=$(mktemp -d)
 ( W2APP_DATA="$W2APP_DATA_LEG" EVAL_PROTOCOL=five-pass \
