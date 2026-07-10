@@ -33,11 +33,39 @@ def _html_text(data: bytes) -> str:
     return re.sub(r"\n{3,}", "\n\n", _TAG.sub("", t)).strip()
 
 
+def _xlsx_text(data: bytes) -> str:
+    """Spreadsheet BRDs/user-story trackers: every sheet becomes a heading,
+    every row a line (non-empty cells joined) — the NLP layer then reads
+    requirement IDs, stories and modality exactly as in prose."""
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    parts = []
+    for ws in wb.worksheets:
+        parts.append(f"# Sheet: {ws.title}")
+        for row in ws.iter_rows(values_only=True):
+            cells = [str(c).strip() for c in row if c is not None
+                     and str(c).strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    wb.close()
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(parts)).strip()
+
+
 def to_text(filename: str, data: bytes) -> tuple[str, str]:
     """-> (normalized_text, detected_format). Magic bytes beat extensions:
     a .docx renamed .txt still reads as docx."""
     name = (filename or "").lower()
-    if data[:4] == b"PK\x03\x04" and (b"word/" in data[:4000] or name.endswith(".docx")):
+    if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        raise ValueError("legacy Office 97-2003 format (.doc/.xls) — please "
+                         "save as .docx/.xlsx and re-upload")
+    if data[:4] == b"PK\x03\x04" and (b"xl/workbook.xml" in data
+                                        or name.endswith(".xlsx")):
+        try:
+            return _xlsx_text(data), "xlsx"
+        except Exception:
+            pass
+    if data[:4] == b"PK\x03\x04" and (b"word/document.xml" in data
+                                        or name.endswith(".docx")):
         try:
             return _docx_text(data), "docx"
         except Exception:
