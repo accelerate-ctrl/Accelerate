@@ -79,3 +79,53 @@ class Provenance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConcretenessContract(unittest.TestCase):
+    """Regression for the live R25 failure: prose-only documents must never
+    yield Present/Partial claims without validator-concrete citations."""
+    PROSE = ("# Approach\n"
+             "We will streamline the intake journey for members and staff.\n"
+             "Leadership reviews a summary dashboard of turnaround weekly.\n"
+             "# Considerations\n"
+             "Workload balancing is handled by the existing arrangements.\n")
+
+    def test_auto_verdict_degrades_without_concrete_anchor(self):
+        crit = {"id": "P.mon", "name": "Operational monitoring",
+                "depth_indicator": "dashboard reporting for operations",
+                "depth_indicator_components": ["operations dashboard weekly"]}
+        st = auto_judge._sentence_terms(self.PROSE)
+        rec = auto_judge._auto_verdict(crit, self.PROSE, "claude-code", st, [])
+        if rec["verdict"] in ("Present", "Partial"):
+            self.assertTrue(auto_judge._concrete(rec["evidence_anchor"]))
+        else:
+            self.assertEqual(rec["evidence_anchor"], "topic absent from SDD")
+
+    def test_reconcile_never_adopts_ungrounded_claims(self):
+        items = {"X.1": {"claude-code": {"verdict": "Present",
+                          "evidence_anchor": "Leadership reviews a summary dashboard of turnaround weekly."},
+                         "gemini": {"verdict": "Partial",
+                          "evidence_anchor": "Workload balancing is handled by the existing arrangements."}}}
+        pkt = {"packet_id": "reconcile:Output A:1-3", "kind": "reconcile",
+               "label": "Output A",
+               "prompt": ("=== SDD (Output A) ===\n" + self.PROSE +
+                          "\n=== VERDICT ITEMS ===\n" + json.dumps(items) +
+                          "\n=== SCORE ITEMS ===\n{}")}
+        r = auto_judge.execute(pkt)["rulings"]["X.1"]
+        self.assertEqual(r["ruling"], "dissent",
+                         f"ungrounded P/P must dissent, got {r}")
+
+    def test_narrative_filters_ungrounded_citations(self):
+        coding = {"6A.x": {"verdict": "Partial", "sdd_ref": "SDD body",
+                           "evidence_anchor": "we improved the journey for members overall"}}
+        pkt = {"packet_id": "n", "kind": "narrative", "label": "Output A",
+               "prompt": ("=== AGGREGATE (five-pass) ===\n{}\n"
+                          "=== CODING DIGEST (modal verdicts + anchors) ===\n"
+                          + json.dumps(coding) +
+                          "\n=== OPERATOR BRD ===\nSF-1 requirement text\n")}
+        cits = auto_judge.execute(pkt)["zms_calibration_citations"]
+        for dim, entries in cits.items():
+            for e in entries:
+                if e.get("verdict") in ("Present", "Partial"):
+                    self.assertTrue(auto_judge._concrete(e["evidence_anchor"]),
+                                    (dim, e))

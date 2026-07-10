@@ -35,6 +35,19 @@ from nlp.evidence_locator import SYNONYMS, locate_candidates
 from nlp.lexicon import find_mechanisms
 from nlp.textproc import content_terms
 
+def _concrete(anchor: str) -> bool:
+    """R25's own concreteness contract (score_sheet_populate) — imported so
+    the screener can never drift from what validation will enforce."""
+    if not anchor or len(anchor) < 20:
+        return False
+    try:
+        from score_sheet_populate import _has_concrete_grounding
+        return bool(_has_concrete_grounding(anchor))
+    except Exception:
+        import re as _re
+        return bool(_re.search(r"\d|\w+__[cr]\b|\b[A-Z][a-z]+[A-Z]\w+\b|\b\w+_\w+\b|[\"']", anchor))
+
+
 RUNNER_ID = "auto-screener"
 ENGINE = "auto-screener"
 MODEL = "deterministic-nlp-preintel"
@@ -181,7 +194,7 @@ def _auto_verdict(crit: dict, sdd: str, judge: str,
                 break
         else:
             anchor = ""
-    if verdict != "Absent" and len(anchor) < 20:
+    if verdict != "Absent" and (len(anchor) < 20 or not _concrete(anchor)):
         verdict, anchor = "Absent", ""
     return {"verdict": verdict,
             "evidence_anchor": anchor if verdict != "Absent" else "topic absent from SDD",
@@ -269,14 +282,17 @@ def reconcile(packet: dict) -> dict:
              "risk": 3, "gap": 2, "strength": 1}
 
     def _resolves(a) -> bool:
-        return isinstance(a, str) and len(a) >= 20 and a in sdd
+        # a usable citation must resolve verbatim in the SDD AND satisfy the
+        # R25 concreteness contract — a paraphrase-grade quote fails sheets.
+        return (isinstance(a, str) and len(a) >= 20 and a in sdd
+                and _concrete(a))
 
     def _cite(*cands) -> str:
         for c in cands:
             if _resolves(c):
                 return c
         anchor, _ = base._anchor(sdd, ["integration", "apex", "flow", "sharing", "object"])
-        return anchor
+        return anchor if _concrete(anchor) else ""
 
     rulings = {}
     for key in sorted(crit_items):
@@ -298,9 +314,25 @@ def reconcile(packet: dict) -> dict:
         pick, ruling = first
         if not _resolves(pick.get("evidence_anchor", "")):
             pick, ruling = second
+        citation = _cite(pick.get("evidence_anchor", ""), aa, ab)
+        if not citation and pick.get("verdict") in ("Present", "Partial"):
+            # No concrete verbatim quote grounds the picked reading. The
+            # honest lexical ruling is the OTHER side if it needs no anchor
+            # (Absent); when both sides claim Present/Partial without a
+            # groundable quote, preserve a dissent — never assert what
+            # validation would reject as ungrounded.
+            other = second if ruling == first[1] else first
+            pick, ruling = other
+            if pick.get("verdict") in ("Present", "Partial"):
+                rulings[key] = {
+                    "ruling": "dissent", "value": None, "citation": None,
+                    "rationale": ("Neither screener can ground this reading in "
+                                  "a concrete verbatim quote; preserved for "
+                                  "human review rather than asserted.")}
+                continue
         rulings[key] = {
             "ruling": ruling, "value": None,
-            "citation": _cite(pick.get("evidence_anchor", ""), aa, ab),
+            "citation": citation or None,
             "rationale": ("Adopted the reading whose cited passage resolves "
                           "verbatim in the SDD and carries the stronger "
                           "component coverage.")}
@@ -389,9 +421,32 @@ def exec_narrative(packet: dict) -> dict:
     return out
 
 
+def narrative(packet: dict) -> dict:
+    """base.narrative, then drop any Present/Partial citation whose anchor
+    fails the R25 concreteness contract — fewer citations is honest;
+    an ungrounded one fails validation (observed on prose-heavy SDDs)."""
+    out = base.narrative(packet)
+    cits = out.get("zms_calibration_citations") or {}
+    for dim, entries in cits.items():
+        kept = [e for e in entries
+                if e.get("verdict") not in ("Present", "Partial")
+                or _concrete(e.get("evidence_anchor") or "")]
+        cits[dim] = kept or [{
+            "zms_criterion_id": f"{dim}A.general",
+            "source_label": "Zennify SDD standard",
+            "brd_ref": "BRD section 1", "sdd_ref": "SDD body",
+            "verdict": "Absent",
+            "evidence_anchor": "topic absent from SDD",
+            "negative_evidence": {"searched_sections": ["full document"],
+                                  "searched_terms": ["dimension", dim]},
+            "observation": "No concretely groundable citation for this "
+                           "dimension; recorded as negative evidence."}]
+    return out
+
+
 HANDLERS = {"components": base.components, "features": features,
             "pass": scoring_pass, "reconcile": reconcile, "review": review,
-            "narrative": base.narrative, "exec_narrative": exec_narrative,
+            "narrative": narrative, "exec_narrative": exec_narrative,
             "evidence": base.evidence}
 
 
