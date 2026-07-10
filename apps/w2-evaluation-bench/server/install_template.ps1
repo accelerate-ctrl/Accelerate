@@ -57,7 +57,10 @@ if (-not (Test-Path $EnvFile)) {
 @"
 W2_SERVER=$W2Server
 W2_TOKEN=$W2Token
-# Judge B - Gemini (REQUIRED for real evaluations; paid-tier key, doc 07):
+# Judging engine: gemini = single-AI (Gemini Pro + Flash, no Claude);
+# panel = legacy Claude + Gemini; mock = pipeline test without models.
+W2_ENGINE=gemini
+# Gemini key (REQUIRED for real evaluations; paid-tier key, doc 07):
 #GEMINI_API_KEY=
 #W2_GEMINI_TIER=paid
 "@ | Set-Content -Path $EnvFile -Encoding UTF8
