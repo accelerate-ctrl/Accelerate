@@ -240,9 +240,27 @@ def create_run(request: Request,
              # FR-13 owner-pays affinity: the uploader's seat runs this deal.
              "owner": getattr(request.state, "member", None) or "operator",
              "digests": {}, "checkpoint_approved": False}
+    # Learning loop 4 (advisory): warn when a slot's document reads like the
+    # wrong artifact type — never blocks, the operator decides.
+    try:
+        import nlp
+        warns = []
+        w = nlp.slot_warning("brd", (rd / "inputs" / files["brd"]).read_text())
+        if w:
+            warns.append({"slot": "brd", "warning": w})
+        for k in ("sdd_1", "sdd_2"):
+            if k in files:
+                w = nlp.slot_warning("sdd", (rd / "inputs" / files[k]).read_text())
+                if w:
+                    warns.append({"slot": k, "warning": w})
+        if warns:
+            state["intake_warnings"] = warns
+    except Exception:
+        pass
     save_state(run_id, state)
     st = orchestrator.advance(run_id)
-    return {"run_id": run_id, "mode": mode, "status": st["status"]}
+    return {"run_id": run_id, "mode": mode, "status": st["status"],
+            "intake_warnings": state.get("intake_warnings", [])}
 
 
 @app.get("/api/runs")
@@ -426,6 +444,29 @@ def runner_zip(request: Request):
                 z.write(p, f"runner/examples/{name}")
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": "attachment; filename=runner.zip"})
+
+
+@app.post("/api/runs/{run_id}/feedback")
+def finding_feedback(run_id: str, body: dict, request: Request):
+    """Learning loop 2: reviewer feedback on findings ({finding_id,
+    useful: bool}) feeds the bandit that orders future recommendations."""
+    from . import learning
+    fid = (body or {}).get("finding_id")
+    useful = (body or {}).get("useful")
+    if not fid or not isinstance(useful, bool):
+        raise HTTPException(400, "body must be {finding_id, useful: bool}")
+    cls = learning.finding_class(run_dir(run_id), fid)
+    learning.record_feedback(run_id, getattr(request.state, "member", None),
+                             fid, useful, cls)
+    return {"ok": True, "class": cls, "weights": learning.feedback_weights()}
+
+
+@app.get("/api/learning/weights")
+def learning_weights():
+    from . import learning
+    return {"weights": learning.feedback_weights(),
+            "screener_params_active": __import__("server.auto_judge",
+                fromlist=["get_params"]).get_params()}
 
 
 @app.get("/auth/config")

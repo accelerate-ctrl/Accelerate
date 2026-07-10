@@ -249,3 +249,50 @@ GOLD_VERDICTS = {
     "G.mig": "Partial",    # batch load mentioned; no migration approach
     "G.ai": "Absent",      # zero generative-AI content in the document
 }
+
+# Section recognition gold: novel headings that MUST map to canonical
+# components (unsupervised TF-IDF match, no rule names these headings), and
+# one heading that must honestly stay unrecognized.
+GOLD_SECTIONS_DOC = """# 1 Non-Functional Considerations
+The platform must sustain 400 concurrent agents with sub-second latency.
+Peak volume reaches 50,000 records per day with 99.9% availability targets.
+
+# 2 Safeguards and Trust
+Org-wide defaults are Private; permission set groups control access.
+Field-level security and encryption protect member data visibility.
+
+# 3 System Interfaces
+A middleware layer manages every external callout and API endpoint.
+Named credentials secure the service-to-service messaging.
+
+# 4 Insights and KPIs
+Dashboards track SLA metrics; reports measure adoption per channel.
+
+# 5 Legacy Data Conversion
+An ETL cutover migrates legacy records with a backfill validation pass.
+
+# 6 Meeting Cadence
+The team meets on Tuesdays. Notes are shared afterwards for review.
+"""
+GOLD_SECTION_LABELS = {
+    "1": "Non-Functional Requirements",
+    "2": "Security and Sharing Model",
+    "3": "Integration Architecture",
+    "4": "Reporting and Analytics Design",
+    "5": "Data Migration Approach",
+    "6": None,  # generic admin content: must NOT be forced onto a component
+}
+
+# Document-type gold: the classifier must recognize each artifact kind.
+GOLD_USER_STORIES = """# Sprint backlog
+As a member, I want to submit an application online so that I avoid a branch visit.
+As an agent, I need a unified queue so that I can work every channel.
+As a supervisor, I want SLA dashboards so that I can spot backlogs.
+Acceptance criteria are tracked per story in the backlog tool.
+"""
+GOLD_DOCTYPES = [
+    ("GOLD_BRD", "brd"),
+    ("GOLD_SDD", "sdd"),
+    ("GOLD_USER_STORIES", "user_stories"),
+    ("GOLD_PLAIN_ENGLISH", "unknown"),
+]

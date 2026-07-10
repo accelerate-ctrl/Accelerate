@@ -200,10 +200,34 @@ def grade_verdicts() -> list[dict]:
     return out
 
 
+def grade_sections() -> list[dict]:
+    """Unsupervised heading recognition vs hand-labeled canonical components."""
+    from nlp.section_match import match_sections
+    out = []
+    got = {r["ref"].split()[0].lstrip("\u00a7"): r["component"]
+           for r in match_sections(G.GOLD_SECTIONS_DOC)["sections"]}
+    for num, want in sorted(G.GOLD_SECTION_LABELS.items()):
+        label = want or "(unrecognized)"
+        out.append(_inst("sections", f"heading {num} -> {label}",
+                         got.get(num) == want, f"got: {got.get(num)}"))
+    return out
+
+
+def grade_doctype() -> list[dict]:
+    from nlp.doc_classifier import classify
+    out = []
+    for name, want in G.GOLD_DOCTYPES:
+        got = classify(getattr(G, name))["type"]
+        out.append(_inst("doctype", f"{name} = {want}", got == want,
+                         f"got: {got}"))
+    return out
+
+
 # ---------------------------------------------------------------- harness
 GRADERS = [grade_requirements, grade_mechanisms, grade_evidence,
            grade_traceability, grade_anchors, grade_injection,
-           grade_blinding, grade_release, grade_verdicts]
+           grade_blinding, grade_release, grade_verdicts,
+           grade_sections, grade_doctype]
 
 
 def run_benchmark() -> dict:

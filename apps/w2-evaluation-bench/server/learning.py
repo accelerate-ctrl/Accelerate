@@ -196,3 +196,47 @@ def apply(fitres: dict) -> dict:
     _invalidate_all_screeners()
     out["applied"] = True
     return out
+
+
+# ------------------------------------------------- loop 2: finding feedback
+FEEDBACK = LEARN_DIR / "feedback.jsonl"
+
+
+def finding_class(rd: Path, finding_id: str) -> str:
+    """(dimension, verdict) class of a finding, from the run's own bundle."""
+    try:
+        b = json.loads((rd / "sdd-review-bundle.json").read_text())
+        for f in b.get("findings") or []:
+            if f.get("id") == finding_id:
+                return f"d{f.get('dimension')}:{f.get('verdict')}"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def record_feedback(run_id: str, member, finding_id: str,
+                    useful: bool, cls: str) -> None:
+    LEARN_DIR.mkdir(parents=True, exist_ok=True)
+    with FEEDBACK.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                             "run": run_id, "member": member or "operator",
+                             "finding_id": finding_id, "useful": bool(useful),
+                             "class": cls}, sort_keys=True) + "\n")
+
+
+def feedback_weights() -> dict:
+    """Beta-mean usefulness per finding class ((ups+1)/(n+2), Laplace) —
+    the bandit weight consumers use to order recommendations. Classes never
+    drop to zero: every class keeps a floor of exploration."""
+    ups: dict = {}
+    n: dict = {}
+    if FEEDBACK.exists():
+        for line in FEEDBACK.read_text().splitlines():
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            c = r.get("class") or "unknown"
+            n[c] = n.get(c, 0) + 1
+            ups[c] = ups.get(c, 0) + (1 if r.get("useful") else 0)
+    return {c: round((ups.get(c, 0) + 1) / (n[c] + 2), 4) for c in n}

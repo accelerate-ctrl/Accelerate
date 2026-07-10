@@ -101,3 +101,26 @@ class LedgerFilter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Loop2To4(unittest.TestCase):
+    def test_slot_warning_flags_swapped_uploads(self):
+        sys.path.insert(0, str(ROOT / "tests"))
+        import gold_corpus as G
+        import nlp
+        self.assertIsNotNone(nlp.slot_warning("brd", G.GOLD_SDD))
+        self.assertIsNotNone(nlp.slot_warning("sdd", G.GOLD_BRD))
+        self.assertIsNone(nlp.slot_warning("brd", G.GOLD_BRD))
+        self.assertIsNone(nlp.slot_warning("sdd", G.GOLD_SDD))
+
+    def test_feedback_weights_beta_mean(self):
+        tmp = Path(tempfile.mkdtemp())
+        old = (learning.LEARN_DIR, learning.FEEDBACK)
+        learning.LEARN_DIR, learning.FEEDBACK = tmp, tmp / "feedback.jsonl"
+        try:
+            for useful in (True, True, False):
+                learning.record_feedback("r1", "op", "F-101", useful, "d1:gap")
+            w = learning.feedback_weights()
+            self.assertAlmostEqual(w["d1:gap"], (2 + 1) / (3 + 2))
+        finally:
+            learning.LEARN_DIR, learning.FEEDBACK = old
