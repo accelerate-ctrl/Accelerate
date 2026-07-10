@@ -66,7 +66,12 @@ W2_ENGINE=gemini
 "@ | Set-Content -Path $EnvFile -Encoding UTF8
   Write-Host "[install] env .................... $EnvFile (add your GEMINI_API_KEY here)"
 } else {
-  Write-Host "[install] env .................... exists - keeping it (edit to rotate tokens/keys)."
+  if (-not (Select-String -Path $EnvFile -Pattern '^\s*W2_ENGINE=' -Quiet)) {
+    Add-Content -Path $EnvFile -Value 'W2_ENGINE=gemini'
+    Write-Host "[install] env .................... exists - added W2_ENGINE=gemini (single-AI default)."
+  } else {
+    Write-Host "[install] env .................... exists - keeping it (edit to rotate tokens/keys)."
+  }
 }
 
 # --- starter: loads the env file, then keeps the runner alive ---------------
@@ -103,8 +108,13 @@ try {
   Write-Host "[install] service ................ Startup shortcut $StartupCmd (task scheduler unavailable; running now)"
 }
 
-# --- self-check --------------------------------------------------------------
+# --- self-check (env file loaded first so the engine choice applies) --------
 Write-Host ""
+Get-Content $EnvFile | ForEach-Object {
+  if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+    [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim(), 'Process')
+  }
+}
 & $Py (Join-Path $W2Home 'runner\w2_runner.py') --selfcheck --server $W2Server --token $W2Token
 if ($Installed) { Write-Host "[selfcheck] runner service ........ INSTALLED" }
 Write-Host ""

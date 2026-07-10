@@ -122,7 +122,7 @@ def selfcheck(server: str, token: str) -> int:
         ok = ok and passed
         print(f"[selfcheck] {name:.<24} {'PASS' if passed else 'FAIL'}  ({detail})")
 
-    engine = os.environ.get("W2_ENGINE", "panel")
+    engine = os.environ.get("W2_ENGINE", "gemini")
     if engine == "gemini":
         line("billing guard", True,
              "single-AI Gemini mode — no Claude component; Anthropic "
@@ -160,7 +160,7 @@ def main() -> int:
     ap.add_argument("--server", default=os.environ.get("W2_SERVER",
                                                        "http://localhost:8787"))
     ap.add_argument("--engine", choices=("panel", "gemini", "claude-code", "mock"),
-                    default=os.environ.get("W2_ENGINE", "panel"))
+                    default=os.environ.get("W2_ENGINE", "gemini"))
     ap.add_argument("--token", default=os.environ.get("W2APP_TOKEN", ""),
                     help="the member's personal bench token (X-W2-Token)")
     ap.add_argument("--once", action="store_true", help="drain current packets then exit")

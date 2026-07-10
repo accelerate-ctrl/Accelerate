@@ -45,3 +45,11 @@ class GeminiSoloRouting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_gemini_is_the_default_engine(self):
+        # 'Remove all the claude code component': Claude must be explicit
+        # opt-in — with no flags and no env, the runner judges with Gemini.
+        import os
+        src = (ROOT / "runner" / "w2_runner.py").read_text()
+        self.assertIn('os.environ.get("W2_ENGINE", "gemini")', src)
+        self.assertNotIn('os.environ.get("W2_ENGINE", "panel")', src)
