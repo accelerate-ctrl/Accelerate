@@ -194,7 +194,43 @@ print('  pre-intel: coverage %.0f%% traceability %.0f%% mechanisms %d' % (
       a['evidence_coverage']*100, a['traceability_rate']*100, len(pre['mechanisms'])))
 "
 
-echo "== 9. T-10 legacy five-pass protocol (frozen v4.6 path) =="
+echo "== 9. T-14 self-crawled release evidence (fixture-fed, no judge packet) =="
+CRAWL_PORT=${CRAWL_PORT:-8891}
+W2APP_DATA_CRAWL=$(mktemp -d)
+( W2APP_DATA="$W2APP_DATA_CRAWL" \
+  W2_EVIDENCE_FIXTURE="$PWD/tests/fixtures/release_evidence_fixture.json" \
+  setsid nohup python3 -m uvicorn server.main:app --port $CRAWL_PORT --log-level warning \
+  > /tmp/uvicorn-crawl.log 2>&1 < /dev/null & )
+for i in $(seq 1 40); do curl -s -o /dev/null localhost:$CRAWL_PORT/healthz && break; sleep 0.3; done
+RIDC=$(api -X POST localhost:$CRAWL_PORT/api/runs -F brd=@$F/brd.md -F sdd_1=@$F/sdd1.md \
+      -F live_evidence=true | python3 -c "import json,sys;print(json.load(sys.stdin)['run_id'])")
+python3 runner/w2_runner.py --server http://localhost:$CRAWL_PORT --engine mock --once --poll 0.3 >/dev/null
+api localhost:$CRAWL_PORT/api/runs/$RIDC | python3 -c "
+import json,sys; d=json.load(sys.stdin)
+assert d['status']=='done', (d['status'], d.get('error'))
+rr = d['digests'].get('release_review') or {}
+assert rr, 'release_review digest missing on self-crawl run'
+s = list(rr.values())[0]
+assert s['items'] > 0 and s['non_salesforce_domain_items'] == 0, s
+print('  self-crawl run done - evidence items:', s['items'], '| off-domain:', s['non_salesforce_domain_items'])"
+W2D="$W2APP_DATA_CRAWL" RIDC="$RIDC" python3 -c "
+import glob, json, os
+rd = os.environ['W2D'] + '/runs/' + os.environ['RIDC']
+evp = glob.glob(rd + '/release-evidence-*.json')
+evp = [x for x in evp if 'review' not in x]
+assert evp, 'release-evidence artifact missing'
+ev = json.load(open(evp[0]))
+assert ev.get('source') == 'self-crawl(fixture)', ev.get('source')
+assert any(ev['evidence'].values()), 'self-crawl produced no evidence items'
+assert all(u['url'].startswith('https://') and 'salesforce.com' in u['url']
+           for items in ev['evidence'].values() for u in items)
+assert glob.glob(rd + '/release-evidence-review-*.json'), 'review artifact missing'
+assert not glob.glob(rd + '/packets/evidence*'), 'judge evidence packet was created despite self-crawl'
+print('  self-crawl artifacts: evidence + review present, zero judge packets')"
+pkill -f "uvicorn server.main:app --port $CRAWL_PORT" 2>/dev/null || true
+rm -rf "$W2APP_DATA_CRAWL"
+
+echo "== 10. T-10 legacy five-pass protocol (frozen v4.6 path) =="
 LEG_PORT=${LEG_PORT:-8889}
 W2APP_DATA_LEG=$(mktemp -d)
 ( W2APP_DATA="$W2APP_DATA_LEG" EVAL_PROTOCOL=five-pass \

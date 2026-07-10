@@ -1,0 +1,10 @@
+{
+  "*": [
+    {"url": "https://help.salesforce.com/s/articleView?id=platform.overview",
+     "title": "Salesforce Platform mechanism overview",
+     "snippet": "This mechanism is generally available and fully supported in the current release."},
+    {"url": "https://developer.salesforce.com/docs/component-reference",
+     "title": "Developer reference",
+     "snippet": "Current developer documentation for the mechanism."}
+  ]
+}

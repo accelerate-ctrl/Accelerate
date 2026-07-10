@@ -9,6 +9,7 @@ Model judgment NEVER happens here. The server holds no model client at all.
 """
 from __future__ import annotations
 import json
+import os
 import subprocess
 import traceback
 from pathlib import Path
@@ -160,21 +161,40 @@ def batch_crosswalk(rd: Path, st: dict) -> bool:
         ev = rd / f"release-evidence-{lane}.json"
         if st.get("live_evidence"):
             pid = f"evidence:{label}"
-            if not packets.result_path(rd, pid).exists():
-                if not packets.exists(rd, pid):
-                    queries = _j(q).get("queries", [])
-                    packets.create(rd, pid, kind="evidence", label=label,
-                                   prompt=prompts.evidence_prompt(queries, lane),
-                                   needs_web=True)
-                done = False
-                continue
-            res = packets.result(rd, pid)
-            ev.write_text(json.dumps({"lane": lane, "as_of": res.get("as_of"),
-                                      "evidence": res.get("evidence", {})}))
+            # Self-crawl first (semi-intelligent layer): the server gathers
+            # the *.salesforce.com evidence itself from the enriched queries.
+            # Falls back to a web-capable judge packet when the crawl yields
+            # nothing (offline / blocked egress / no on-domain results) or
+            # when pinned to the legacy path with W2_EVIDENCE_SOURCE=judge.
+            if (not ev.exists() and not packets.exists(rd, pid)
+                    and os.environ.get("W2_EVIDENCE_SOURCE", "crawl") != "judge"):
+                try:
+                    crawled = nlp.gather_evidence(_j(q).get("queries", []))
+                except Exception:
+                    crawled = {"evidence": {}}
+                if any((crawled.get("evidence") or {}).values()):
+                    ev.write_text(json.dumps(
+                        {"lane": lane, "as_of": crawled.get("as_of"),
+                         "source": crawled.get("source", "self-crawl"),
+                         "evidence": crawled["evidence"]}))
+            if not ev.exists():
+                if not packets.result_path(rd, pid).exists():
+                    if not packets.exists(rd, pid):
+                        queries = _j(q).get("queries", [])
+                        packets.create(rd, pid, kind="evidence", label=label,
+                                       prompt=prompts.evidence_prompt(queries, lane),
+                                       needs_web=True)
+                    done = False
+                    continue
+                res = packets.result(rd, pid)
+                ev.write_text(json.dumps({"lane": lane, "as_of": res.get("as_of"),
+                                          "source": "judge",
+                                          "evidence": res.get("evidence", {})}))
             # Pre-intelligence: advisory review of the web evidence (snippet
-            # relevance + R23 domain pre-check). Separate artifact + digest;
-            # nothing dropped — the R23 validator stays the enforcement point.
-            review = nlp.review_evidence(res.get("evidence", {}),
+            # relevance + R23 domain pre-check) — crawled or judge-gathered
+            # alike. Separate artifact + digest; nothing dropped — the R23
+            # validator stays the enforcement point.
+            review = nlp.review_evidence(_j(ev).get("evidence", {}),
                                          _j(q).get("queries", []))
             (rd / f"release-evidence-review-{lane}.json").write_text(
                 json.dumps(review, indent=1))

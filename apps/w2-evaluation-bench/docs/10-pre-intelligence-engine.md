@@ -142,3 +142,17 @@ hand-labeled adversarial gold corpus and held to a ≥95% bar enforced in CI.
 Method, per-component numbers, and the defects the benchmark caught are in
 `docs/11-nlp-accuracy-report.md`; reproduce any time with
 `python3 scripts/nlp_benchmark.py`.
+
+## v1.2 — the layer gathers its own web evidence
+
+As of pre-intelligence v1.2 the release crosswalk no longer depends on a
+web-capable judge: when a run has live evidence on, the SERVER searches the
+web itself (keyless HTML search over the enriched per-mechanism queries),
+keeps only results from Salesforce-controlled domains — the same R23 rule
+the validator enforces, now applied at retrieval — deduplicates and caps
+deterministically, and hands the snippets to the engine's resolve step.
+A web-capable judge packet remains the automatic fallback whenever the
+crawl returns nothing. The covenant is intact: retrieval prepares, the
+engine's resolve step (and only it) classifies status from on-domain
+snippets, and `release-evidence-review-*.json` still records the advisory
+relevance/domain audit of whatever was gathered.

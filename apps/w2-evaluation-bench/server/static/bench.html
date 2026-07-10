@@ -220,7 +220,7 @@ footer .mono{color:var(--z-light-teal)}
       you're not needed again until the report.</p>
       <div class="chips">
         <span class="bchip">engine v4.7 · dual-judge consensus</span>
-        <span class="bchip">pre-intelligence v1.1</span>
+        <span class="bchip">pre-intelligence v1.2</span>
         <span class="bchip">99 frozen criteria · 7 dimensions</span>
         <span class="bchip">reported API cost $0.00</span>
       </div>
@@ -249,7 +249,7 @@ footer .mono{color:var(--z-light-teal)}
               <div><label for="zen">ZenAgent lane</label>
                 <select id="zen"><option value="a">SDD 1</option><option value="b">SDD 2</option></select></div>
               <div><label for="ev">Release evidence</label>
-                <select id="ev"><option value="">Register (offline)</option><option value="1">Live via runner</option></select></div>
+                <select id="ev"><option value="">Register (offline)</option><option value="1">Live — app self-crawls salesforce.com</option></select></div>
             </div>
           </div>
           <div class="row">
@@ -343,8 +343,9 @@ const ENGINE = [
         "Salesforce mechanism index (~90-phrase curated lexicon)",
         "Per-criterion evidence candidates — IDF-weighted, synonym-expanded, verbatim ≤25-word spans",
         "BRD→SDD traceability matrix (referenced / addressed / unmatched)",
-        "Guardrail lint: prompt-injection patterns + blinding-token scan"],
-  fact:"zero model calls · same inputs ⇒ byte-identical output · artifacts: pre-analysis-A/B.json"},
+        "Guardrail lint: prompt-injection patterns + blinding-token scan",
+        "Self-crawled release evidence: the app searches the web itself, keeps only *.salesforce.com sources, and feeds the crosswalk — judge packet only as fallback"],
+  fact:"zero model calls in analysis · same inputs ⇒ byte-identical processing · artifacts: pre-analysis-A/B.json + release-evidence-review"},
  {num:"02", acc:"var(--z-white-purple)", tc:"var(--z-dark-purple)", name:"Sealed Blinding",
   one:"Lane identities locked in an escrow nothing reads until the reveal.",
   caps:["ZenAgent↔lane mapping written once at intake to .lane-mapping",
