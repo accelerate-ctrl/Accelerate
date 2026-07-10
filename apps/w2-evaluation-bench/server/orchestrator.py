@@ -199,6 +199,8 @@ def batch_crosswalk(rd: Path, st: dict) -> bool:
             (rd / f"release-evidence-review-{lane}.json").write_text(
                 json.dumps(review, indent=1))
             st["digests"].setdefault("release_review", {})[label] = review["summary"]
+            st["digests"].setdefault("release_evidence_source", {})[label] = \
+                _j(ev).get("source", "judge")
         else:
             ev.write_text(json.dumps({"lane": lane, "evidence": {}}))  # register-only
         d = _sh([PYTHON, _script("release_crosswalk.py"), "resolve",
