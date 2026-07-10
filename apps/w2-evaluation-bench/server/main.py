@@ -145,6 +145,37 @@ async def token_auth(request: Request, call_next):
     return response
 
 
+def canonical_redirect_target(host: str, path: str, query: str = "") -> str | None:
+    """Cloud Run serves one service on two URLs (legacy *.a.run.app and the
+    deterministic *.run.app form), but Google OAuth only trusts registered
+    JavaScript origins — a browser on the unregistered twin gets
+    `origin_mismatch` at sign-in. When W2_CANONICAL_HOST is set, every
+    request on any other host is redirected onto it so the whole site lives
+    on ONE origin. Health probes are exempt (they address the instance, not
+    the site). Returns the absolute redirect URL, or None to pass through."""
+    canonical = os.environ.get("W2_CANONICAL_HOST", "").strip().lower()
+    if not canonical:
+        return None
+    host = (host or "").split(":")[0].strip().lower()
+    if not host or host == canonical or host in ("localhost", "127.0.0.1"):
+        return None
+    if path in ("/health", "/healthz"):
+        return None
+    return f"https://{canonical}{path}" + (f"?{query}" if query else "")
+
+
+@app.middleware("http")
+async def canonical_host(request: Request, call_next):
+    # Registered after token_auth => runs before it (outermost).
+    target = canonical_redirect_target(request.headers.get("host", ""),
+                                       request.url.path, request.url.query)
+    if target:
+        # 308: method+body preserved, so runner POSTs configured against the
+        # twin URL keep working through the hop.
+        return Response(status_code=308, headers={"Location": target})
+    return await call_next(request)
+
+
 # Upload ceiling (QA hardening): SDDs/BRDs are documents, not datasets. Cloud
 # Run already caps HTTP/1 requests at 32 MiB; this enforces the same class of
 # bound everywhere (local/dev included) instead of buffering arbitrary bytes.

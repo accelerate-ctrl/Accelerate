@@ -29,9 +29,15 @@ check "GET /health"                       200 "$(code "$URL/health")"
 curl -s --max-time 30 "$URL/health" | grep -q '"ok": *true' \
   && say "healthz body ok:true" "OK" || { say "healthz body ok:true" "FAIL"; FAIL=1; }
 check "GET /  (landing)"                  200 "$(code "$URL/")"
-curl -s --max-time 30 "$URL/" | grep -qi "zennify" \
-  && say "landing is the Zennify page" "OK" || { say "landing is the Zennify page" "FAIL"; FAIL=1; }
+ROOT_HTML=$(curl -s --max-time 30 "$URL/")
+echo "$ROOT_HTML" | grep -q "Two models. One blinded verdict" \
+  && say "/ is the landing page" "OK" || { say "/ is the landing page" "FAIL"; FAIL=1; }
+echo "$ROOT_HTML" | grep -q "Evaluation Bench · Console" \
+  && { say "/ must not serve the console" "FAIL"; FAIL=1; } \
+  || say "/ must not serve the console" "OK"
 check "GET /bench (console)"              200 "$(code "$URL/bench")"
+curl -s --max-time 30 "$URL/bench" | grep -q "Evaluation Bench · Console" \
+  && say "/bench is the console" "OK" || { say "/bench is the console" "FAIL"; FAIL=1; }
 
 # 2. auth is enforced (these MUST be 401 on a tokened deployment)
 check "GET /api/runs without token -> 401" 401 "$(code "$URL/api/runs")"
