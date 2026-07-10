@@ -1032,7 +1032,55 @@ def batch_mode_b_report(rd: Path, st: dict) -> None:
 
 
 # ------------------------------------------------------------------ driver
+def _auto_execute_open(rd: Path) -> int:
+    """Autonomous mode: the app executes its own packets in-process with the
+    deterministic screener (server/auto_judge.py). Results pass the same
+    shape validation a runner-posted result would; a failure marks the run
+    error rather than storing a malformed result. Returns packets completed."""
+    from . import auto_judge, packet_shapes
+    n = 0
+    for p in packets.open_packets(rd):
+        pid = p["packet_id"]
+        packet = packets.claim(rd, pid, auto_judge.RUNNER_ID)
+        result = auto_judge.execute(packet)
+        usage = auto_judge.usage_for(packet)
+        problem = (packet_shapes.validate_result(packet.get("kind"), result,
+                                                 packet.get("meta"))
+                   or packet_shapes.validate_judge_provenance(
+                       packet.get("kind"), packet.get("meta"), usage))
+        if problem:
+            raise RuntimeError(f"autonomous screener produced an invalid "
+                               f"{packet.get('kind')} result ({pid}): {problem}")
+        packets.complete(rd, pid, result, usage)
+        n += 1
+    return n
+
+
 def advance(run_id: str) -> dict:
+    """Stage driver. For autonomous runs the server IS the intelligence
+    layer: every time the pipeline pauses for packets, the deterministic
+    screener executes them in-process and the pipeline resumes — a run
+    completes with zero external judges, zero model calls."""
+    st = _advance_once(run_id)
+    if st.get("evaluator_model") == "autonomous":
+        rd = run_dir(run_id)
+        guard = 0
+        while st.get("status") == "awaiting_packets" and guard < 60:
+            guard += 1
+            try:
+                if not _auto_execute_open(rd):
+                    break
+            except Exception as e:
+                st = load_state(run_id)
+                st["status"] = "error"
+                st["error"] = f"autonomous screener: {e}"
+                save_state(run_id, st)
+                return st
+            st = _advance_once(run_id)
+    return st
+
+
+def _advance_once(run_id: str) -> dict:
     rd = run_dir(run_id)
     st = load_state(run_id)
     if st["status"] in ("done", "error"):

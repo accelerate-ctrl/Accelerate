@@ -219,3 +219,33 @@ GOLD_BLINDING_BENIGN = [
     "Offloading the shelf-life computation to a nightly batch is planned.",
     "Organizational change management is documented separately.",
 ]
+
+# Autonomous screener verdict gold: hand-labeled ground truth of what
+# GOLD_SDD objectively demonstrates per criterion. The evidence-primary
+# screener (judge slot A) must match exactly; the stricter coverage-primary
+# screener (slot B) may be at most ONE step stricter (its design), never
+# looser and never two steps away.
+GOLD_VERDICT_EXTRA_CRITERIA = [
+    {"id": "G.mon", "name": "Operational monitoring",
+     "depth_indicator": "Error monitoring, alerting and an operations "
+                        "dashboard support the running system",
+     "depth_indicator_components": ["error monitoring or alerting named",
+                                    "operations dashboard for support"]},
+    {"id": "G.mig", "name": "Data migration approach",
+     "depth_indicator": "Migration approach and data load tooling are "
+                        "named with a cutover plan",
+     "depth_indicator_components": ["migration approach named",
+                                    "data load tooling stated"]},
+]
+# criterion id -> ground-truth verdict on GOLD_SDD
+GOLD_VERDICTS = {
+    "G.enc": "Present",    # Shield at rest + TLS in transit both stated
+    "G.queue": "Present",  # record-triggered flow assigns the regional queue
+    "G.obj": "Present",    # custom object w/ API name + master-detail stated
+    "G.integ": "Present",  # named credential secures the callout
+    "G.dash": "Present",   # CRM Analytics dashboards cover the SLA metrics
+    "G.rel": "Present",    # scratch org + unlocked packages delivery
+    "G.mon": "Partial",    # a dashboard exists; no error monitoring/alerting
+    "G.mig": "Partial",    # batch load mentioned; no migration approach
+    "G.ai": "Absent",      # zero generative-AI content in the document
+}

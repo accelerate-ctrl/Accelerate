@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "engine" / "evaluate-sdd" / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
+sys.path.insert(0, str(ROOT / "server"))
 
 import gold_corpus as G  # noqa: E402
 from nlp.doc_model import build_doc_model  # noqa: E402
@@ -173,10 +174,36 @@ def grade_release() -> list[dict]:
     return out
 
 
+def grade_verdicts() -> list[dict]:
+    """Autonomous screener vs hand-labeled ground truth on GOLD_SDD:
+    judge A (evidence-primary) must match exactly; judge B (coverage-
+    primary) may be at most one step stricter, never looser/two off."""
+    import auto_judge
+    out = []
+    order = {"Present": 3, "Partial": 2, "Absent": 1}
+    crits = {c["id"]: c for c, _ in G.GOLD_EVIDENCE}
+    crits.update({c["id"]: c for c in G.GOLD_EVIDENCE_ABSENT})
+    crits.update({c["id"]: c for c in G.GOLD_VERDICT_EXTRA_CRITERIA})
+    sent_terms = auto_judge._sentence_terms(G.GOLD_SDD)
+    located = locate_candidates(G.GOLD_SDD, list(crits.values()))["per_criterion"]
+    for cid, want in sorted(G.GOLD_VERDICTS.items()):
+        cands = located.get(cid, {}).get("candidates", [])
+        va = auto_judge._auto_verdict(crits[cid], G.GOLD_SDD, "claude-code",
+                                      sent_terms, cands)["verdict"]
+        vb = auto_judge._auto_verdict(crits[cid], G.GOLD_SDD, "gemini",
+                                      sent_terms, cands)["verdict"]
+        out.append(_inst("verdicts", f"A {cid} = {want}", va == want,
+                         f"got: {va}"))
+        b_ok = order[want] - order.get(vb, 0) in (0, 1)
+        out.append(_inst("verdicts", f"B {cid} within one strict step of {want}",
+                         b_ok, f"got: {vb}"))
+    return out
+
+
 # ---------------------------------------------------------------- harness
 GRADERS = [grade_requirements, grade_mechanisms, grade_evidence,
            grade_traceability, grade_anchors, grade_injection,
-           grade_blinding, grade_release]
+           grade_blinding, grade_release, grade_verdicts]
 
 
 def run_benchmark() -> dict:

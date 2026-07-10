@@ -32,16 +32,34 @@ def content_terms(text: str) -> set[str]:
     return {t for t in tokens(text) if len(t) > 1 and t not in STOPWORDS}
 
 
+_LIST_ITEM = re.compile(r"^([-*•|]|\d+[.)])\s")
+
+
 def sentences(text: str) -> list[str]:
-    """Sentence segmentation good enough for evidence snippets: split on
-    terminal punctuation followed by a capital/paren, and on line breaks that
-    end list items. Never splits inside an ID like 'SF-1.2'."""
-    out = []
-    for block in (text or "").split("\n"):
-        block = block.strip()
-        if not block:
+    """Sentence segmentation good enough for evidence snippets: hard-wrapped
+    prose lines are re-joined within a paragraph (blank lines and list
+    markers start a new block), then split on terminal punctuation followed
+    by a capital/paren. Never splits inside an ID like 'SF-1.2'."""
+    out: list[str] = []
+    buf = ""
+
+    def _flush():
+        nonlocal buf
+        if buf.strip():
+            out.extend(s.strip() for s in _SENT_SPLIT.split(buf.strip()) if s.strip())
+        buf = ""
+
+    for line in (text or "").split("\n"):
+        ls = line.strip()
+        if not ls:
+            _flush()
             continue
-        out.extend(s.strip() for s in _SENT_SPLIT.split(block) if s.strip())
+        if _LIST_ITEM.match(ls):
+            _flush()
+            buf = ls
+            continue
+        buf = f"{buf} {ls}" if buf else ls
+    _flush()
     return out
 
 

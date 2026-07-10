@@ -255,8 +255,8 @@ footer .mono{color:var(--z-light-teal)}
           <div class="row">
             <div><label for="ckpt">Checkpoint</label>
               <select id="ckpt"><option value="1">Hands-free (default)</option><option value="">Pause at D.5 for me</option></select></div>
-            <div><label>Judging</label>
-              <span class="badge-panel"><i></i>Panel: Claude + Gemini</span></div>
+            <div><label for="judging">Judging</label>
+              <select id="judging"><option value="">AI panel: Claude + Gemini (via your runner)</option><option value="autonomous">Autonomous — the app scores itself (screening, no AI)</option></select></div>
           </div>
           <button class="btn" id="start">Start evaluation</button>
           <div class="micro">Three files → blinded comparison with methodology lift.
@@ -526,6 +526,8 @@ document.getElementById("start").onclick = async () => {
     if (document.getElementById("ev").value) fd.append("live_evidence", "true");
   }
   fd.append("auto_approve_checkpoint", document.getElementById("ckpt").value ? "true" : "false");
+  if (document.getElementById("judging").value)
+    fd.append("evaluator_model", document.getElementById("judging").value);
   const btn = document.getElementById("start");
   btn.disabled = true; btn.textContent = "Starting…";
   try {

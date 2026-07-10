@@ -85,7 +85,7 @@ def _anchor(sdd: str, keywords: list[str]) -> tuple[str, str]:
         r"data cloud|lwc|aura|workflow|process builder|custom object|custom field|"
         r"record type|sales cloud|service cloud|encrypt|sso|saml|jwt|connected app|"
         r"big object|external object|change data capture|bulk api|metadata api|"
-        r"integration|object|field|sharing|role hierarchy|automation)\b", re.I)
+        r"integration|object|field|sharing|role hierarchy|automation|scratch org|unlocked package|sandbox|change set|devops center|sfdx)\b", re.I)
     def _concrete(s): return bool(STRUCT.search(s) or TERMS.search(s))
     positions = [m.start() for kw in keywords for m in
                  re.finditer(re.escape(kw.lower()), low)][:24]

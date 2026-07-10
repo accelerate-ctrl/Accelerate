@@ -27,6 +27,7 @@ Post-build documents (added after the build shipped):
 | 10 | 10-pre-intelligence-engine.md | The deterministic NLP layer: what it computes, where it feeds the judges, and the prepare-and-verify covenant |
 | 11 | 11-nlp-accuracy-report.md | Measured NLP accuracy vs the hand-labeled gold corpus: 100% on 87 instances, ≥95% enforced in CI (`scripts/nlp_benchmark.py`) |
 | 12 | 12-local-run-windows.md | Single-machine operation on Windows: server + runner + console locally, env switches, self-crawled release evidence |
+| 13 | 13-autonomous-mode.md | Autonomous screening mode: the app scores on its own — two deterministic screeners, measured accuracy, honest disclosure |
 | — | qa-report.md | v2.0 QA & security audit: completeness matrix, E2E functionality evidence, security + prompt-injection review, hardening fixes |
 | — | errata.md | Every doc-vs-code conflict found during the build, with its ruling |
 

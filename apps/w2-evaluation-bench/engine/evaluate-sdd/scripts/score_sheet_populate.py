@@ -267,7 +267,7 @@ _PLATFORM_TERMS = re.compile(
     r"financial services cloud|encrypt|sso|saml|jwt|connected app|event monitoring|"
     r"big object|external object|cdc|change data capture|bulk api|metadata api|"
     r"integration|dead-letter|community|license|portal|hyperforce|soc 2|"
-    r"object|field|sharing|role hierarchy|automation)",
+    r"object|field|sharing|role hierarchy|automation|scratch org|unlocked package|sandbox|change set|devops center|sfdx)",
     re.IGNORECASE)
 
 

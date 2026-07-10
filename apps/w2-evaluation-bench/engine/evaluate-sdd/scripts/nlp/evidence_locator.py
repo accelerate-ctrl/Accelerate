@@ -33,6 +33,8 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
     "estimate": ("effort", "sizing", "timeline", "phase", "sprint"),
     "governance": ("runbook", "monitoring", "observability", "alerting"),
     "decision": ("rationale", "trade-off", "alternative", "option"),
+    "transport": ("tls", "transit", "https"),
+    "relationship": ("master-detail", "lookup", "junction"),
 }
 
 

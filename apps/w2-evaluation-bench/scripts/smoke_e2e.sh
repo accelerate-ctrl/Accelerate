@@ -230,7 +230,34 @@ print('  self-crawl artifacts: evidence + review present, zero judge packets')"
 pkill -f "uvicorn server.main:app --port $CRAWL_PORT" 2>/dev/null || true
 rm -rf "$W2APP_DATA_CRAWL"
 
-echo "== 10. T-10 legacy five-pass protocol (frozen v4.6 path) =="
+echo "== 10. T-15 autonomous mode (the app scores itself - zero runners) =="
+RIDA=$(api -X POST localhost:$PORT/api/runs -F brd=@$F/brd.md -F sdd_1=@$F/sdd1.md \
+      -F sdd_2=@$F/sdd2.md -F zenagent_is=a -F evaluator_model=autonomous \
+      | python3 -c "import json,sys;print(json.load(sys.stdin)['run_id'])")
+api localhost:$PORT/api/runs/$RIDA | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+assert d['status']=='done', ('autonomous run not done', d['status'], d.get('error'))
+assert not d.get('open_packets'), 'packets left open in autonomous mode'
+cons = d['digests'].get('consensus') or {}
+assert set(cons) == {'Output A','Output B'}, cons.keys()
+for lab,c in cons.items():
+    assert c.get('verdict_agreement_rate') is not None, (lab,c)
+assert 'report' in (d.get('artifacts') or {}), d.get('artifacts')
+print('  autonomous Mode A done, zero runners - agreement:',
+      {k: v['verdict_agreement_rate'] for k,v in cons.items()},
+      '| lift:', d['digests']['reveal']['headline_lift_za_minus_ots'])"
+W2D="$W2APP_DATA" RIDA="$RIDA" python3 -c "
+import json, os
+rd = os.environ['W2D'] + '/runs/' + os.environ['RIDA']
+st = json.load(open(rd + '/state.json'))
+assert st['evaluator_model'] == 'autonomous', st['evaluator_model']
+us = [json.load(open(rd + '/packets/' + f)).get('usage') or {}
+      for f in os.listdir(rd + '/packets') if f.endswith('.result.json')]
+assert us and all(u.get('engine') == 'auto-screener' and float(u.get('total_cost_usd') or 0) == 0.0 for u in us), 'non-screener usage found'
+print('  provenance: %d packets, all engine=auto-screener, cost \$0.00' % len(us))"
+
+echo "== 11. T-10 legacy five-pass protocol (frozen v4.6 path) =="
 LEG_PORT=${LEG_PORT:-8889}
 W2APP_DATA_LEG=$(mktemp -d)
 ( W2APP_DATA="$W2APP_DATA_LEG" EVAL_PROTOCOL=five-pass \
