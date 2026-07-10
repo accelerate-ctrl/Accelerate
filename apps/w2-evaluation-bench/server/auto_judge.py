@@ -39,6 +39,50 @@ RUNNER_ID = "auto-screener"
 ENGINE = "auto-screener"
 MODEL = "deterministic-nlp-preintel"
 
+# ---- calibrated thresholds (learning loop 1) -------------------------------
+# Defaults reproduce the gold-verified v1 behavior. A fitted params.json
+# (written ONLY after passing the gold-corpus gate in server/learning.py)
+# overrides them; W2_SCREENER_PARAMS env carries candidate params during
+# gating. invalidate_params() forces a reload after an update.
+_DEFAULT_PARAMS = {"min_matched_terms": 2, "present_deficit_div": 3}
+_params_cache: dict | None = None
+
+
+def _params_path():
+    import os
+    d = os.environ.get("W2APP_DATA")
+    return Path(d) / "learning" / "params.json" if d else None
+
+
+def invalidate_params() -> None:
+    global _params_cache
+    _params_cache = None
+
+
+def get_params() -> dict:
+    global _params_cache
+    if _params_cache is not None:
+        return _params_cache
+    import os
+    p = dict(_DEFAULT_PARAMS)
+    pp = _params_path()
+    try:
+        if pp and pp.exists():
+            saved = json.loads(pp.read_text())
+            p.update({k: int(saved[k]) for k in _DEFAULT_PARAMS if k in saved})
+    except Exception:
+        pass
+    env = os.environ.get("W2_SCREENER_PARAMS")
+    if env:
+        try:
+            cand = json.loads(env)
+            p.update({k: int(cand[k]) for k in _DEFAULT_PARAMS if k in cand})
+        except Exception:
+            pass
+        return p  # candidate params are transient: never cached
+    _params_cache = p
+    return p
+
 
 # ------------------------------------------------------------- verdict core
 def _expand(terms: set[str]) -> set[str]:
@@ -105,14 +149,17 @@ def _auto_verdict(crit: dict, sdd: str, judge: str,
     for comp in comps:
         s = _comp_status(comp, sent_terms)
         (present if s == "present" else partial if s == "partial" else absent).append(comp)
-    strong_candidate = bool(cands) and cands[0].get("matched_terms", 0) >= 2
+    prm = get_params()
+    strong_candidate = bool(cands) and (cands[0].get("matched_terms", 0)
+                                        >= prm["min_matched_terms"])
     if judge == "gemini":  # coverage-primary: every component must be present
         verdict = ("Present" if len(present) == len(comps) and strong_candidate
                    else "Partial" if present or len(partial) >= 2
                    else "Absent")
     else:                  # evidence-primary: strong evidence + majority depth
+        pdd = prm["present_deficit_div"]
         verdict = ("Present" if not absent and strong_candidate
-                   and len(present) >= max(1, len(comps) - len(comps) // 3)
+                   and len(present) >= max(1, len(comps) - len(comps) // pdd)
                    else "Partial" if present or partial else "Absent")
     kw = re.findall(r"[a-zA-Z]{5,}", " ".join(map(str, present + partial)))[:8] or \
         re.findall(r"[a-zA-Z]{5,}", crit.get("name", ""))

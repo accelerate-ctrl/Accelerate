@@ -256,6 +256,16 @@ us = [json.load(open(rd + '/packets/' + f)).get('usage') or {}
       for f in os.listdir(rd + '/packets') if f.endswith('.result.json')]
 assert us and all(u.get('engine') == 'auto-screener' and float(u.get('total_cost_usd') or 0) == 0.0 for u in us), 'non-screener usage found'
 print('  provenance: %d packets, all engine=auto-screener, cost \$0.00' % len(us))"
+W2D="$W2APP_DATA" python3 -c "
+import json, os
+led = os.environ['W2D'] + '/learning/ledger.jsonl'
+rows = [json.loads(l) for l in open(led)]
+assert rows, 'learning ledger empty after consensus runs'
+engs = sorted({e for r in rows for e in r['engines']})
+need = {'n_comps','n_present','n_partial','n_absent','top_matched','final','judge_verdicts'}
+assert need <= set(rows[0]), rows[0].keys()
+assert all(r['final'] in ('Present','Partial','Absent') for r in rows)
+print('  learning ledger: %d rows | engines seen: %s' % (len(rows), engs))"
 
 echo "== 11. T-10 legacy five-pass protocol (frozen v4.6 path) =="
 LEG_PORT=${LEG_PORT:-8889}

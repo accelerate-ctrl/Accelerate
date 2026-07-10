@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .config import SCRIPTS, ZMS_ROOT, PYTHON, ESCROW_NAME, EVAL_PROTOCOL
 from . import prompts, packets, bundle_assemble
+from . import learning
 from . import consensus as consensus_mod
 from .storage import run_dir, load_state, save_state
 
@@ -394,6 +395,10 @@ def batch_consensus(rd: Path, st: dict) -> bool:
                 continue
             cpath.parent.mkdir(parents=True, exist_ok=True)
             cpath.write_text(consensus_mod.to_json(rec))
+            # Learning loop 1: every merged consensus becomes training data
+            # for the autonomous screener (ledger is best-effort, advisory).
+            learning.record_consensus(rd, st, label, group, cards, rec,
+                                      ctx["criteria"], _lane_sdd(st, label))
     return done
 
 
