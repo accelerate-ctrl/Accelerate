@@ -82,3 +82,20 @@ SDD names. Reports and artifacts (including `pre-analysis-*.json` and
   local access only.
 - The cloud instance (docs 08/09) runs the identical code; anything verified
   locally behaves the same there.
+
+## Single-AI mode (Gemini only — no Claude anywhere)
+
+If Claude Code access is unavailable or unwanted, run the judging entirely
+on Gemini: two model tiers fill the two judge slots (Judge A = Gemini Pro,
+Judge B = Gemini Flash), so the dual-judge consensus, dissents and
+validation all still operate — one provider, one API key.
+
+```powershell
+$env:GEMINI_API_KEY = "<key>"; $env:W2_GEMINI_TIER = "paid"
+python runner\w2_runner.py --server <bench-url> --token <token> --engine gemini
+```
+
+Pick **"Single AI — Gemini Pro + Flash cross-check"** in the run form's
+Judging dropdown. Override tiers with `W2_GEMINI_MODEL_A` / `W2_GEMINI_MODEL_B`.
+The billing guard's Anthropic checks are moot in this mode (no Claude
+component exists); the Gemini paid-tier check still applies to client docs.

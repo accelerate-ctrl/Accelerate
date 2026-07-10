@@ -256,7 +256,7 @@ footer .mono{color:var(--z-light-teal)}
             <div><label for="ckpt">Checkpoint</label>
               <select id="ckpt"><option value="1">Hands-free (default)</option><option value="">Pause at D.5 for me</option></select></div>
             <div><label for="judging">Judging</label>
-              <select id="judging"><option value="">AI panel: Claude + Gemini (via your runner)</option><option value="autonomous">Autonomous — the app scores itself (screening, no AI)</option></select></div>
+              <select id="judging"><option value="panel:gemini-pro+gemini-flash">Single AI — Gemini Pro + Flash cross-check (via your runner)</option><option value="autonomous">Autonomous — the app scores itself (screening, no AI)</option><option value="">Legacy panel: Claude + Gemini</option></select></div>
           </div>
           <button class="btn" id="start">Start evaluation</button>
           <div class="micro">Three files → blinded comparison with methodology lift.
@@ -361,7 +361,7 @@ const ENGINE = [
         "Content-mapping classification + Dim-4 floor computed deterministically"],
   fact:"7 dimensions · 15/15/20/15/15/10/15 points · calibration never drifts mid-run"},
  {num:"04", acc:"var(--z-white-green)", tc:"var(--z-dark-teal)", name:"Dual-Judge Panel",
-  one:"Claude and Gemini score independently from byte-identical packets.",
+  one:"Two AI judges score independently from byte-identical packets — Gemini Pro + Flash, or the legacy Claude + Gemini panel.",
   caps:["1 packet per judge per lane×dimension-group — prompts byte-identical, judge only in metadata",
         "Claude runs on the member's Team seat (subscription, never API-billed)",
         "Gemini runs on the org's paid-tier Google key (fail-closed tier probe)",
@@ -572,8 +572,8 @@ function meterSVG(perDim){
     if (fused && con!=null){
       g += `<line x1="${x0}" y1="${y}" x2="${con}" y2="${y}" stroke="${C.sub}" stroke-width="5" stroke-linecap="round"><title>D${d.n}: judges concur — consensus ${n1(pd.con)}/${pd.max}</title></line>`;
     } else {
-      if (cc!=null) g += `<line x1="${x0}" y1="${y-3}" x2="${cc}" y2="${y-3}" stroke="${C.teal}" stroke-width="2.5" stroke-linecap="round"><title>Judge A (Claude): ${n1(pd.cc)}/${pd.max}</title></line>`;
-      if (gm!=null) g += `<line x1="${x0}" y1="${y+3}" x2="${gm}" y2="${y+3}" stroke="${C.blue}" stroke-width="2.5" stroke-linecap="round"><title>Judge B (Gemini): ${n1(pd.gm)}/${pd.max}</title></line>`;
+      if (cc!=null) g += `<line x1="${x0}" y1="${y-3}" x2="${cc}" y2="${y-3}" stroke="${C.teal}" stroke-width="2.5" stroke-linecap="round"><title>Judge A: ${n1(pd.cc)}/${pd.max}</title></line>`;
+      if (gm!=null) g += `<line x1="${x0}" y1="${y+3}" x2="${gm}" y2="${y+3}" stroke="${C.blue}" stroke-width="2.5" stroke-linecap="round"><title>Judge B: ${n1(pd.gm)}/${pd.max}</title></line>`;
       if (con!=null) g += `<circle cx="${con}" cy="${y}" r="3.4" fill="#0b1f20"><title>Consensus: ${n1(pd.con)}/${pd.max}</title></circle>`;
     }
     if (pd.dissent) g += `<circle cx="${x1+12}" cy="${y}" r="4.5" fill="${C.neg}"><title>D${d.n}: recorded dissent — see the report annex</title></circle><text x="${x1+21}" y="${y+4}" font-size="10" fill="${C.neg}" font-family="DM Mono,monospace">DISSENT</text>`;
@@ -649,14 +649,21 @@ function checkpointPanel(st){
        <button class="btn ghost" id="approveBtn">Proceed to score sheets</button>
        <button class="btn stop" id="stopBtn">Stop with reason</button></div>` : ""}</section>`;
 }
+function judgeNames(st){
+  const em = st.evaluator_model || "";
+  if (em === "autonomous") return ["Screener A", "Screener B"];
+  if (em.includes("gemini-pro")) return ["Gemini Pro", "Gemini Flash"];
+  return ["Claude", "Gemini"];
+}
 function usageLine(st){
   const u = st.usage || {};
   const per = u.per_judge || {};
   const cc = per["claude-code"] || {}, gm = per["gemini"] || {};
   const known = per["claude-code"] || per["gemini"];
-  return `<div class="usage">subscription usage · ${u.packets||0} packets · `
+  const [ja, jb] = judgeNames(st);
+  return `<div class="usage">judging usage · ${u.packets||0} packets · `
     + (known
-       ? `<span class="cc">${cc.input_tokens||0} in / ${cc.output_tokens||0} out (Claude)</span> · <span class="gm">${gm.input_tokens||0} in / ${gm.output_tokens||0} out (Gemini)</span>`
+       ? `<span class="cc">${cc.input_tokens||0} in / ${cc.output_tokens||0} out (${ja})</span> · <span class="gm">${gm.input_tokens||0} in / ${gm.output_tokens||0} out (${jb})</span>`
        : `${u.input_tokens||0} in / ${u.output_tokens||0} out`)
     + ` · <b>reported API cost $${(u.cost_usd_reported||0).toFixed(2)} (must stay 0.00)</b></div>`;
 }

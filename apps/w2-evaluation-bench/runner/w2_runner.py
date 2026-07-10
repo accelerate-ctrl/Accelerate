@@ -86,16 +86,29 @@ def run_claude_code(packet: dict, claude_exe: str) -> tuple[dict, dict]:
     return result, billing_guard.usage_from_result(payload)
 
 
+# Gemini-only panel (single AI): two model tiers fill the two judge slots —
+# genuinely different judges from one provider, one key, no Claude anywhere.
+GEMINI_MODEL_A = os.environ.get("W2_GEMINI_MODEL_A", "gemini-2.5-pro")
+GEMINI_MODEL_B = os.environ.get("W2_GEMINI_MODEL_B", "gemini-2.5-flash")
+
+
 def route_judge(packet: dict, engine: str) -> str:
-    """TR-8 judge routing. Panel: pass/review packets go to meta.judge;
-    reconcile, narrative, exec_narrative, components, features and evidence
-    are Judge A (claude-code). No silent fallback, ever."""
-    if engine != "panel":
+    """TR-8 judge routing. Panel/gemini: pass/review packets go to
+    meta.judge (the slot they were addressed to); reconcile, narrative,
+    exec_narrative, components, features and evidence are Judge A. No
+    silent fallback, ever."""
+    if engine not in ("panel", "gemini"):
         return "claude-code"
     meta = packet.get("meta") or {}
     if packet.get("kind") in ("pass", "review") and meta.get("judge"):
         return meta["judge"]
     return "claude-code"
+
+
+def gemini_model_for(judge_slot: str) -> str:
+    """Single-AI mode: Judge A slot -> the deeper Pro tier, Judge B slot ->
+    Flash. Two tiers = real methodological divergence, honest consensus."""
+    return GEMINI_MODEL_A if judge_slot == "claude-code" else GEMINI_MODEL_B
 
 
 def selfcheck(server: str, token: str) -> int:
@@ -109,11 +122,17 @@ def selfcheck(server: str, token: str) -> int:
         ok = ok and passed
         print(f"[selfcheck] {name:.<24} {'PASS' if passed else 'FAIL'}  ({detail})")
 
-    try:
-        billing_guard.preflight()
-        line("billing guard", True, "no API keys in scope; subscription auth OK")
-    except billing_guard.BillingGuardError as e:
-        line("billing guard", False, str(e).splitlines()[0][:120])
+    engine = os.environ.get("W2_ENGINE", "panel")
+    if engine == "gemini":
+        line("billing guard", True,
+             "single-AI Gemini mode — no Claude component; Anthropic "
+             "billing surface does not exist")
+    else:
+        try:
+            billing_guard.preflight()
+            line("billing guard", True, "no API keys in scope; subscription auth OK")
+        except billing_guard.BillingGuardError as e:
+            line("billing guard", False, str(e).splitlines()[0][:120])
     try:
         import gemini_judge
         info = gemini_judge.preflight()
@@ -140,7 +159,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--server", default=os.environ.get("W2_SERVER",
                                                        "http://localhost:8787"))
-    ap.add_argument("--engine", choices=("panel", "claude-code", "mock"),
+    ap.add_argument("--engine", choices=("panel", "gemini", "claude-code", "mock"),
                     default=os.environ.get("W2_ENGINE", "panel"))
     ap.add_argument("--token", default=os.environ.get("W2APP_TOKEN", ""),
                     help="the member's personal bench token (X-W2-Token)")
@@ -157,7 +176,14 @@ def main() -> int:
     global _TOKEN
     _TOKEN = args.token
     claude_exe = None
-    if args.engine in ("claude-code", "panel"):
+    if args.engine == "gemini":
+        import gemini_judge
+        gj = gemini_judge.preflight()
+        print(f"[{runner_id}] SINGLE-AI panel — Judge A {GEMINI_MODEL_A}, "
+              f"Judge B {GEMINI_MODEL_B} (both Gemini API, Google-side "
+              "billing; no Claude component in this mode). Packets route "
+              "by meta.judge; no silent fallback between slots.")
+    elif args.engine in ("claude-code", "panel"):
         info = billing_guard.preflight()  # G1+G2+G3
         claude_exe = info["claude"]
         print(f"[{runner_id}] billing guard PASS — subscription auth confirmed, "
@@ -203,6 +229,12 @@ def main() -> int:
                 import mock_intelligence
                 result = mock_intelligence.execute(p)
                 usage = mock_intelligence.usage_for(p)
+            elif args.engine == "gemini":
+                import gemini_judge
+                result, usage = gemini_judge.execute(
+                    p, model=gemini_model_for(judge))
+                usage["judge"] = judge  # TR-8: report the slot addressed
+                usage["engine"] = "gemini"
             elif judge == "gemini":
                 import gemini_judge
                 result, usage = gemini_judge.execute(p)
