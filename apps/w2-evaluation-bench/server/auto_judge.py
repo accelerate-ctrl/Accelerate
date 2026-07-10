@@ -294,6 +294,26 @@ def reconcile(packet: dict) -> dict:
         anchor, _ = base._anchor(sdd, ["integration", "apex", "flow", "sharing", "object"])
         return anchor if _concrete(anchor) else ""
 
+    def _comps_of(pair) -> list[str]:
+        out = []
+        for e in (pair.get("claude-code") or {}, pair.get("gemini") or {}):
+            for k in ("components_present", "components_partial",
+                      "components_absent"):
+                out += [str(c) for c in (e.get(k) or [])]
+        return out
+
+    def _supports(a: str, comps: list[str]) -> bool:
+        """Replica of the R25e supports_verdict check: the anchor must
+        textually touch a >3-char content word of some depth component —
+        a real-but-irrelevant quote fails validation."""
+        na = re.sub(r"\s+", " ", (a or "").lower()).strip()
+        for c in comps:
+            cw = [w for w in re.sub(r"\s+", " ", str(c).lower()).split()
+                  if len(w) > 3]
+            if cw and any(w in na for w in cw):
+                return True
+        return not comps  # nothing recorded to check against: don't block
+
     rulings = {}
     for key in sorted(crit_items):
         pair = crit_items[key] or {}
@@ -301,7 +321,10 @@ def reconcile(packet: dict) -> dict:
         eb = pair.get("gemini") or {}
         va, vb = ea.get("verdict", ""), eb.get("verdict", "")
         aa, ab = ea.get("evidence_anchor", ""), eb.get("evidence_anchor", "")
-        if abs(order.get(va, 0) - order.get(vb, 0)) >= 2 and _resolves(aa) and _resolves(ab):
+        comps = _comps_of(pair)
+        if abs(order.get(va, 0) - order.get(vb, 0)) >= 2 \
+                and _resolves(aa) and _resolves(ab) \
+                and _supports(aa, comps) and _supports(ab, comps):
             rulings[key] = {
                 "ruling": "dissent", "value": None, "citation": None,
                 "rationale": ("The screeners read the same passages two steps "
@@ -314,7 +337,11 @@ def reconcile(packet: dict) -> dict:
         pick, ruling = first
         if not _resolves(pick.get("evidence_anchor", "")):
             pick, ruling = second
-        citation = _cite(pick.get("evidence_anchor", ""), aa, ab)
+        citation = ""
+        for cand in (pick.get("evidence_anchor", ""), aa, ab):
+            if _resolves(cand) and _supports(cand, comps):
+                citation = cand
+                break
         if not citation and pick.get("verdict") in ("Present", "Partial"):
             # No concrete verbatim quote grounds the picked reading. The
             # honest lexical ruling is the OTHER side if it needs no anchor

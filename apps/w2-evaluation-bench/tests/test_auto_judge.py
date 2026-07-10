@@ -129,3 +129,35 @@ class ConcretenessContract(unittest.TestCase):
                 if e.get("verdict") in ("Present", "Partial"):
                     self.assertTrue(auto_judge._concrete(e["evidence_anchor"]),
                                     (dim, e))
+
+    def test_reconcile_rejects_real_but_irrelevant_quotes(self):
+        # R25e regression: concrete verbatim anchor that does not touch the
+        # criterion's depth components must never be adopted as a citation.
+        sdd = ("# 2 Data Model\n"
+               "Application__c is a custom object with API name provided.\n"
+               "# 6 Licensing\n"
+               "License counts for 40 Service Cloud seats are confirmed.\n")
+        irrelevant = "Application__c is a custom object with API name provided."
+        items = {"3A.license_fit": {
+            "claude-code": {"verdict": "Present", "evidence_anchor": irrelevant,
+                            "components_present": ["license fit confirmed"],
+                            "components_partial": [], "components_absent": []},
+            "gemini": {"verdict": "Partial", "evidence_anchor": irrelevant,
+                       "components_present": [],
+                       "components_partial": ["license fit confirmed"],
+                       "components_absent": []}}}
+        pkt = {"packet_id": "reconcile:Output A:4-7", "kind": "reconcile",
+               "label": "Output A",
+               "prompt": ("=== SDD (Output A) ===\n" + sdd +
+                          "\n=== VERDICT ITEMS ===\n" + json.dumps(items) +
+                          "\n=== SCORE ITEMS ===\n{}")}
+        r = auto_judge.execute(pkt)["rulings"]["3A.license_fit"]
+        self.assertEqual(r["ruling"], "dissent", r)
+        # and with a RELEVANT concrete anchor, adoption works with citation
+        relevant = "License counts for 40 Service Cloud seats are confirmed."
+        items["3A.license_fit"]["claude-code"]["evidence_anchor"] = relevant
+        pkt["prompt"] = ("=== SDD (Output A) ===\n" + sdd +
+                         "\n=== VERDICT ITEMS ===\n" + json.dumps(items) +
+                         "\n=== SCORE ITEMS ===\n{}")
+        r2 = auto_judge.execute(pkt)["rulings"]["3A.license_fit"]
+        self.assertEqual(r2["citation"], relevant, r2)
