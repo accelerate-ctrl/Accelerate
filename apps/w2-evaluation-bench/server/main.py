@@ -30,7 +30,7 @@ import os
 from fastapi import Request
 from fastapi.responses import Response
 
-from . import auth, orchestrator, packets, packet_shapes
+from . import auth, ingest, orchestrator, packets, packet_shapes
 from .storage import (new_run_id, run_dir, save_state, load_state, list_runs,
                       public_state, resolve_download)
 from .config import RUNS_DIR, DATA_DIR, EVAL_PROTOCOL
@@ -183,12 +183,25 @@ MAX_UPLOAD_BYTES = int(os.environ.get("W2_MAX_UPLOAD_MB", "25")) * 1024 * 1024
 
 
 def _save_upload(dest: Path, f: UploadFile) -> str:
+    """Accept any common document format: content is normalized to text at
+    intake (ingest.to_text recognizes docx/pdf/html by magic bytes, not
+    extension) so the NLP layer and judges always see clean text."""
     name = Path(f.filename or "upload.md").name
     data = f.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, f"{name} exceeds the "
                             f"{MAX_UPLOAD_BYTES // (1024*1024)} MiB upload limit")
-    (dest / name).write_bytes(data)
+    try:
+        text, fmt = ingest.to_text(name, data)
+    except Exception as e:
+        raise HTTPException(422, f"{name}: could not extract text ({e}). "
+                            "Supported: .md .txt .docx .pdf .html")
+    if not text.strip():
+        raise HTTPException(422, f"{name}: no extractable text found "
+                            f"(detected format: {fmt})")
+    if fmt != "text":
+        name = Path(name).stem + ".md"
+    (dest / name).write_text(text, encoding="utf-8")
     return name
 
 
