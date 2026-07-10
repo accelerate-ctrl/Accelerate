@@ -39,6 +39,12 @@ _DOMAIN_RANK = {"help.salesforce.com": 0, "developer.salesforce.com": 1,
 def _http_get(url: str, timeout: float = 8.0) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as r:
+        # Search engines answer bot challenges with 2xx-but-not-200 (DDG
+        # sends 202 "anomaly" pages from data-center IPs). Treat anything
+        # but a real 200 as a failed search so the caller moves on and the
+        # judge-packet fallback engages instead of parsing a challenge page.
+        if r.status != 200:
+            raise OSError(f"search endpoint answered {r.status}")
         return r.read().decode("utf-8", "replace")
 
 
